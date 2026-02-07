@@ -1,0 +1,371 @@
+{
+  "name": "SEO Agent - Master Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Daily Trigger 09:00",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/check-killswitch",
+        "method": "GET",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "check-killswitch",
+      "name": "Check Killswitch Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.pause_active }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-pause-active",
+      "name": "IF Pause Active",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {},
+      "id": "stop-workflow",
+      "name": "Stop - Pause Active",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/decide-action",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "decide-action",
+      "name": "Decide Next Action",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.action }}",
+        "rules": {
+          "rules": [
+            {
+              "value": "research",
+              "output": 0
+            },
+            {
+              "value": "brief",
+              "output": 1
+            },
+            {
+              "value": "content",
+              "output": 2
+            },
+            {
+              "value": "nothing",
+              "output": 3
+            }
+          ]
+        }
+      },
+      "id": "switch-action",
+      "name": "Switch Action Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/execute",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "task_type",
+              "value": "research"
+            },
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json.data) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "execute-research",
+      "name": "Execute Research Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1300, 200]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/execute",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "task_type",
+              "value": "brief"
+            },
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json.data) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "execute-brief",
+      "name": "Execute Brief Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1300, 350]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:5678/webhook/execute",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "task_type",
+              "value": "content"
+            },
+            {
+              "name": "data",
+              "value": "={{ JSON.stringify($json.data) }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "execute-content",
+      "name": "Execute Content Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1300, 500]
+    },
+    {
+      "parameters": {},
+      "id": "nothing-to-do",
+      "name": "Nothing To Do",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1300, 650]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/log-execution",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "workflow",
+              "value": "master"
+            },
+            {
+              "name": "status",
+              "value": "completed"
+            },
+            {
+              "name": "action",
+              "value": "={{ $('Switch Action Type').item.json.action }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-execution",
+      "name": "Log Execution",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1550, 400]
+    }
+  ],
+  "connections": {
+    "Daily Trigger 09:00": {
+      "main": [
+        [
+          {
+            "node": "Check Killswitch Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Killswitch Status": {
+      "main": [
+        [
+          {
+            "node": "IF Pause Active",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Pause Active": {
+      "main": [
+        [
+          {
+            "node": "Stop - Pause Active",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decide Next Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide Next Action": {
+      "main": [
+        [
+          {
+            "node": "Switch Action Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Action Type": {
+      "main": [
+        [
+          {
+            "node": "Execute Research Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Brief Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Content Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing To Do",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Research Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Brief Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Content Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "SEO Agent",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

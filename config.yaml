@@ -1,0 +1,76 @@
+general:
+  pause_active: false
+  max_publications_jour: 3
+  max_drafts_attente: 5
+  similarite_max: 0.70
+  heures_expiration_draft: 48
+  validation_humaine_requise: true
+
+sites:
+  - nom: "Déneigement Excellence"
+    domaine: "deneigement-excellence.ca"
+    chemin: "/var/www/deneigement"
+    categorie: "deneigement"
+    blog_path: "/var/www/deneigement/blog"
+    actif: true
+    mots_cles_seed:
+      - "déneigement Brossard"
+      - "déneigement Saint-Hubert"
+      - "déneigement commercial Rive-Sud"
+      - "déneigement résidentiel"
+
+  - nom: "Paysagiste Excellence"
+    domaine: "paysagiste-excellence.ca"
+    chemin: "/var/www/paysagement"
+    categorie: "paysagement"
+    blog_path: "/var/www/paysagement/blog"
+    actif: true
+    mots_cles_seed:
+      - "paysagiste Brossard"
+      - "aménagement paysager Rive-Sud"
+      - "entretien pelouse Saint-Hubert"
+
+  - nom: "JC Peintre"
+    domaine: "jcpeintre.com"
+    chemin: "/var/www/jcpeintre.com"
+    categorie: "peinture"
+    blog_path: "/var/www/jcpeintre.com/blog"
+    actif: true
+    mots_cles_seed:
+      - "peintre Montréal"
+      - "peinture intérieure Montréal"
+      - "peintre commercial"
+
+notifications:
+  telegram:
+    enabled: true
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+  email:
+    enabled: true
+    smtp_host: "smtp-relay.brevo.com"
+    smtp_port: 587
+    api_key: "${BREVO_API_KEY}"
+    from_email: "seo@deneigement-excellence.ca"
+    to_email: "${ADMIN_EMAIL}"
+  sms:
+    enabled: true
+    # Utilise config Twilio existante
+
+apis:
+  anthropic_key: "${ANTHROPIC_API_KEY}"
+  openai_key: "${OPENAI_API_KEY}"
+
+database:
+  path: "/opt/seo-agent/db/seo_agent.db"
+
+logging:
+  level: "INFO"
+  path: "/opt/seo-agent/logs/seo_agent.log"
+
+# Délais pour paraître humain
+timing:
+  delai_generation_min: 900      # 15 minutes minimum entre génération et notification
+  delai_generation_max: 1800     # 30 minutes max (randomisé)
+  delai_entre_articles: 14400    # 4 heures minimum entre 2 articles
+  heures_publication: [9, 10, 11, 14, 15, 16]  # Heures "humaines" de publication

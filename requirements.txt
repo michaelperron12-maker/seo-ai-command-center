@@ -1,0 +1,29 @@
+# SEO Agent - Dependances Python
+# Installation: pip install -r requirements.txt
+
+# Configuration et parsing
+pyyaml>=6.0
+
+# HTTP requests
+requests>=2.28.0
+
+# Templating pour generation de contenu
+jinja2>=3.1.0
+
+# Notifications Telegram
+python-telegram-bot>=20.0
+
+# API IA - Anthropic Claude
+anthropic>=0.18.0
+
+# API IA - OpenAI (alternative)
+openai>=1.0.0
+
+# Machine Learning pour calcul de similarite
+scikit-learn>=1.3.0
+
+# Dependances additionnelles utiles
+numpy>=1.24.0
+python-dotenv>=1.0.0
+
+# Note: sqlite3 est inclus dans la bibliotheque standard Python

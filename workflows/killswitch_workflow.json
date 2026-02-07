@@ -1,0 +1,589 @@
+{
+  "name": "SEO Agent - Killswitch Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "cron-hourly",
+      "name": "Hourly Check",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "killswitch",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-killswitch",
+      "name": "Webhook Killswitch",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "webhookId": "killswitch-manual"
+    },
+    {
+      "parameters": {},
+      "id": "merge-triggers",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/kill_switch.py --check-all"
+      },
+      "id": "check-all-systems",
+      "name": "Check All Systems",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = {\n    status: 'error',\n    problems_detected: true,\n    checks: {},\n    error: 'Failed to parse killswitch output',\n    raw: output\n  };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-check-output",
+      "name": "Parse Check Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.problems_detected }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-problem-detected",
+      "name": "IF Problem Detected",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 400]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/kill_switch.py --activate --reason '{{ $json.reason || \"Automatic activation due to detected problems\" }}'"
+      },
+      "id": "activate-killswitch",
+      "name": "Activate Killswitch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { activated: false, error: 'Failed to parse activation output' };\n}\nreturn [{ json: { ...result, original_check: $('Parse Check Output').item.json } }];"
+      },
+      "id": "parse-activation",
+      "name": "Parse Activation Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1750, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/notify-admin",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "killswitch_activated"
+            },
+            {
+              "name": "severity",
+              "value": "critical"
+            },
+            {
+              "name": "message",
+              "value": "SEO Agent Killswitch has been ACTIVATED"
+            },
+            {
+              "name": "problems",
+              "value": "={{ JSON.stringify($json.original_check.checks) }}"
+            },
+            {
+              "name": "reason",
+              "value": "={{ $json.original_check.reason }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "notify-admin-critical",
+      "name": "Notify Admin - Critical",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/log-killswitch",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "check"
+            },
+            {
+              "name": "status",
+              "value": "ok"
+            },
+            {
+              "name": "checks",
+              "value": "={{ JSON.stringify($json.checks) }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-check-ok",
+      "name": "Log Check OK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1500, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'killswitch_activated', problems: $json.original_check.checks, timestamp: $now.toISO() }) }}",
+        "options": {}
+      },
+      "id": "respond-activated",
+      "name": "Respond Killswitch Activated",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2250, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', checks: $json.checks, timestamp: $now.toISO() }) }}",
+        "options": {}
+      },
+      "id": "respond-ok",
+      "name": "Respond All OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1750, 500]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/log-killswitch",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "action",
+              "value": "activated"
+            },
+            {
+              "name": "status",
+              "value": "critical"
+            },
+            {
+              "name": "problems",
+              "value": "={{ JSON.stringify($json.original_check.checks) }}"
+            },
+            {
+              "name": "reason",
+              "value": "={{ $json.original_check.reason }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-activation",
+      "name": "Log Activation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2250, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "killswitch/deactivate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-deactivate",
+      "name": "Webhook Deactivate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 700],
+      "webhookId": "killswitch-deactivate"
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/kill_switch.py --deactivate --admin-override --reason '{{ $json.body.reason || \"Manual deactivation by admin\" }}'"
+      },
+      "id": "deactivate-killswitch",
+      "name": "Deactivate Killswitch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { deactivated: false, error: 'Failed to parse deactivation output' };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-deactivation",
+      "name": "Parse Deactivation Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 700]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/notify-admin",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "killswitch_deactivated"
+            },
+            {
+              "name": "severity",
+              "value": "info"
+            },
+            {
+              "name": "message",
+              "value": "SEO Agent Killswitch has been DEACTIVATED by admin"
+            },
+            {
+              "name": "reason",
+              "value": "={{ $('Webhook Deactivate').item.json.body.reason || 'Manual deactivation' }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-admin-deactivated",
+      "name": "Notify Admin - Deactivated",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 700]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'deactivated', timestamp: $now.toISO() }) }}",
+        "options": {}
+      },
+      "id": "respond-deactivated",
+      "name": "Respond Deactivated",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 700]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "killswitch/status",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-status",
+      "name": "Webhook Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 900],
+      "webhookId": "killswitch-status"
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/kill_switch.py --status"
+      },
+      "id": "get-status",
+      "name": "Get Killswitch Status",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [500, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { status: 'unknown', error: 'Failed to parse status output' };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-status",
+      "name": "Parse Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 900]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-status",
+      "name": "Respond Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1000, 900]
+    }
+  ],
+  "connections": {
+    "Hourly Check": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Killswitch": {
+      "main": [
+        [
+          {
+            "node": "Merge Triggers",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Triggers": {
+      "main": [
+        [
+          {
+            "node": "Check All Systems",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check All Systems": {
+      "main": [
+        [
+          {
+            "node": "Parse Check Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Check Output": {
+      "main": [
+        [
+          {
+            "node": "IF Problem Detected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Problem Detected": {
+      "main": [
+        [
+          {
+            "node": "Activate Killswitch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Check OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activate Killswitch": {
+      "main": [
+        [
+          {
+            "node": "Parse Activation Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Activation Result": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin - Critical",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Activation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin - Critical": {
+      "main": [
+        [
+          {
+            "node": "Respond Killswitch Activated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Check OK": {
+      "main": [
+        [
+          {
+            "node": "Respond All OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Deactivate": {
+      "main": [
+        [
+          {
+            "node": "Deactivate Killswitch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deactivate Killswitch": {
+      "main": [
+        [
+          {
+            "node": "Parse Deactivation Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Deactivation Result": {
+      "main": [
+        [
+          {
+            "node": "Notify Admin - Deactivated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Admin - Deactivated": {
+      "main": [
+        [
+          {
+            "node": "Respond Deactivated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Status": {
+      "main": [
+        [
+          {
+            "node": "Get Killswitch Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Killswitch Status": {
+      "main": [
+        [
+          {
+            "node": "Parse Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Status": {
+      "main": [
+        [
+          {
+            "node": "Respond Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "SEO Agent",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    },
+    {
+      "name": "Killswitch",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 4,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}

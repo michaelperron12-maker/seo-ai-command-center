@@ -1,0 +1,638 @@
+{
+  "name": "SEO Agent - Execute Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "execute",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Execute",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 400],
+      "webhookId": "execute-workflow"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.body.task_type }}",
+        "rules": {
+          "rules": [
+            {
+              "value": "research",
+              "output": 0
+            },
+            {
+              "value": "brief",
+              "output": 1
+            },
+            {
+              "value": "content",
+              "output": 2
+            },
+            {
+              "value": "publish",
+              "output": 3
+            }
+          ]
+        }
+      },
+      "id": "switch-task-type",
+      "name": "Switch Task Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/research_keywords.py --data '{{ $json.body.data }}'"
+      },
+      "id": "execute-research",
+      "name": "Execute Research Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [750, 150]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/generate_brief.py --data '{{ $json.body.data }}'"
+      },
+      "id": "execute-brief",
+      "name": "Execute Brief Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/generate_content.py --data '{{ $json.body.data }}'"
+      },
+      "id": "execute-content",
+      "name": "Execute Content Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [750, 450]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/publish_content.py --data '{{ $json.body.data }}'"
+      },
+      "id": "execute-publish",
+      "name": "Execute Publish Script",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [750, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { success: false, error: 'Failed to parse script output', raw: output };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-research-output",
+      "name": "Parse Research Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 150]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { success: false, error: 'Failed to parse script output', raw: output };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-brief-output",
+      "name": "Parse Brief Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { success: false, error: 'Failed to parse script output', raw: output };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-content-output",
+      "name": "Parse Content Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 450]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { success: false, error: 'Failed to parse script output', raw: output };\n}\nreturn [{ json: result }];"
+      },
+      "id": "parse-publish-output",
+      "name": "Parse Publish Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 600]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.draft_created }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-content-draft",
+      "name": "IF Draft Created",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 450]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/check_similarity.py --content_id '{{ $json.content_id }}'"
+      },
+      "id": "check-similarity",
+      "name": "Check Content Similarity",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1500, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout;\nlet result;\ntry {\n  result = JSON.parse(output);\n} catch (e) {\n  result = { similarity_score: 0, passed: false, error: 'Failed to parse output' };\n}\nreturn [{ json: { ...result, content_id: $('Parse Content Output').item.json.content_id } }];"
+      },
+      "id": "parse-similarity",
+      "name": "Parse Similarity Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1750, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.passed }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "if-similarity-passed",
+      "name": "IF Similarity Passed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2000, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/notify",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "draft_ready"
+            },
+            {
+              "name": "content_id",
+              "value": "={{ $json.content_id }}"
+            },
+            {
+              "name": "message",
+              "value": "Draft content ready for review"
+            },
+            {
+              "name": "similarity_score",
+              "value": "={{ $json.similarity_score }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-draft-ready",
+      "name": "Notify Draft Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2250, 350]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8002/api/notify",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "similarity_failed"
+            },
+            {
+              "name": "content_id",
+              "value": "={{ $json.content_id }}"
+            },
+            {
+              "name": "message",
+              "value": "Content similarity check failed - requires revision"
+            },
+            {
+              "name": "similarity_score",
+              "value": "={{ $json.similarity_score }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "notify-similarity-failed",
+      "name": "Notify Similarity Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2250, 500]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "task_type",
+              "value": "={{ $('Webhook Execute').item.json.body.task_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-response-research",
+      "name": "Set Response Research",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1250, 150]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "task_type",
+              "value": "={{ $('Webhook Execute').item.json.body.task_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-response-brief",
+      "name": "Set Response Brief",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "status",
+              "value": "success"
+            },
+            {
+              "name": "task_type",
+              "value": "={{ $('Webhook Execute').item.json.body.task_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-response-publish",
+      "name": "Set Response Publish",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [1250, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-research",
+      "name": "Respond Research",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1500, 150]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-brief",
+      "name": "Respond Brief",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1500, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'success', task_type: 'content', content_id: $json.content_id, similarity_passed: $json.passed }) }}",
+        "options": {}
+      },
+      "id": "respond-content",
+      "name": "Respond Content",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2500, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "respond-publish",
+      "name": "Respond Publish",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1500, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'skipped', reason: 'no_draft_created', task_type: 'content' }) }}",
+        "options": {}
+      },
+      "id": "respond-no-draft",
+      "name": "Respond No Draft",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1500, 550]
+    }
+  ],
+  "connections": {
+    "Webhook Execute": {
+      "main": [
+        [
+          {
+            "node": "Switch Task Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Task Type": {
+      "main": [
+        [
+          {
+            "node": "Execute Research Script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Brief Script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Content Script",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Publish Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Research Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Research Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Brief Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Brief Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Content Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Content Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Publish Script": {
+      "main": [
+        [
+          {
+            "node": "Parse Publish Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Research Output": {
+      "main": [
+        [
+          {
+            "node": "Set Response Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Brief Output": {
+      "main": [
+        [
+          {
+            "node": "Set Response Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Content Output": {
+      "main": [
+        [
+          {
+            "node": "IF Draft Created",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Publish Output": {
+      "main": [
+        [
+          {
+            "node": "Set Response Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Draft Created": {
+      "main": [
+        [
+          {
+            "node": "Check Content Similarity",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond No Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Content Similarity": {
+      "main": [
+        [
+          {
+            "node": "Parse Similarity Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Similarity Result": {
+      "main": [
+        [
+          {
+            "node": "IF Similarity Passed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Similarity Passed": {
+      "main": [
+        [
+          {
+            "node": "Notify Draft Ready",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Similarity Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Draft Ready": {
+      "main": [
+        [
+          {
+            "node": "Respond Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Similarity Failed": {
+      "main": [
+        [
+          {
+            "node": "Respond Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Response Research": {
+      "main": [
+        [
+          {
+            "node": "Respond Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Response Brief": {
+      "main": [
+        [
+          {
+            "node": "Respond Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Response Publish": {
+      "main": [
+        [
+          {
+            "node": "Respond Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "SEO Agent",
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "1"
+}
