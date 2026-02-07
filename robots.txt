@@ -1,30 +1,4 @@
-# SEO par AI - robots.txt
-# Optimized for Google, Bing, and AI crawlers
-
 User-agent: *
 Allow: /
 
-# Sitemap
 Sitemap: https://seoparai.ca/sitemap.xml
-
-# AI Crawlers - Welcome!
-User-agent: GPTBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
-User-agent: Claude-Web
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Amazonbot
-Allow: /
-
-# LLMs.txt for AI assistants
-# See: https://seoparai.ca/llms.txt
