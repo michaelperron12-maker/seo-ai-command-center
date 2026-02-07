@@ -1,0 +1,159 @@
+{
+  "name": "SEO Master - Orchestrateur Principal",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "hours", "hoursInterval": 3}]
+        }
+      },
+      "id": "trigger-cron",
+      "name": "Toutes les 3 heures",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "http://seo-agent-api:8002/api/health",
+        "options": {"timeout": 10000}
+      },
+      "id": "health-check",
+      "name": "Health Check API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "url": "http://seo-agent-api:8002/api/check-killswitch",
+        "options": {}
+      },
+      "id": "check-killswitch",
+      "name": "Verifier Kill-Switch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.pause_active }}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "id": "if-not-paused",
+      "name": "Si pas en pause",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "command": "cd /opt/seo-agent && python3 scripts/seo_brain.py check"
+      },
+      "id": "brain-check",
+      "name": "SEO Brain Check",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [880, -100]
+    },
+    {
+      "parameters": {
+        "url": "http://seo-agent-api:8002/api/uptime/stats",
+        "options": {}
+      },
+      "id": "uptime-check",
+      "name": "Verifier Uptime Sites",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [880, 100]
+    },
+    {
+      "parameters": {
+        "url": "http://seo-agent-api:8002/api/stats",
+        "options": {}
+      },
+      "id": "get-stats",
+      "name": "Stats Globales",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "url": "http://seo-agent-api:8002/api/pending",
+        "options": {}
+      },
+      "id": "check-pending",
+      "name": "Actions en attente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1320, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.drafts.length }}",
+              "operation": "largerEqual",
+              "value2": 1
+            }
+          ]
+        }
+      },
+      "id": "if-pending",
+      "name": "Si drafts en attente",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1540, 0]
+    },
+    {
+      "parameters": {
+        "command": "echo '[MASTER] Cycle complet - {{ $now.format(\"yyyy-MM-dd HH:mm\") }} - Drafts: {{ $json.drafts.length }}' >> /opt/seo-agent/logs/master.log"
+      },
+      "id": "log-result",
+      "name": "Log Resultat",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1760, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {"id": "msg", "name": "message", "value": "Kill-switch ACTIF - Agents en pause", "type": "string"}
+          ]
+        }
+      },
+      "id": "paused-msg",
+      "name": "Message Pause",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [880, 300]
+    }
+  ],
+  "connections": {
+    "Toutes les 3 heures": {"main": [[{"node": "Health Check API", "type": "main", "index": 0}]]},
+    "Health Check API": {"main": [[{"node": "Verifier Kill-Switch", "type": "main", "index": 0}]]},
+    "Verifier Kill-Switch": {"main": [[{"node": "Si pas en pause", "type": "main", "index": 0}]]},
+    "Si pas en pause": {
+      "main": [
+        [{"node": "SEO Brain Check", "type": "main", "index": 0}, {"node": "Verifier Uptime Sites", "type": "main", "index": 0}],
+        [{"node": "Message Pause", "type": "main", "index": 0}]
+      ]
+    },
+    "SEO Brain Check": {"main": [[{"node": "Stats Globales", "type": "main", "index": 0}]]},
+    "Verifier Uptime Sites": {"main": [[{"node": "Stats Globales", "type": "main", "index": 0}]]},
+    "Stats Globales": {"main": [[{"node": "Actions en attente", "type": "main", "index": 0}]]},
+    "Actions en attente": {"main": [[{"node": "Si drafts en attente", "type": "main", "index": 0}]]},
+    "Si drafts en attente": {"main": [[{"node": "Log Resultat", "type": "main", "index": 0}], [{"node": "Log Resultat", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "seo-agent"}]
+}

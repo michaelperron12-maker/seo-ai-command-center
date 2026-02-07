@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-SEO Scanner API - Scanner killer pour seoparai.ca
-Analyse complète SEO + AI-readiness pour tout site web
+SEO Scanner API - Scanner STRICT pour seoparai.ca
+Analyse complète SEO + AI-readiness - SCORING SÉVÈRE
 """
 
 import requests
@@ -12,7 +12,7 @@ import socket
 from datetime import datetime
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import concurrent.futures
 import time
@@ -21,7 +21,7 @@ app = Flask(__name__)
 CORS(app)
 
 class SEOScanner:
-    """Scanner SEO complet avec focus AI-readiness"""
+    """Scanner SEO STRICT avec focus AI-readiness"""
 
     def __init__(self, domain):
         self.domain = domain.lower().strip()
@@ -45,7 +45,7 @@ class SEOScanner:
     def fetch_page(self, url, timeout=15):
         """Récupère une page web"""
         headers = {
-            'User-Agent': 'Mozilla/5.0 (compatible; SEOparAI-Scanner/1.0; +https://seoparai.ca)',
+            'User-Agent': 'Mozilla/5.0 (compatible; SEOparAI-Scanner/2.0; +https://seoparai.ca)',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'fr-CA,fr;q=0.9,en;q=0.8'
         }
@@ -63,7 +63,7 @@ class SEOScanner:
 
     def run_full_scan(self):
         """Lance le scan complet"""
-        print(f"[SCAN] Démarrage scan complet: {self.domain}")
+        print(f"[SCAN] Démarrage scan STRICT: {self.domain}")
 
         # Récupérer la page d'accueil
         resp = self.fetch_page(self.base_url)
@@ -79,7 +79,7 @@ class SEOScanner:
         self.soup = BeautifulSoup(self.html, 'html.parser')
         self.final_url = resp.url
 
-        # Exécuter tous les scans en parallèle
+        # Exécuter tous les scans
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures = {
                 executor.submit(self.scan_seo_classic): 'seo_classic',
@@ -95,8 +95,8 @@ class SEOScanner:
                 except Exception as e:
                     self.results[category] = {'error': str(e)}
 
-        # Calculer les scores
-        self.calculate_scores()
+        # Calculer les scores STRICTS
+        self.calculate_strict_scores()
 
         # Générer les recommandations
         self.generate_recommendations()
@@ -104,246 +104,266 @@ class SEOScanner:
         return self.results
 
     # ==========================================
-    # SEO CLASSIQUE
+    # SEO CLASSIQUE - STRICT
     # ==========================================
     def scan_seo_classic(self):
-        """Analyse SEO classique"""
-        results = {'checks': [], 'passed': 0, 'failed': 0}
+        """Analyse SEO classique STRICTE"""
+        results = {'checks': [], 'passed': 0, 'failed': 0, 'warnings': 0}
 
-        # Title
+        # Title - STRICT: doit être entre 50-60 chars
         title_tag = self.soup.find('title')
         title = title_tag.text.strip() if title_tag else None
         title_len = len(title) if title else 0
+        title_status = 'pass' if title and 50 <= title_len <= 60 else 'warning' if title and 30 <= title_len < 50 else 'fail'
         results['checks'].append({
-            'name': 'Meta Title',
-            'status': 'pass' if title and 30 <= title_len <= 60 else 'warning' if title else 'fail',
+            'name': 'Meta Title Optimisé',
+            'status': title_status,
             'value': title[:80] if title else None,
-            'details': f'{title_len} caractères' if title else 'Manquant',
+            'details': f'{title_len} caractères (optimal: 50-60)' if title else 'MANQUANT - Critique pour SEO',
             'importance': 'critical',
-            'recommendation': 'Titre entre 30-60 caractères avec mot-clé principal' if not title or title_len < 30 or title_len > 60 else None
+            'recommendation': 'Titre entre 50-60 caractères avec mot-clé principal au début' if title_status != 'pass' else None
         })
 
-        # Meta Description
+        # Meta Description - STRICT: doit être entre 150-160 chars
         meta_desc = self.soup.find('meta', attrs={'name': 'description'})
         desc = meta_desc.get('content', '').strip() if meta_desc else None
         desc_len = len(desc) if desc else 0
+        desc_status = 'pass' if desc and 150 <= desc_len <= 160 else 'warning' if desc and 100 <= desc_len < 150 else 'fail'
         results['checks'].append({
-            'name': 'Meta Description',
-            'status': 'pass' if desc and 120 <= desc_len <= 160 else 'warning' if desc else 'fail',
+            'name': 'Meta Description Optimisée',
+            'status': desc_status,
             'value': desc[:200] if desc else None,
-            'details': f'{desc_len} caractères' if desc else 'Manquante',
+            'details': f'{desc_len} caractères (optimal: 150-160)' if desc else 'MANQUANTE - Perte de clics',
             'importance': 'critical',
-            'recommendation': 'Description entre 120-160 caractères avec call-to-action' if not desc or desc_len < 120 or desc_len > 160 else None
+            'recommendation': 'Description 150-160 caractères avec call-to-action et mot-clé' if desc_status != 'pass' else None
         })
 
-        # H1
+        # H1 - STRICT: exactement 1, avec mot-clé
         h1_tags = self.soup.find_all('h1')
         h1_count = len(h1_tags)
         h1_text = h1_tags[0].text.strip()[:100] if h1_tags else None
+        h1_status = 'pass' if h1_count == 1 else 'fail'
         results['checks'].append({
-            'name': 'Balise H1',
-            'status': 'pass' if h1_count == 1 else 'warning' if h1_count > 1 else 'fail',
+            'name': 'Balise H1 Unique',
+            'status': h1_status,
             'value': h1_text,
-            'details': f'{h1_count} H1 trouvé(s)' if h1_count else 'Aucun H1',
+            'details': f'{h1_count} H1 trouvé(s) - doit être exactement 1' if h1_count != 1 else 'OK - 1 H1 unique',
             'importance': 'critical',
-            'recommendation': 'Un seul H1 par page avec mot-clé principal' if h1_count != 1 else None
+            'recommendation': 'Exactement 1 H1 par page avec mot-clé principal' if h1_status != 'pass' else None
         })
 
-        # H2-H6 Structure
-        headings = {f'h{i}': len(self.soup.find_all(f'h{i}')) for i in range(2, 7)}
-        has_structure = headings['h2'] > 0
+        # H2 Structure - STRICT: minimum 3 H2
+        h2_tags = self.soup.find_all('h2')
+        h2_count = len(h2_tags)
+        h2_status = 'pass' if h2_count >= 3 else 'warning' if h2_count >= 1 else 'fail'
         results['checks'].append({
-            'name': 'Structure des titres',
-            'status': 'pass' if has_structure else 'fail',
-            'value': headings,
-            'details': f"H2: {headings['h2']}, H3: {headings['h3']}, H4: {headings['h4']}",
+            'name': 'Structure H2 (min 3)',
+            'status': h2_status,
+            'value': f'{h2_count} H2 trouvés',
+            'details': f'{h2_count}/3 minimum requis',
             'importance': 'high',
-            'recommendation': 'Ajouter des sous-titres H2, H3 pour structurer le contenu' if not has_structure else None
+            'recommendation': f'Ajouter {3 - h2_count} sous-titres H2 pour structurer le contenu' if h2_status != 'pass' else None
         })
 
-        # Images ALT
+        # Images ALT - STRICT: 100% requis
         images = self.soup.find_all('img')
-        images_with_alt = [img for img in images if img.get('alt') and img.get('alt').strip()]
-        img_score = (len(images_with_alt) / len(images) * 100) if images else 100
+        images_with_alt = [img for img in images if img.get('alt') and len(img.get('alt', '').strip()) > 5]
+        img_count = len(images)
+        alt_count = len(images_with_alt)
+        img_score = (alt_count / img_count * 100) if img_count > 0 else 100
+        img_status = 'pass' if img_score == 100 else 'warning' if img_score >= 80 else 'fail'
         results['checks'].append({
-            'name': 'Images avec ALT',
-            'status': 'pass' if img_score >= 90 else 'warning' if img_score >= 50 else 'fail',
-            'value': f'{len(images_with_alt)}/{len(images)}',
-            'details': f'{img_score:.0f}% des images ont un attribut alt',
+            'name': 'Images avec ALT descriptif',
+            'status': img_status,
+            'value': f'{alt_count}/{img_count}',
+            'details': f'{img_score:.0f}% - TOUTES les images doivent avoir un ALT descriptif',
             'importance': 'high',
-            'recommendation': f'Ajouter alt à {len(images) - len(images_with_alt)} images' if img_score < 100 else None
+            'recommendation': f'Ajouter ALT descriptif à {img_count - alt_count} images' if img_status != 'pass' else None
         })
 
-        # Internal Links
+        # Internal Links - STRICT: minimum 5
         links = self.soup.find_all('a', href=True)
         internal_links = [l for l in links if self.domain in l.get('href', '') or l.get('href', '').startswith('/')]
-        external_links = [l for l in links if l.get('href', '').startswith('http') and self.domain not in l.get('href', '')]
+        int_count = len(internal_links)
+        link_status = 'pass' if int_count >= 5 else 'warning' if int_count >= 2 else 'fail'
         results['checks'].append({
-            'name': 'Maillage interne',
-            'status': 'pass' if len(internal_links) >= 3 else 'warning' if len(internal_links) >= 1 else 'fail',
-            'value': f'{len(internal_links)} internes, {len(external_links)} externes',
-            'details': f'{len(links)} liens au total',
+            'name': 'Maillage Interne (min 5)',
+            'status': link_status,
+            'value': f'{int_count} liens internes',
+            'details': f'{int_count}/5 minimum requis pour bon maillage',
             'importance': 'high',
-            'recommendation': 'Ajouter plus de liens internes vers vos pages importantes' if len(internal_links) < 3 else None
+            'recommendation': f'Ajouter {5 - int_count} liens internes vers pages importantes' if link_status != 'pass' else None
         })
 
         # Canonical
         canonical = self.soup.find('link', rel='canonical')
         canonical_url = canonical.get('href') if canonical else None
+        can_status = 'pass' if canonical_url else 'fail'
         results['checks'].append({
             'name': 'URL Canonique',
-            'status': 'pass' if canonical_url else 'warning',
+            'status': can_status,
             'value': canonical_url[:80] if canonical_url else None,
-            'details': 'Définie' if canonical_url else 'Non définie',
-            'importance': 'medium',
-            'recommendation': 'Ajouter une balise canonical pour éviter le contenu dupliqué' if not canonical_url else None
+            'details': 'Définie' if canonical_url else 'MANQUANTE - Risque contenu dupliqué',
+            'importance': 'high',
+            'recommendation': 'Ajouter <link rel="canonical"> pour éviter duplication' if can_status != 'pass' else None
         })
 
-        # Open Graph
+        # Open Graph - STRICT: tous les 4 requis
         og_tags = self.soup.find_all('meta', property=re.compile('^og:'))
-        og_present = ['og:title', 'og:description', 'og:image', 'og:url']
         og_found = [tag.get('property') for tag in og_tags]
-        og_missing = [tag for tag in og_present if tag not in og_found]
+        og_required = ['og:title', 'og:description', 'og:image', 'og:url']
+        og_missing = [t for t in og_required if t not in og_found]
+        og_status = 'pass' if len(og_missing) == 0 else 'warning' if len(og_missing) <= 2 else 'fail'
         results['checks'].append({
-            'name': 'Open Graph (Facebook)',
-            'status': 'pass' if len(og_missing) == 0 else 'warning' if len(og_found) > 0 else 'fail',
-            'value': og_found,
-            'details': f'{len(og_found)}/4 tags présents',
+            'name': 'Open Graph Complet',
+            'status': og_status,
+            'value': f'{4 - len(og_missing)}/4 tags',
+            'details': f'Manquants: {", ".join(og_missing)}' if og_missing else 'Tous les tags présents',
             'importance': 'medium',
-            'recommendation': f'Ajouter: {", ".join(og_missing)}' if og_missing else None
+            'recommendation': f'Ajouter: {", ".join(og_missing)}' if og_status != 'pass' else None
         })
 
         # Twitter Cards
         twitter_tags = self.soup.find_all('meta', attrs={'name': re.compile('^twitter:')})
+        tw_count = len(twitter_tags)
+        tw_status = 'pass' if tw_count >= 4 else 'warning' if tw_count >= 2 else 'fail'
         results['checks'].append({
             'name': 'Twitter Cards',
-            'status': 'pass' if len(twitter_tags) >= 3 else 'warning' if len(twitter_tags) > 0 else 'fail',
-            'value': [tag.get('name') for tag in twitter_tags],
-            'details': f'{len(twitter_tags)} tags trouvés',
+            'status': tw_status,
+            'value': f'{tw_count} tags',
+            'details': f'{tw_count}/4 tags recommandés',
             'importance': 'low',
-            'recommendation': 'Ajouter twitter:card, twitter:title, twitter:description' if len(twitter_tags) < 3 else None
+            'recommendation': 'Ajouter twitter:card, twitter:title, twitter:description, twitter:image' if tw_status != 'pass' else None
         })
 
-        # Count passed/failed
+        # Count
         for check in results['checks']:
-            if check['status'] == 'pass':
-                results['passed'] += 1
-            elif check['status'] == 'fail':
-                results['failed'] += 1
+            if check['status'] == 'pass': results['passed'] += 1
+            elif check['status'] == 'fail': results['failed'] += 1
+            else: results['warnings'] += 1
 
         return results
 
     # ==========================================
-    # SEO TECHNIQUE
+    # SEO TECHNIQUE - STRICT
     # ==========================================
     def scan_seo_technique(self):
-        """Analyse SEO technique"""
-        results = {'checks': [], 'passed': 0, 'failed': 0}
+        """Analyse SEO technique STRICTE"""
+        results = {'checks': [], 'passed': 0, 'failed': 0, 'warnings': 0}
 
-        # SSL/HTTPS
+        # SSL/HTTPS - STRICT: obligatoire
         is_https = self.final_url.startswith('https')
         ssl_info = self.check_ssl()
+        ssl_valid = ssl_info.get('valid', False)
+        days = ssl_info.get('days_remaining', 0)
+        ssl_status = 'pass' if is_https and ssl_valid and days > 30 else 'warning' if is_https and ssl_valid else 'fail'
         results['checks'].append({
-            'name': 'HTTPS/SSL',
-            'status': 'pass' if is_https and ssl_info.get('valid') else 'fail',
+            'name': 'HTTPS/SSL Valide',
+            'status': ssl_status,
             'value': ssl_info,
-            'details': f"SSL valide, expire dans {ssl_info.get('days_remaining', 'N/A')} jours" if ssl_info.get('valid') else 'SSL invalide ou absent',
+            'details': f"SSL valide, expire dans {days} jours" if ssl_valid else 'SSL INVALIDE ou ABSENT - CRITIQUE',
             'importance': 'critical',
-            'recommendation': 'Installer un certificat SSL valide' if not is_https else None
+            'recommendation': 'Installer certificat SSL valide immédiatement' if ssl_status == 'fail' else 'Renouveler SSL avant expiration' if ssl_status == 'warning' else None
         })
 
-        # Robots.txt
+        # Robots.txt - STRICT
         robots_resp = self.fetch_page(f"{self.base_url}/robots.txt")
         robots_exists = robots_resp and robots_resp.status_code == 200
         robots_content = robots_resp.text if robots_exists else None
+        robots_status = 'pass' if robots_exists and len(robots_content or '') > 20 else 'fail'
         results['checks'].append({
-            'name': 'Robots.txt',
-            'status': 'pass' if robots_exists else 'fail',
-            'value': robots_content[:500] if robots_content else None,
-            'details': f'{len(robots_content)} caractères' if robots_content else 'Fichier manquant',
-            'importance': 'high',
-            'recommendation': 'Créer un fichier robots.txt pour guider les moteurs de recherche' if not robots_exists else None
+            'name': 'Robots.txt Configuré',
+            'status': robots_status,
+            'value': robots_content[:300] if robots_content else None,
+            'details': f'{len(robots_content or "")} caractères' if robots_exists else 'MANQUANT - Les bots ne savent pas quoi indexer',
+            'importance': 'critical',
+            'recommendation': 'Créer robots.txt avec règles pour moteurs et bots AI' if robots_status != 'pass' else None
         })
 
-        # Sitemap.xml
+        # Sitemap.xml - STRICT
         sitemap_resp = self.fetch_page(f"{self.base_url}/sitemap.xml")
         sitemap_exists = sitemap_resp and sitemap_resp.status_code == 200
-        sitemap_urls = 0
-        if sitemap_exists:
-            sitemap_urls = len(re.findall(r'<loc>', sitemap_resp.text))
+        sitemap_urls = len(re.findall(r'<loc>', sitemap_resp.text)) if sitemap_exists else 0
+        sitemap_status = 'pass' if sitemap_exists and sitemap_urls >= 3 else 'warning' if sitemap_exists else 'fail'
         results['checks'].append({
-            'name': 'Sitemap.xml',
-            'status': 'pass' if sitemap_exists and sitemap_urls > 0 else 'warning' if sitemap_exists else 'fail',
+            'name': 'Sitemap.xml avec URLs',
+            'status': sitemap_status,
             'value': f'{sitemap_urls} URLs',
-            'details': f'{sitemap_urls} pages indexées' if sitemap_exists else 'Sitemap manquant',
-            'importance': 'high',
-            'recommendation': 'Créer un sitemap.xml avec toutes vos pages' if not sitemap_exists else None
+            'details': f'{sitemap_urls} pages indexées' if sitemap_exists else 'MANQUANT - Google ne trouve pas vos pages',
+            'importance': 'critical',
+            'recommendation': 'Créer sitemap.xml avec toutes les pages importantes' if sitemap_status != 'pass' else None
         })
 
-        # Page Speed (basique)
+        # Page Speed - STRICT: < 2s
         start_time = time.time()
         _ = self.fetch_page(self.base_url)
         load_time = time.time() - start_time
+        speed_status = 'pass' if load_time < 2 else 'warning' if load_time < 3 else 'fail'
         results['checks'].append({
-            'name': 'Temps de chargement',
-            'status': 'pass' if load_time < 2 else 'warning' if load_time < 4 else 'fail',
+            'name': 'Vitesse < 2 secondes',
+            'status': speed_status,
             'value': f'{load_time:.2f}s',
-            'details': 'Rapide' if load_time < 2 else 'Moyen' if load_time < 4 else 'Lent',
+            'details': 'Rapide' if load_time < 2 else 'LENT - Perte de visiteurs' if load_time >= 3 else 'Acceptable',
             'importance': 'critical',
-            'recommendation': 'Optimiser les images et activer la compression' if load_time >= 2 else None
+            'recommendation': 'Optimiser images, activer compression, utiliser CDN' if speed_status != 'pass' else None
         })
 
-        # Mobile Viewport
+        # Mobile Viewport - STRICT
         viewport = self.soup.find('meta', attrs={'name': 'viewport'})
+        vp_content = viewport.get('content', '') if viewport else ''
+        vp_status = 'pass' if viewport and 'width=device-width' in vp_content else 'fail'
         results['checks'].append({
-            'name': 'Mobile Viewport',
-            'status': 'pass' if viewport else 'fail',
-            'value': viewport.get('content')[:100] if viewport else None,
-            'details': 'Configuré' if viewport else 'Manquant',
+            'name': 'Mobile Viewport Correct',
+            'status': vp_status,
+            'value': vp_content[:80] if vp_content else None,
+            'details': 'Configuré correctement' if vp_status == 'pass' else 'MANQUANT - Site non mobile-friendly',
             'importance': 'critical',
-            'recommendation': 'Ajouter <meta name="viewport" content="width=device-width, initial-scale=1">' if not viewport else None
+            'recommendation': 'Ajouter <meta name="viewport" content="width=device-width, initial-scale=1">' if vp_status != 'pass' else None
         })
 
         # HTML Lang
         html_tag = self.soup.find('html')
         lang = html_tag.get('lang') if html_tag else None
+        lang_status = 'pass' if lang and len(lang) >= 2 else 'fail'
         results['checks'].append({
             'name': 'Attribut lang HTML',
-            'status': 'pass' if lang else 'warning',
+            'status': lang_status,
             'value': lang,
-            'details': f'Langue: {lang}' if lang else 'Non défini',
-            'importance': 'medium',
-            'recommendation': 'Ajouter lang="fr" à la balise <html>' if not lang else None
+            'details': f'Langue: {lang}' if lang else 'MANQUANT - Problème accessibilité',
+            'importance': 'high',
+            'recommendation': 'Ajouter lang="fr" à la balise <html>' if lang_status != 'pass' else None
         })
 
-        # Charset
-        charset = self.soup.find('meta', charset=True) or self.soup.find('meta', attrs={'http-equiv': 'Content-Type'})
+        # Charset UTF-8
+        charset = self.soup.find('meta', charset=True)
+        charset_val = charset.get('charset', '').upper() if charset else None
+        charset_status = 'pass' if charset_val == 'UTF-8' else 'warning' if charset else 'fail'
         results['checks'].append({
-            'name': 'Encodage charset',
-            'status': 'pass' if charset else 'warning',
-            'value': charset.get('charset') or 'UTF-8' if charset else None,
-            'details': 'UTF-8 recommandé',
+            'name': 'Encodage UTF-8',
+            'status': charset_status,
+            'value': charset_val,
+            'details': 'UTF-8 correct' if charset_status == 'pass' else 'Encodage incorrect ou manquant',
             'importance': 'medium',
-            'recommendation': 'Ajouter <meta charset="UTF-8">' if not charset else None
+            'recommendation': 'Ajouter <meta charset="UTF-8"> en premier dans <head>' if charset_status != 'pass' else None
         })
 
         # Favicon
         favicon = self.soup.find('link', rel=re.compile('icon'))
+        fav_status = 'pass' if favicon else 'warning'
         results['checks'].append({
             'name': 'Favicon',
-            'status': 'pass' if favicon else 'warning',
-            'value': favicon.get('href')[:80] if favicon else None,
-            'details': 'Présent' if favicon else 'Manquant',
+            'status': fav_status,
+            'value': favicon.get('href')[:60] if favicon else None,
+            'details': 'Présent' if favicon else 'Manquant - Mauvaise image de marque',
             'importance': 'low',
-            'recommendation': 'Ajouter un favicon pour le branding' if not favicon else None
+            'recommendation': 'Ajouter favicon pour branding' if fav_status != 'pass' else None
         })
 
-        # Count passed/failed
+        # Count
         for check in results['checks']:
-            if check['status'] == 'pass':
-                results['passed'] += 1
-            elif check['status'] == 'fail':
-                results['failed'] += 1
+            if check['status'] == 'pass': results['passed'] += 1
+            elif check['status'] == 'fail': results['failed'] += 1
+            else: results['warnings'] += 1
 
         return results
 
@@ -366,283 +386,350 @@ class SEOScanner:
             return {'valid': False, 'error': str(e)}
 
     # ==========================================
-    # AI READINESS - Le plus important!
+    # AI READINESS - TRÈS STRICT!!!
     # ==========================================
     def scan_ai_readiness(self):
-        """Analyse la préparation pour les AI (ChatGPT, Claude, Perplexity, etc.)"""
-        results = {'checks': [], 'passed': 0, 'failed': 0, 'ai_score': 0}
+        """Analyse AI-readiness TRÈS STRICTE"""
+        results = {'checks': [], 'passed': 0, 'failed': 0, 'warnings': 0, 'ai_score': 0}
 
-        # 1. Robots.txt - AI Bots
+        # 1. Robots.txt - AI Bots - STRICT: tous doivent être autorisés explicitement
         robots_resp = self.fetch_page(f"{self.base_url}/robots.txt")
         robots_content = robots_resp.text.lower() if robots_resp and robots_resp.status_code == 200 else ''
 
-        ai_bots = {
-            'GPTBot': 'gptbot' in robots_content and 'disallow' not in robots_content.split('gptbot')[1][:50] if 'gptbot' in robots_content else True,
-            'ChatGPT-User': 'chatgpt-user' not in robots_content or 'allow' in robots_content,
-            'ClaudeBot': 'claudebot' not in robots_content or 'allow' in robots_content,
-            'Claude-Web': 'claude-web' not in robots_content or 'allow' in robots_content,
-            'PerplexityBot': 'perplexitybot' not in robots_content or 'allow' in robots_content,
-            'Cohere-AI': 'cohere' not in robots_content or 'allow' in robots_content,
-            'Google-Extended': 'google-extended' not in robots_content or 'allow' in robots_content,
+        ai_bots_check = {
+            'GPTBot': self._check_bot_allowed(robots_content, 'gptbot'),
+            'ChatGPT-User': self._check_bot_allowed(robots_content, 'chatgpt-user'),
+            'ClaudeBot': self._check_bot_allowed(robots_content, 'claudebot'),
+            'Claude-Web': self._check_bot_allowed(robots_content, 'claude-web'),
+            'PerplexityBot': self._check_bot_allowed(robots_content, 'perplexitybot'),
+            'Cohere-AI': self._check_bot_allowed(robots_content, 'cohere'),
+            'Google-Extended': self._check_bot_allowed(robots_content, 'google-extended'),
+            'Anthropic-AI': self._check_bot_allowed(robots_content, 'anthropic'),
         }
 
-        blocked_bots = [bot for bot, allowed in ai_bots.items() if not allowed]
-        allowed_bots = [bot for bot, allowed in ai_bots.items() if allowed]
+        blocked = [b for b, allowed in ai_bots_check.items() if not allowed]
+        allowed = [b for b, allowed in ai_bots_check.items() if allowed]
 
+        # STRICT: Tous les bots doivent être autorisés
+        bot_status = 'pass' if len(blocked) == 0 else 'warning' if len(blocked) <= 2 else 'fail'
         results['checks'].append({
-            'name': 'Accès aux bots AI',
-            'status': 'pass' if len(blocked_bots) == 0 else 'warning' if len(blocked_bots) < 3 else 'fail',
-            'value': {'allowed': allowed_bots, 'blocked': blocked_bots},
-            'details': f'{len(allowed_bots)}/7 bots AI autorisés',
+            'name': 'Bots AI Autorisés (8 requis)',
+            'status': bot_status,
+            'value': {'allowed': allowed, 'blocked': blocked},
+            'details': f'{len(allowed)}/8 bots autorisés' + (f' - BLOQUÉS: {", ".join(blocked)}' if blocked else ''),
             'importance': 'critical',
-            'recommendation': f'Autoriser dans robots.txt: {", ".join(blocked_bots)}' if blocked_bots else None,
-            'ai_impact': 'ChatGPT, Claude et Perplexity ne pourront pas indexer votre site' if blocked_bots else 'Tous les AI peuvent lire votre site'
+            'recommendation': f'Autoriser explicitement dans robots.txt: {", ".join(blocked)}' if blocked else None,
+            'ai_impact': 'ChatGPT, Claude et Perplexity NE PEUVENT PAS recommander votre site' if blocked else 'Tous les AI peuvent indexer votre site'
         })
 
-        # 2. LLMs.txt
+        # 2. LLMs.txt - STRICT: obligatoire et bien formaté
         llms_resp = self.fetch_page(f"{self.base_url}/llms.txt")
         llms_exists = llms_resp and llms_resp.status_code == 200
-        llms_content = llms_resp.text[:1000] if llms_exists else None
+        llms_content = llms_resp.text if llms_exists else None
+        llms_good = llms_exists and len(llms_content or '') > 200 and '#' in (llms_content or '')
+        llms_status = 'pass' if llms_good else 'warning' if llms_exists else 'fail'
         results['checks'].append({
-            'name': 'Fichier llms.txt',
-            'status': 'pass' if llms_exists else 'fail',
-            'value': llms_content,
-            'details': 'Présent - Guide pour les AI' if llms_exists else 'Manquant - Opportunité manquée',
+            'name': 'Fichier llms.txt Complet',
+            'status': llms_status,
+            'value': llms_content[:500] if llms_content else None,
+            'details': 'Bien formaté avec sections' if llms_good else 'Existe mais incomplet' if llms_exists else 'MANQUANT - Opportunité critique manquée',
             'importance': 'critical',
-            'recommendation': 'Créer llms.txt pour guider les AI sur votre contenu' if not llms_exists else None,
-            'ai_impact': 'Les AI utilisent ce fichier pour mieux comprendre et recommander votre site'
+            'recommendation': 'Créer llms.txt détaillé avec services, FAQ, contact' if llms_status != 'pass' else None,
+            'ai_impact': 'Les AI utilisent ce fichier pour MIEUX comprendre et recommander votre site'
         })
 
-        # 3. Schema.org Markup
+        # 3. Schema.org - STRICT: LocalBusiness OU Organization requis + FAQPage
         schema_scripts = self.soup.find_all('script', type='application/ld+json')
         schema_types = []
         for script in schema_scripts:
             try:
                 data = json.loads(script.string)
                 if isinstance(data, dict):
-                    schema_types.append(data.get('@type', 'Unknown'))
+                    schema_types.append(data.get('@type', ''))
                 elif isinstance(data, list):
                     for item in data:
                         if isinstance(item, dict):
-                            schema_types.append(item.get('@type', 'Unknown'))
+                            schema_types.append(item.get('@type', ''))
             except:
                 pass
 
-        important_schemas = ['LocalBusiness', 'Organization', 'WebSite', 'FAQPage', 'Article', 'Product', 'Service']
-        has_important = any(s in schema_types for s in important_schemas)
+        has_business = any(t in schema_types for t in ['LocalBusiness', 'Organization', 'Corporation', 'Service'])
+        has_faq = 'FAQPage' in schema_types
+        has_webpage = 'WebPage' in schema_types or 'WebSite' in schema_types
+
+        schema_score = sum([has_business, has_faq, has_webpage])
+        schema_status = 'pass' if schema_score >= 2 else 'warning' if schema_score >= 1 else 'fail'
+
+        missing = []
+        if not has_business: missing.append('LocalBusiness/Organization')
+        if not has_faq: missing.append('FAQPage')
 
         results['checks'].append({
-            'name': 'Schema.org Markup',
-            'status': 'pass' if has_important else 'warning' if schema_types else 'fail',
+            'name': 'Schema.org (Business + FAQ)',
+            'status': schema_status,
             'value': schema_types,
-            'details': f'{len(schema_types)} schemas: {", ".join(schema_types[:5])}' if schema_types else 'Aucun schema trouvé',
+            'details': f'{len(schema_types)} schemas: {", ".join(schema_types[:4])}' if schema_types else 'AUCUN SCHEMA - Invisible pour AI',
             'importance': 'critical',
-            'recommendation': 'Ajouter Schema LocalBusiness, FAQPage, Organization' if not has_important else None,
-            'ai_impact': 'Les AI utilisent Schema.org pour comprendre votre entreprise et services'
+            'recommendation': f'Ajouter Schema: {", ".join(missing)}' if missing else None,
+            'ai_impact': 'Les AI utilisent Schema.org pour comprendre votre entreprise et l\'afficher dans les résultats'
         })
 
-        # 4. FAQ structurée
-        faq_schema = 'FAQPage' in schema_types
-        faq_section = self.soup.find(id=re.compile('faq', re.I)) or self.soup.find(class_=re.compile('faq', re.I))
+        # 4. FAQ Structurée - STRICT: FAQPage schema requis
+        faq_status = 'pass' if has_faq else 'fail'
         results['checks'].append({
-            'name': 'FAQ pour AI',
-            'status': 'pass' if faq_schema else 'warning' if faq_section else 'fail',
-            'value': 'FAQPage Schema présent' if faq_schema else 'Section FAQ trouvée' if faq_section else None,
-            'details': 'Optimisé pour AI' if faq_schema else 'Partiellement optimisé' if faq_section else 'Manquant',
-            'importance': 'high',
-            'recommendation': 'Ajouter FAQPage Schema pour apparaître dans les réponses AI' if not faq_schema else None,
-            'ai_impact': 'Les FAQ avec Schema apparaissent directement dans les réponses ChatGPT'
+            'name': 'FAQ avec Schema FAQPage',
+            'status': faq_status,
+            'value': 'FAQPage présent' if has_faq else None,
+            'details': 'FAQ optimisée pour AI' if has_faq else 'MANQUANT - Vos FAQ n\'apparaissent pas dans ChatGPT',
+            'importance': 'critical',
+            'recommendation': 'Ajouter FAQPage Schema avec questions/réponses' if not has_faq else None,
+            'ai_impact': 'Les FAQ avec Schema apparaissent DIRECTEMENT dans les réponses ChatGPT et Google'
         })
 
-        # 5. Contenu structuré et clair
+        # 5. Contenu Substantiel - STRICT: min 500 mots
         paragraphs = self.soup.find_all('p')
         word_count = sum(len(p.text.split()) for p in paragraphs)
-        has_lists = len(self.soup.find_all(['ul', 'ol'])) > 0
-        has_tables = len(self.soup.find_all('table')) > 0
+        has_lists = len(self.soup.find_all(['ul', 'ol'])) >= 2
 
+        content_status = 'pass' if word_count >= 500 and has_lists else 'warning' if word_count >= 300 else 'fail'
         results['checks'].append({
-            'name': 'Contenu structuré',
-            'status': 'pass' if word_count > 300 and has_lists else 'warning' if word_count > 150 else 'fail',
-            'value': {'words': word_count, 'lists': has_lists, 'tables': has_tables},
+            'name': 'Contenu Riche (min 500 mots)',
+            'status': content_status,
+            'value': {'words': word_count, 'has_lists': has_lists},
             'details': f'{word_count} mots, listes: {"oui" if has_lists else "non"}',
-            'importance': 'high',
-            'recommendation': 'Ajouter plus de contenu texte avec listes et structure claire' if word_count < 300 else None,
-            'ai_impact': 'Plus de contenu = plus de chances d\'être cité par les AI'
+            'importance': 'critical',
+            'recommendation': f'Ajouter {500 - word_count} mots de contenu structuré avec listes' if word_count < 500 else None,
+            'ai_impact': 'Plus de contenu = plus de contexte = plus de chances d\'être recommandé'
         })
 
-        # 6. Informations de contact claires
+        # 6. Informations NAP Claires - STRICT
         email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
         phone_pattern = r'[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4}'
-        emails = re.findall(email_pattern, self.html)
-        phones = re.findall(phone_pattern, self.html)
+        emails = list(set(re.findall(email_pattern, self.html)))
+        phones = list(set(re.findall(phone_pattern, self.html)))
 
+        nap_status = 'pass' if emails and phones else 'warning' if emails or phones else 'fail'
         results['checks'].append({
-            'name': 'Informations NAP',
-            'status': 'pass' if emails and phones else 'warning' if emails or phones else 'fail',
-            'value': {'emails': emails[:3], 'phones': phones[:3]},
-            'details': f'Email: {"oui" if emails else "non"}, Téléphone: {"oui" if phones else "non"}',
+            'name': 'Contact Visible (Email + Tél)',
+            'status': nap_status,
+            'value': {'emails': emails[:2], 'phones': phones[:2]},
+            'details': f'Email: {"oui" if emails else "NON"}, Tél: {"oui" if phones else "NON"}',
             'importance': 'high',
-            'recommendation': 'Afficher clairement email et téléphone' if not (emails and phones) else None,
-            'ai_impact': 'Les AI peuvent recommander votre entreprise avec vos coordonnées'
+            'recommendation': 'Afficher clairement email ET téléphone sur la page' if nap_status != 'pass' else None,
+            'ai_impact': 'Les AI recommandent avec vos coordonnées - invisible = pas de contact'
         })
 
-        # 7. Mentions de marque / Autorité
-        brand_mentions = self.soup.find_all(string=re.compile(self.domain.split('.')[0], re.I))
+        # 7. Meta Description Riche pour AI
+        meta_desc = self.soup.find('meta', attrs={'name': 'description'})
+        desc = meta_desc.get('content', '') if meta_desc else ''
+        desc_words = len(desc.split())
+        desc_status = 'pass' if desc_words >= 20 else 'warning' if desc_words >= 10 else 'fail'
         results['checks'].append({
-            'name': 'Mentions de marque',
-            'status': 'pass' if len(brand_mentions) >= 3 else 'warning' if len(brand_mentions) >= 1 else 'fail',
-            'value': len(brand_mentions),
-            'details': f'{len(brand_mentions)} mentions de votre marque',
+            'name': 'Description Riche pour AI',
+            'status': desc_status,
+            'value': desc[:150],
+            'details': f'{desc_words} mots (min 20 recommandés)',
+            'importance': 'high',
+            'recommendation': 'Écrire description détaillée avec services, lieu, différenciateurs' if desc_status != 'pass' else None,
+            'ai_impact': 'Les AI utilisent la meta description comme résumé principal'
+        })
+
+        # 8. Mentions de Marque
+        brand = self.domain.split('.')[0].lower()
+        brand_count = self.html.lower().count(brand)
+        brand_status = 'pass' if brand_count >= 5 else 'warning' if brand_count >= 2 else 'fail'
+        results['checks'].append({
+            'name': 'Mentions de Marque (min 5)',
+            'status': brand_status,
+            'value': brand_count,
+            'details': f'{brand_count} mentions de "{brand}"',
             'importance': 'medium',
-            'recommendation': 'Mentionner votre nom de marque régulièrement' if len(brand_mentions) < 3 else None,
+            'recommendation': f'Mentionner votre marque "{brand}" au moins 5 fois' if brand_status != 'pass' else None,
             'ai_impact': 'Aide les AI à associer votre marque à vos services'
         })
 
-        # 8. Meta descriptions riches
-        meta_desc = self.soup.find('meta', attrs={'name': 'description'})
-        desc_content = meta_desc.get('content', '') if meta_desc else ''
-        has_keywords = len(desc_content.split()) >= 15
-
+        # 9. NOUVEAU: Données structurées pour services
+        service_keywords = ['service', 'prix', 'tarif', 'offre', 'solution', 'produit']
+        has_service_content = any(kw in self.html.lower() for kw in service_keywords)
+        service_status = 'pass' if has_service_content and has_business else 'warning' if has_service_content else 'fail'
         results['checks'].append({
-            'name': 'Description riche',
-            'status': 'pass' if has_keywords else 'warning' if desc_content else 'fail',
-            'value': desc_content[:200],
-            'details': 'Description détaillée' if has_keywords else 'Trop courte' if desc_content else 'Manquante',
+            'name': 'Services Clairement Décrits',
+            'status': service_status,
+            'value': has_service_content,
+            'details': 'Services décrits avec schema' if service_status == 'pass' else 'Services mentionnés' if has_service_content else 'Aucune description de services',
             'importance': 'high',
-            'recommendation': 'Écrire une description de 150+ caractères avec services et localisation' if not has_keywords else None,
-            'ai_impact': 'Les AI utilisent la meta description pour résumer votre site'
+            'recommendation': 'Décrire clairement vos services avec prix et détails' if service_status != 'pass' else None,
+            'ai_impact': 'Les AI ne peuvent pas recommander ce qu\'ils ne comprennent pas'
         })
 
-        # Count passed/failed
-        for check in results['checks']:
-            if check['status'] == 'pass':
-                results['passed'] += 1
-            elif check['status'] == 'fail':
-                results['failed'] += 1
+        # 10. NOUVEAU: Avis/Témoignages structurés
+        has_reviews = bool(self.soup.find(class_=re.compile('review|testimonial|avis|temoignage', re.I)))
+        review_schema = any(t in schema_types for t in ['Review', 'AggregateRating'])
+        review_status = 'pass' if review_schema else 'warning' if has_reviews else 'fail'
+        results['checks'].append({
+            'name': 'Avis/Témoignages avec Schema',
+            'status': review_status,
+            'value': review_schema,
+            'details': 'Avis avec schema Review' if review_schema else 'Témoignages sans schema' if has_reviews else 'Aucun avis visible',
+            'importance': 'high',
+            'recommendation': 'Ajouter témoignages clients avec schema AggregateRating' if review_status != 'pass' else None,
+            'ai_impact': 'Les avis augmentent la crédibilité et les recommandations AI'
+        })
 
-        # AI Score spécifique
-        results['ai_score'] = int((results['passed'] / len(results['checks'])) * 100) if results['checks'] else 0
+        # Count
+        for check in results['checks']:
+            if check['status'] == 'pass': results['passed'] += 1
+            elif check['status'] == 'fail': results['failed'] += 1
+            else: results['warnings'] += 1
+
+        # AI Score strict: échecs comptent double
+        total = len(results['checks'])
+        score = ((results['passed'] * 1) + (results['warnings'] * 0.4)) / total * 100
+        results['ai_score'] = int(score)
 
         return results
 
+    def _check_bot_allowed(self, robots_content, bot_name):
+        """Vérifie si un bot est autorisé dans robots.txt"""
+        if not robots_content:
+            return True  # Pas de robots.txt = tout autorisé par défaut
+
+        # Chercher une règle spécifique pour ce bot
+        lines = robots_content.split('\n')
+        current_agent = None
+
+        for line in lines:
+            line = line.strip().lower()
+            if line.startswith('user-agent:'):
+                current_agent = line.split(':', 1)[1].strip()
+            elif current_agent and (bot_name in current_agent or current_agent == '*'):
+                if line.startswith('disallow:') and line.split(':', 1)[1].strip() == '/':
+                    return False
+                if line.startswith('allow:'):
+                    return True
+
+        return True  # Par défaut autorisé
+
     # ==========================================
-    # QUALITÉ DU CONTENU
+    # QUALITÉ DU CONTENU - STRICT
     # ==========================================
     def scan_content_quality(self):
-        """Analyse la qualité du contenu"""
-        results = {'checks': [], 'passed': 0, 'failed': 0}
+        """Analyse qualité du contenu STRICTE"""
+        results = {'checks': [], 'passed': 0, 'failed': 0, 'warnings': 0}
 
-        # Word count
+        # Word count - STRICT: min 800 mots
         text = self.soup.get_text()
         words = len(text.split())
+        word_status = 'pass' if words >= 800 else 'warning' if words >= 400 else 'fail'
         results['checks'].append({
-            'name': 'Quantité de contenu',
-            'status': 'pass' if words >= 500 else 'warning' if words >= 200 else 'fail',
+            'name': 'Contenu Substantiel (min 800)',
+            'status': word_status,
             'value': words,
-            'details': f'{words} mots sur la page',
-            'importance': 'high',
-            'recommendation': 'Ajouter plus de contenu (minimum 500 mots)' if words < 500 else None
+            'details': f'{words} mots (min 800 pour bon SEO)',
+            'importance': 'critical',
+            'recommendation': f'Ajouter {800 - words} mots de contenu pertinent' if words < 800 else None
         })
 
-        # Keyword density (basic)
-        title = self.soup.find('title')
-        if title:
-            title_words = title.text.lower().split()
-            main_keyword = max(title_words, key=len) if title_words else ''
-            keyword_count = text.lower().count(main_keyword)
-            density = (keyword_count / words * 100) if words > 0 else 0
-            results['checks'].append({
-                'name': 'Densité mot-clé',
-                'status': 'pass' if 1 <= density <= 3 else 'warning' if density < 1 else 'fail',
-                'value': f'{density:.1f}%',
-                'details': f'"{main_keyword}" apparaît {keyword_count} fois',
-                'importance': 'medium',
-                'recommendation': f'Ajuster la densité du mot-clé principal' if density < 1 or density > 3 else None
-            })
-
-        # Readability (basic - sentence length)
-        sentences = re.split(r'[.!?]+', text)
-        avg_sentence_length = sum(len(s.split()) for s in sentences) / len(sentences) if sentences else 0
+        # Paragraphes - STRICT
+        paragraphs = self.soup.find_all('p')
+        p_count = len([p for p in paragraphs if len(p.text.split()) > 20])
+        p_status = 'pass' if p_count >= 5 else 'warning' if p_count >= 2 else 'fail'
         results['checks'].append({
-            'name': 'Lisibilité',
-            'status': 'pass' if 10 <= avg_sentence_length <= 20 else 'warning',
-            'value': f'{avg_sentence_length:.1f} mots/phrase',
-            'details': 'Bonne lisibilité' if 10 <= avg_sentence_length <= 20 else 'Phrases trop longues' if avg_sentence_length > 20 else 'Phrases trop courtes',
+            'name': 'Paragraphes Développés (min 5)',
+            'status': p_status,
+            'value': p_count,
+            'details': f'{p_count} paragraphes de 20+ mots',
+            'importance': 'high',
+            'recommendation': 'Développer le contenu en paragraphes substantiels' if p_status != 'pass' else None
+        })
+
+        # Call to Action - STRICT
+        cta_patterns = ['contact', 'appel', 'soumission', 'devis', 'gratuit', 'réserv', 'command', 'achet', 'inscri', 'essai']
+        cta_found = [p for p in cta_patterns if p in text.lower()]
+        cta_status = 'pass' if len(cta_found) >= 2 else 'warning' if len(cta_found) >= 1 else 'fail'
+        results['checks'].append({
+            'name': 'Appels à l\'Action (CTA)',
+            'status': cta_status,
+            'value': cta_found,
+            'details': f'{len(cta_found)} CTA trouvés: {", ".join(cta_found[:3])}' if cta_found else 'AUCUN CTA - Pas de conversion',
+            'importance': 'high',
+            'recommendation': 'Ajouter CTAs clairs: "Contactez-nous", "Demandez un devis gratuit"' if cta_status != 'pass' else None
+        })
+
+        # Listes
+        lists = self.soup.find_all(['ul', 'ol'])
+        list_items = sum(len(l.find_all('li')) for l in lists)
+        list_status = 'pass' if list_items >= 6 else 'warning' if list_items >= 3 else 'fail'
+        results['checks'].append({
+            'name': 'Listes Structurées',
+            'status': list_status,
+            'value': list_items,
+            'details': f'{list_items} éléments de liste',
             'importance': 'medium',
-            'recommendation': 'Varier la longueur des phrases' if avg_sentence_length > 20 or avg_sentence_length < 10 else None
+            'recommendation': 'Ajouter listes à puces pour services, avantages, FAQ' if list_status != 'pass' else None
         })
 
-        # Call to Action
-        cta_patterns = ['contact', 'appel', 'soumission', 'devis', 'gratuit', 'réserver', 'commander', 'acheter', 'inscri']
-        cta_found = any(pattern in text.lower() for pattern in cta_patterns)
-        results['checks'].append({
-            'name': 'Appel à l\'action',
-            'status': 'pass' if cta_found else 'warning',
-            'value': 'Présent' if cta_found else 'Manquant',
-            'details': 'CTA trouvé sur la page' if cta_found else 'Aucun CTA clair',
-            'importance': 'high',
-            'recommendation': 'Ajouter des appels à l\'action clairs (Contactez-nous, Demandez un devis)' if not cta_found else None
-        })
-
-        # Count passed/failed
+        # Count
         for check in results['checks']:
-            if check['status'] == 'pass':
-                results['passed'] += 1
-            elif check['status'] == 'fail':
-                results['failed'] += 1
+            if check['status'] == 'pass': results['passed'] += 1
+            elif check['status'] == 'fail': results['failed'] += 1
+            else: results['warnings'] += 1
 
         return results
 
     # ==========================================
-    # SCORES & RECOMMENDATIONS
+    # SCORES STRICTS
     # ==========================================
-    def calculate_scores(self):
-        """Calcule les scores globaux"""
+    def calculate_strict_scores(self):
+        """Calcule les scores avec pénalités strictes"""
         categories = ['seo_classic', 'seo_technique', 'ai_readiness', 'content_quality']
 
-        total_passed = 0
-        total_checks = 0
+        total_score = 0
+        category_count = 0
 
         for cat in categories:
             if cat in self.results and 'checks' in self.results[cat]:
                 checks = self.results[cat]['checks']
                 passed = sum(1 for c in checks if c['status'] == 'pass')
+                warnings = sum(1 for c in checks if c['status'] == 'warning')
+                failed = sum(1 for c in checks if c['status'] == 'fail')
                 total = len(checks)
 
-                self.results['scores'][cat] = int((passed / total) * 100) if total > 0 else 0
-                total_passed += passed
-                total_checks += total
+                # Score strict: pass=100%, warning=40%, fail=0%
+                # Les fails sur 'critical' pénalisent -10% supplémentaire
+                critical_fails = sum(1 for c in checks if c['status'] == 'fail' and c.get('importance') == 'critical')
 
-        # Score total
-        self.results['scores']['total'] = int((total_passed / total_checks) * 100) if total_checks > 0 else 0
+                raw_score = ((passed * 1) + (warnings * 0.4)) / total * 100 if total > 0 else 0
+                penalty = critical_fails * 5  # -5% par échec critique
 
-        # Grade
+                cat_score = max(0, raw_score - penalty)
+                self.results['scores'][cat] = int(cat_score)
+
+                total_score += cat_score
+                category_count += 1
+
+        # Score total (moyenne)
+        self.results['scores']['total'] = int(total_score / category_count) if category_count > 0 else 0
+
+        # Grade STRICT
         score = self.results['scores']['total']
-        if score >= 90:
-            self.results['grade'] = 'A+'
-        elif score >= 80:
-            self.results['grade'] = 'A'
-        elif score >= 70:
-            self.results['grade'] = 'B'
-        elif score >= 60:
-            self.results['grade'] = 'C'
-        elif score >= 50:
-            self.results['grade'] = 'D'
-        else:
-            self.results['grade'] = 'F'
+        if score >= 90: self.results['grade'] = 'A+'
+        elif score >= 80: self.results['grade'] = 'A'
+        elif score >= 70: self.results['grade'] = 'B'
+        elif score >= 55: self.results['grade'] = 'C'
+        elif score >= 40: self.results['grade'] = 'D'
+        else: self.results['grade'] = 'F'
 
     def generate_recommendations(self):
         """Génère les recommandations prioritaires"""
-        all_recommendations = []
-
-        categories = ['ai_readiness', 'seo_classic', 'seo_technique', 'content_quality']
+        all_recs = []
         importance_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
 
-        for cat in categories:
+        for cat in ['ai_readiness', 'seo_classic', 'seo_technique', 'content_quality']:
             if cat in self.results and 'checks' in self.results[cat]:
                 for check in self.results[cat]['checks']:
                     if check.get('recommendation') and check['status'] != 'pass':
-                        all_recommendations.append({
+                        all_recs.append({
                             'category': cat,
                             'check': check['name'],
                             'importance': check.get('importance', 'medium'),
@@ -651,10 +738,8 @@ class SEOScanner:
                             'status': check['status']
                         })
 
-        # Sort by importance
-        all_recommendations.sort(key=lambda x: importance_order.get(x['importance'], 2))
-
-        self.results['recommendations'] = all_recommendations[:15]  # Top 15
+        all_recs.sort(key=lambda x: (importance_order.get(x['importance'], 2), x['status'] != 'fail'))
+        self.results['recommendations'] = all_recs[:15]
 
 
 # ==========================================
@@ -663,11 +748,11 @@ class SEOScanner:
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'service': 'seo-scanner-api'})
+    return jsonify({'status': 'ok', 'service': 'seo-scanner-api-strict', 'version': '2.0'})
 
 @app.route('/api/scan', methods=['POST', 'GET'])
 def scan_domain():
-    """Lance un scan complet"""
+    """Lance un scan complet STRICT"""
     if request.method == 'POST':
         data = request.json or {}
         domain = data.get('domain')
@@ -677,7 +762,6 @@ def scan_domain():
     if not domain:
         return jsonify({'error': 'domain requis'}), 400
 
-    # Nettoyer le domaine
     domain = domain.strip().lower()
     if domain.startswith('http'):
         domain = urlparse(domain).netloc
@@ -687,31 +771,14 @@ def scan_domain():
 
     return jsonify(results)
 
-@app.route('/api/scan/quick', methods=['GET'])
-def quick_scan():
-    """Scan rapide - juste les scores"""
-    domain = request.args.get('domain')
-    if not domain:
-        return jsonify({'error': 'domain requis'}), 400
-
-    scanner = SEOScanner(domain)
-    results = scanner.run_full_scan()
-
-    return jsonify({
-        'domain': results['domain'],
-        'scores': results['scores'],
-        'grade': results.get('grade'),
-        'top_recommendations': results['recommendations'][:5]
-    })
-
 
 if __name__ == '__main__':
     print("="*60)
-    print("🔍 SEO SCANNER API - seoparai.ca")
+    print("🔍 SEO SCANNER API v2.0 - STRICT MODE")
     print("="*60)
-    print("Endpoints:")
-    print("  POST /api/scan - Scan complet")
-    print("  GET  /api/scan?domain=example.com - Scan complet")
-    print("  GET  /api/scan/quick?domain=example.com - Scan rapide")
+    print("Scoring sévère activé:")
+    print("  - Pass = 100%, Warning = 40%, Fail = 0%")
+    print("  - Pénalité -5% par échec critique")
+    print("  - 10 checks AI-readiness")
     print("="*60)
     app.run(host='0.0.0.0', port=8893, debug=False)
