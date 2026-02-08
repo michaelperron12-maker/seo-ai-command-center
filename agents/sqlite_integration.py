@@ -554,7 +554,7 @@ if __name__ == '__main__':
         ('deneigement-excellence.ca', 'Déneigement Excellence'),
         ('paysagiste-excellence.ca', 'Paysagiste Excellence'),
         ('jcpeintre.com', 'JC Peintre'),
-        ('seoparai.ca', 'SEO par AI'),
+        ('seoparai.com', 'SEO par AI'),
     ]
 
     for domain, name in sites:

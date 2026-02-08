@@ -34,8 +34,8 @@ SITES = {
         "critical_pages": ["/", "/services", "/contact", "/devis"]
     },
     "seoparai": {
-        "domain": "seoparai.ca",
-        "url": "https://seoparai.ca",
+        "domain": "seoparai.com",
+        "url": "https://seoparai.com",
         "path": "/var/www/seoparai",
         "critical_pages": ["/", "/landing.html"]
     }

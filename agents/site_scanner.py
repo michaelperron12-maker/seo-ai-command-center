@@ -17,7 +17,7 @@ SITES = [
     {'id': 1, 'name': 'Déneigement Excellence', 'domain': 'deneigement-excellence.ca'},
     {'id': 2, 'name': 'Paysagiste Excellence', 'domain': 'paysagiste-excellence.ca'},
     {'id': 3, 'name': 'JC Peintre', 'domain': 'jcpeintre.com'},
-    {'id': 4, 'name': 'SEO par AI', 'domain': 'seoparai.ca'},
+    {'id': 4, 'name': 'SEO par AI', 'domain': 'seoparai.com'},
 ]
 
 def init_db():

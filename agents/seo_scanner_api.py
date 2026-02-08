@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SEO Scanner API - Scanner STRICT pour seoparai.ca
+SEO Scanner API - Scanner STRICT pour seoparai.com
 Analyse complète SEO + AI-readiness - SCORING SÉVÈRE
 """
 
@@ -45,7 +45,7 @@ class SEOScanner:
     def fetch_page(self, url, timeout=15):
         """Récupère une page web"""
         headers = {
-            'User-Agent': 'Mozilla/5.0 (compatible; SEOparAI-Scanner/2.0; +https://seoparai.ca)',
+            'User-Agent': 'Mozilla/5.0 (compatible; SEOparAI-Scanner/2.0; +https://seoparai.com)',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'fr-CA,fr;q=0.9,en;q=0.8'
         }
