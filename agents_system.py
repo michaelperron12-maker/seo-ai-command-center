@@ -20,7 +20,7 @@ FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
 
 # Modeles disponibles - DeepSeek R1 pour meilleur raisonnement
-DEEPSEEK_R1 = 'accounts/fireworks/models/deepseek-r1'
+DEEPSEEK_R1 = 'accounts/fireworks/models/deepseek-v3p2'
 QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
 LLAMA_MODEL = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
 
@@ -12150,5 +12150,3656 @@ FORMAT JSON:
 
             return {'insights': [], 'priority_action': 'Verifier les donnees'}
 
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================
+# AGENT 54: EMAIL CAMPAIGN AGENT - Marketing Email
+# ============================================
+
+class EmailCampaignAgent:
+    """Agent de campagnes email marketing - Sequences, A/B testing, Tracking"""
+    name = "Email Campaign Agent"
+
+    def init_db(self):
+        """Initialise les tables"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, type TEXT DEFAULT 'newsletter',
+            status TEXT DEFAULT 'draft', subject TEXT, subject_b TEXT, content_html TEXT,
+            segment_id INTEGER, sent_count INTEGER DEFAULT 0, open_count INTEGER DEFAULT 0,
+            click_count INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_sequences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, trigger_type TEXT DEFAULT 'signup',
+            is_active INTEGER DEFAULT 1, total_emails INTEGER DEFAULT 0, total_enrolled INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_sequence_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sequence_id INTEGER, step_order INTEGER DEFAULT 1,
+            delay_days INTEGER DEFAULT 1, subject TEXT, content_html TEXT, sent_count INTEGER DEFAULT 0)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_sequence_enrollments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, sequence_id INTEGER, contact_id INTEGER,
+            current_step INTEGER DEFAULT 1, status TEXT DEFAULT 'active',
+            enrolled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, next_email_at TIMESTAMP)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_segments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, conditions TEXT,
+            contact_count INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_sends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, campaign_id INTEGER, sequence_step_id INTEGER,
+            contact_id INTEGER, email TEXT, sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            opened_at TIMESTAMP, clicked_at TIMESTAMP)''')
+
+        cursor.execute('''CREATE TABLE IF NOT EXISTS email_unsubscribes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, reason TEXT,
+            unsubscribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        conn.commit()
+        conn.close()
+        return {'success': True}
+
+    def create_campaign(self, data):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO email_campaigns (name, type, subject, subject_b, content_html, segment_id) VALUES (?, ?, ?, ?, ?, ?)',
+                (data.get('name', 'Campagne'), data.get('type', 'newsletter'), data.get('subject', ''),
+                 data.get('subject_b'), data.get('content_html', ''), data.get('segment_id')))
+            campaign_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'campaign_id': campaign_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def generate_email_ai(self, campaign_type, context):
+        try:
+            prompt = f"Genere email marketing type {campaign_type}. Contexte: {context}. JSON: {{subject, content_html}}"
+            response = call_ollama(prompt, 800) or call_qwen(prompt, 800)
+            if response:
+                if '```json' in response: response = response.split('```json')[1].split('```')[0]
+                return json.loads(response.strip())
+            return {'error': 'Pas de reponse'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_sequence(self, name, trigger_type='signup'):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO email_sequences (name, trigger_type) VALUES (?, ?)', (name, trigger_type))
+            seq_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'sequence_id': seq_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def add_sequence_step(self, sequence_id, subject, content_html, delay_days=1):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT MAX(step_order) FROM email_sequence_steps WHERE sequence_id = ?', (sequence_id,))
+            max_order = cursor.fetchone()[0] or 0
+            cursor.execute('INSERT INTO email_sequence_steps (sequence_id, step_order, delay_days, subject, content_html) VALUES (?, ?, ?, ?, ?)',
+                (sequence_id, max_order + 1, delay_days, subject, content_html))
+            step_id = cursor.lastrowid
+            cursor.execute('UPDATE email_sequences SET total_emails = total_emails + 1 WHERE id = ?', (sequence_id,))
+            conn.commit()
+            conn.close()
+            return {'success': True, 'step_id': step_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def enroll_contact(self, sequence_id, contact_id):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            next_email = datetime.now() + timedelta(days=1)
+            cursor.execute('INSERT INTO email_sequence_enrollments (sequence_id, contact_id, next_email_at) VALUES (?, ?, ?)',
+                (sequence_id, contact_id, next_email.strftime('%Y-%m-%d %H:%M:%S')))
+            cursor.execute('UPDATE email_sequences SET total_enrolled = total_enrolled + 1 WHERE id = ?', (sequence_id,))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_segment(self, name, conditions):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO email_segments (name, conditions) VALUES (?, ?)',
+                (name, json.dumps(conditions) if isinstance(conditions, dict) else conditions))
+            seg_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'segment_id': seg_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def unsubscribe(self, email, reason=None):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT OR REPLACE INTO email_unsubscribes (email, reason) VALUES (?, ?)', (email, reason))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_campaigns(self, limit=50):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, type, status, subject, sent_count, open_count, click_count FROM email_campaigns LIMIT ?', (limit,))
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'name': r[1], 'type': r[2], 'status': r[3], 'subject': r[4],
+                    'sent': r[5], 'opens': r[6], 'clicks': r[7]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_sequences(self, limit=50):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, trigger_type, is_active, total_emails, total_enrolled FROM email_sequences LIMIT ?', (limit,))
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'name': r[1], 'trigger': r[2], 'active': bool(r[3]), 'emails': r[4], 'enrolled': r[5]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_stats(self, days=30):
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            cursor.execute('SELECT COUNT(*) FROM email_sends WHERE sent_at >= ?', (start,))
+            sent = cursor.fetchone()[0]
+            cursor.execute('SELECT COUNT(*) FROM email_sends WHERE opened_at IS NOT NULL AND sent_at >= ?', (start,))
+            opens = cursor.fetchone()[0]
+            cursor.execute('SELECT COUNT(*) FROM email_unsubscribes WHERE unsubscribed_at >= ?', (start,))
+            unsubs = cursor.fetchone()[0]
+            cursor.execute('SELECT COUNT(*) FROM email_sequences WHERE is_active = 1')
+            seqs = cursor.fetchone()[0]
+            conn.close()
+            return {'sent': sent, 'opens': opens, 'open_rate': round(opens/sent*100,1) if sent else 0, 'unsubscribes': unsubs, 'active_sequences': seqs}
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================
+# AGENT 55: SUPPORT TICKET AGENT - Gestion Tickets
+# ============================================
+
+class SupportTicketAgent:
+    """Agent de gestion des tickets support - Helpdesk, SLA, Escalade"""
+    name = "Support Ticket Agent"
+
+    def init_db(self):
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Tickets
+        cursor.execute('''CREATE TABLE IF NOT EXISTS support_tickets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_number TEXT UNIQUE,
+            contact_id INTEGER,
+            email TEXT,
+            name TEXT,
+            subject TEXT NOT NULL,
+            description TEXT,
+            category TEXT DEFAULT 'general',
+            priority TEXT DEFAULT 'medium',
+            status TEXT DEFAULT 'open',
+            assigned_to TEXT,
+            channel TEXT DEFAULT 'email',
+            sla_due_at TIMESTAMP,
+            first_response_at TIMESTAMP,
+            resolved_at TIMESTAMP,
+            satisfaction_score INTEGER,
+            tags TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Messages/Reponses
+        cursor.execute('''CREATE TABLE IF NOT EXISTS ticket_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticket_id INTEGER,
+            sender_type TEXT DEFAULT 'customer',
+            sender_name TEXT,
+            message TEXT,
+            is_internal BOOLEAN DEFAULT 0,
+            attachments TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ticket_id) REFERENCES support_tickets(id))''')
+
+        # Categories
+        cursor.execute('''CREATE TABLE IF NOT EXISTS ticket_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            description TEXT,
+            sla_hours INTEGER DEFAULT 24,
+            auto_assign TEXT,
+            template_response TEXT,
+            is_active BOOLEAN DEFAULT 1)''')
+
+        # Reponses predefinies
+        cursor.execute('''CREATE TABLE IF NOT EXISTS canned_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            category TEXT,
+            subject TEXT,
+            content TEXT,
+            shortcut TEXT,
+            use_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # SLA Rules
+        cursor.execute('''CREATE TABLE IF NOT EXISTS sla_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            priority TEXT,
+            category TEXT,
+            first_response_hours INTEGER DEFAULT 4,
+            resolution_hours INTEGER DEFAULT 24,
+            escalation_hours INTEGER DEFAULT 12,
+            is_active BOOLEAN DEFAULT 1)''')
+
+        # Insert default categories
+        categories = [
+            ('technical', 'Problemes techniques', 8, None),
+            ('billing', 'Facturation et paiements', 24, None),
+            ('general', 'Questions generales', 48, None),
+            ('urgent', 'Urgences', 2, None),
+            ('feature', 'Demandes de fonctionnalites', 72, None)
+        ]
+        for cat in categories:
+            cursor.execute('INSERT OR IGNORE INTO ticket_categories (name, description, sla_hours, auto_assign) VALUES (?, ?, ?, ?)', cat)
+
+        # Insert default SLA rules
+        sla_rules = [
+            ('Urgent SLA', 'urgent', None, 1, 4, 2),
+            ('High Priority SLA', 'high', None, 2, 8, 4),
+            ('Normal SLA', 'medium', None, 4, 24, 12),
+            ('Low Priority SLA', 'low', None, 8, 48, 24)
+        ]
+        for sla in sla_rules:
+            cursor.execute('INSERT OR IGNORE INTO sla_rules (name, priority, category, first_response_hours, resolution_hours, escalation_hours) VALUES (?, ?, ?, ?, ?, ?)', sla)
+
+        conn.commit()
+        conn.close()
+        return {'success': True}
+
+    def _generate_ticket_number(self):
+        import random
+        return f"TKT-{datetime.now().strftime('%Y%m%d')}-{random.randint(1000, 9999)}"
+
+    def create_ticket(self, data):
+        """Cree un nouveau ticket"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            ticket_number = self._generate_ticket_number()
+            priority = data.get('priority', 'medium')
+            category = data.get('category', 'general')
+
+            # Calcul SLA
+            cursor.execute('SELECT sla_hours FROM ticket_categories WHERE name = ?', (category,))
+            row = cursor.fetchone()
+            sla_hours = row[0] if row else 24
+            sla_due = datetime.now() + timedelta(hours=sla_hours)
+
+            cursor.execute('''INSERT INTO support_tickets
+                (ticket_number, contact_id, email, name, subject, description, category, priority, channel, sla_due_at, tags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (ticket_number, data.get('contact_id'), data.get('email'), data.get('name'),
+                 data.get('subject', 'Sans sujet'), data.get('description', ''),
+                 category, priority, data.get('channel', 'email'),
+                 sla_due.strftime('%Y-%m-%d %H:%M:%S'),
+                 json.dumps(data.get('tags', [])) if data.get('tags') else None))
+
+            ticket_id = cursor.lastrowid
+
+            # Message initial
+            if data.get('description'):
+                cursor.execute('INSERT INTO ticket_messages (ticket_id, sender_type, sender_name, message) VALUES (?, ?, ?, ?)',
+                    (ticket_id, 'customer', data.get('name', 'Client'), data.get('description')))
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'ticket_id': ticket_id, 'ticket_number': ticket_number, 'sla_due': sla_due.isoformat()}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def reply_ticket(self, ticket_id, message, sender_type='agent', sender_name='Support', is_internal=False):
+        """Repond a un ticket"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('INSERT INTO ticket_messages (ticket_id, sender_type, sender_name, message, is_internal) VALUES (?, ?, ?, ?, ?)',
+                (ticket_id, sender_type, sender_name, message, is_internal))
+
+            # Marquer premiere reponse
+            if sender_type == 'agent' and not is_internal:
+                cursor.execute('UPDATE support_tickets SET first_response_at = COALESCE(first_response_at, CURRENT_TIMESTAMP), status = "in_progress", updated_at = CURRENT_TIMESTAMP WHERE id = ?', (ticket_id,))
+
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def generate_response_ai(self, ticket_id):
+        """Genere reponse IA pour un ticket"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT subject, description, category FROM support_tickets WHERE id = ?', (ticket_id,))
+            ticket = cursor.fetchone()
+            if not ticket:
+                return {'error': 'Ticket non trouve'}
+
+            cursor.execute('SELECT message, sender_type FROM ticket_messages WHERE ticket_id = ? ORDER BY created_at', (ticket_id,))
+            messages = cursor.fetchall()
+            conn.close()
+
+            conversation = "\n".join([f"{'Client' if m[1]=='customer' else 'Agent'}: {m[0]}" for m in messages])
+
+            prompt = f"""Tu es un agent support client professionnel pour SEO par AI.
+Ticket: {ticket[0]}
+Description: {ticket[1]}
+Categorie: {ticket[2]}
+
+Historique:
+{conversation}
+
+Genere une reponse professionnelle, empathique et utile. Sois concis mais complet.
+Propose des solutions concretes si possible."""
+
+            response = call_ollama(prompt, 500) or call_qwen(prompt, 500)
+            return {'response': response} if response else {'error': 'Pas de reponse IA'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def update_ticket(self, ticket_id, updates):
+        """Met a jour un ticket"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            allowed = ['status', 'priority', 'category', 'assigned_to', 'tags']
+            set_parts = []
+            values = []
+
+            for key in allowed:
+                if key in updates:
+                    set_parts.append(f"{key} = ?")
+                    val = updates[key]
+                    if key == 'tags' and isinstance(val, list):
+                        val = json.dumps(val)
+                    values.append(val)
+
+            if updates.get('status') == 'resolved':
+                set_parts.append("resolved_at = CURRENT_TIMESTAMP")
+
+            if set_parts:
+                set_parts.append("updated_at = CURRENT_TIMESTAMP")
+                values.append(ticket_id)
+                cursor.execute(f"UPDATE support_tickets SET {', '.join(set_parts)} WHERE id = ?", values)
+                conn.commit()
+
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_ticket(self, ticket_id):
+        """Recupere un ticket avec messages"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''SELECT id, ticket_number, email, name, subject, description, category, priority,
+                status, assigned_to, channel, sla_due_at, first_response_at, resolved_at, satisfaction_score, created_at
+                FROM support_tickets WHERE id = ?''', (ticket_id,))
+            t = cursor.fetchone()
+            if not t:
+                return {'error': 'Ticket non trouve'}
+
+            cursor.execute('SELECT id, sender_type, sender_name, message, is_internal, created_at FROM ticket_messages WHERE ticket_id = ? ORDER BY created_at', (ticket_id,))
+            messages = [{'id': m[0], 'sender_type': m[1], 'sender_name': m[2], 'message': m[3], 'internal': bool(m[4]), 'created_at': m[5]} for m in cursor.fetchall()]
+
+            conn.close()
+            return {
+                'id': t[0], 'ticket_number': t[1], 'email': t[2], 'name': t[3], 'subject': t[4],
+                'description': t[5], 'category': t[6], 'priority': t[7], 'status': t[8],
+                'assigned_to': t[9], 'channel': t[10], 'sla_due_at': t[11], 'first_response_at': t[12],
+                'resolved_at': t[13], 'satisfaction_score': t[14], 'created_at': t[15], 'messages': messages
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_tickets(self, filters=None, limit=50):
+        """Liste les tickets"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = '''SELECT id, ticket_number, email, name, subject, category, priority, status, assigned_to, sla_due_at, created_at
+                FROM support_tickets WHERE 1=1'''
+            params = []
+
+            if filters:
+                if filters.get('status'):
+                    query += ' AND status = ?'
+                    params.append(filters['status'])
+                if filters.get('priority'):
+                    query += ' AND priority = ?'
+                    params.append(filters['priority'])
+                if filters.get('category'):
+                    query += ' AND category = ?'
+                    params.append(filters['category'])
+                if filters.get('assigned_to'):
+                    query += ' AND assigned_to = ?'
+                    params.append(filters['assigned_to'])
+
+            query += ' ORDER BY CASE priority WHEN "urgent" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 ELSE 4 END, created_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'ticket_number': r[1], 'email': r[2], 'name': r[3], 'subject': r[4],
+                    'category': r[5], 'priority': r[6], 'status': r[7], 'assigned_to': r[8],
+                    'sla_due': r[9], 'created_at': r[10]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_overdue_tickets(self):
+        """Tickets en retard SLA"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''SELECT id, ticket_number, subject, priority, status, sla_due_at
+                FROM support_tickets WHERE status NOT IN ('resolved', 'closed') AND sla_due_at < CURRENT_TIMESTAMP
+                ORDER BY sla_due_at''')
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'ticket_number': r[1], 'subject': r[2], 'priority': r[3], 'status': r[4], 'sla_due': r[5]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def add_canned_response(self, name, content, category=None, shortcut=None):
+        """Ajoute reponse predefinie"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO canned_responses (name, category, content, shortcut) VALUES (?, ?, ?, ?)',
+                (name, category, content, shortcut))
+            resp_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'response_id': resp_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_canned_responses(self, category=None):
+        """Liste reponses predefinies"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            if category:
+                cursor.execute('SELECT id, name, category, content, shortcut FROM canned_responses WHERE category = ?', (category,))
+            else:
+                cursor.execute('SELECT id, name, category, content, shortcut FROM canned_responses')
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'name': r[1], 'category': r[2], 'content': r[3], 'shortcut': r[4]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def rate_ticket(self, ticket_id, score, feedback=None):
+        """Note satisfaction client"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('UPDATE support_tickets SET satisfaction_score = ? WHERE id = ?', (score, ticket_id))
+            if feedback:
+                cursor.execute('INSERT INTO ticket_messages (ticket_id, sender_type, sender_name, message, is_internal) VALUES (?, ?, ?, ?, ?)',
+                    (ticket_id, 'customer', 'Feedback', f"Score: {score}/5 - {feedback}", True))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_stats(self, days=30):
+        """Statistiques support"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT COUNT(*) FROM support_tickets WHERE created_at >= ?', (start,))
+            total = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM support_tickets WHERE status = "open"')
+            open_tickets = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM support_tickets WHERE status = "resolved" AND created_at >= ?', (start,))
+            resolved = cursor.fetchone()[0]
+
+            cursor.execute('SELECT AVG(satisfaction_score) FROM support_tickets WHERE satisfaction_score IS NOT NULL AND created_at >= ?', (start,))
+            avg_sat = cursor.fetchone()[0] or 0
+
+            cursor.execute('''SELECT AVG((julianday(first_response_at) - julianday(created_at)) * 24)
+                FROM support_tickets WHERE first_response_at IS NOT NULL AND created_at >= ?''', (start,))
+            avg_response = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT COUNT(*) FROM support_tickets WHERE sla_due_at < CURRENT_TIMESTAMP AND status NOT IN ("resolved", "closed")')
+            overdue = cursor.fetchone()[0]
+
+            cursor.execute('SELECT category, COUNT(*) FROM support_tickets WHERE created_at >= ? GROUP BY category', (start,))
+            by_category = {r[0]: r[1] for r in cursor.fetchall()}
+
+            conn.close()
+            return {
+                'total_tickets': total, 'open_tickets': open_tickets, 'resolved': resolved,
+                'resolution_rate': round(resolved/total*100, 1) if total else 0,
+                'avg_satisfaction': round(avg_sat, 1), 'avg_response_hours': round(avg_response, 1),
+                'overdue_tickets': overdue, 'by_category': by_category
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================
+# AGENT 56: KNOWLEDGE BASE AGENT - FAQ & Documentation
+# ============================================
+
+class KnowledgeBaseAgent:
+    """Agent de base de connaissances - Articles, FAQ, Recherche semantique"""
+    name = "Knowledge Base Agent"
+
+    def init_db(self):
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Articles
+        cursor.execute('''CREATE TABLE IF NOT EXISTS kb_articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE,
+            title TEXT NOT NULL,
+            content TEXT,
+            excerpt TEXT,
+            category_id INTEGER,
+            author TEXT,
+            status TEXT DEFAULT 'draft',
+            is_featured BOOLEAN DEFAULT 0,
+            view_count INTEGER DEFAULT 0,
+            helpful_yes INTEGER DEFAULT 0,
+            helpful_no INTEGER DEFAULT 0,
+            tags TEXT,
+            meta_title TEXT,
+            meta_description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            published_at TIMESTAMP)''')
+
+        # Categories
+        cursor.execute('''CREATE TABLE IF NOT EXISTS kb_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE,
+            name TEXT NOT NULL,
+            description TEXT,
+            icon TEXT,
+            parent_id INTEGER,
+            sort_order INTEGER DEFAULT 0,
+            article_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT 1)''')
+
+        # FAQ
+        cursor.execute('''CREATE TABLE IF NOT EXISTS kb_faq (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            answer TEXT,
+            category_id INTEGER,
+            sort_order INTEGER DEFAULT 0,
+            view_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Recherches
+        cursor.execute('''CREATE TABLE IF NOT EXISTS kb_searches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query TEXT,
+            results_count INTEGER DEFAULT 0,
+            clicked_article_id INTEGER,
+            user_ip TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Feedback articles
+        cursor.execute('''CREATE TABLE IF NOT EXISTS kb_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id INTEGER,
+            is_helpful BOOLEAN,
+            comment TEXT,
+            user_email TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (article_id) REFERENCES kb_articles(id))''')
+
+        # Insert default categories
+        categories = [
+            ('getting-started', 'Premiers pas', 'Guide de demarrage', '🚀', 1),
+            ('features', 'Fonctionnalites', 'Toutes les fonctionnalites', '⚡', 2),
+            ('billing', 'Facturation', 'Questions de facturation', '💳', 3),
+            ('troubleshooting', 'Depannage', 'Resolution de problemes', '🔧', 4),
+            ('api', 'API & Integration', 'Documentation technique', '🔌', 5)
+        ]
+        for cat in categories:
+            cursor.execute('INSERT OR IGNORE INTO kb_categories (slug, name, description, icon, sort_order) VALUES (?, ?, ?, ?, ?)', cat)
+
+        conn.commit()
+        conn.close()
+        return {'success': True}
+
+    def _generate_slug(self, title):
+        import re
+        slug = title.lower()
+        slug = re.sub(r'[àáâãäå]', 'a', slug)
+        slug = re.sub(r'[èéêë]', 'e', slug)
+        slug = re.sub(r'[ìíîï]', 'i', slug)
+        slug = re.sub(r'[òóôõö]', 'o', slug)
+        slug = re.sub(r'[ùúûü]', 'u', slug)
+        slug = re.sub(r'[ç]', 'c', slug)
+        slug = re.sub(r'[^a-z0-9]+', '-', slug)
+        slug = slug.strip('-')
+        return slug[:100]
+
+    def create_article(self, data):
+        """Cree un article"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            title = data.get('title', 'Sans titre')
+            slug = data.get('slug') or self._generate_slug(title)
+            content = data.get('content', '')
+            excerpt = data.get('excerpt') or content[:200] + '...' if len(content) > 200 else content
+
+            cursor.execute('''INSERT INTO kb_articles
+                (slug, title, content, excerpt, category_id, author, status, tags, meta_title, meta_description)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (slug, title, content, excerpt, data.get('category_id'),
+                 data.get('author', 'Admin'), data.get('status', 'draft'),
+                 json.dumps(data.get('tags', [])) if data.get('tags') else None,
+                 data.get('meta_title') or title, data.get('meta_description') or excerpt))
+
+            article_id = cursor.lastrowid
+
+            if data.get('category_id'):
+                cursor.execute('UPDATE kb_categories SET article_count = article_count + 1 WHERE id = ?', (data['category_id'],))
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'article_id': article_id, 'slug': slug}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def generate_article_ai(self, topic, category=None):
+        """Genere un article avec IA"""
+        try:
+            prompt = f"""Ecris un article d'aide complet pour une base de connaissances.
+Sujet: {topic}
+Categorie: {category or 'general'}
+
+L'article doit etre:
+- Clair et bien structure
+- Avec des titres et sous-titres
+- Des etapes numerotees si necessaire
+- Des conseils pratiques
+
+Retourne en JSON: {{"title": "...", "content": "...(markdown)...", "excerpt": "...", "tags": ["...", "..."]}}"""
+
+            response = call_ollama(prompt, 1500) or call_qwen(prompt, 1500)
+            if response:
+                if '```json' in response:
+                    response = response.split('```json')[1].split('```')[0]
+                return json.loads(response.strip())
+            return {'error': 'Pas de reponse IA'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def update_article(self, article_id, updates):
+        """Met a jour un article"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            allowed = ['title', 'content', 'excerpt', 'category_id', 'status', 'is_featured', 'tags', 'meta_title', 'meta_description']
+            set_parts = []
+            values = []
+
+            for key in allowed:
+                if key in updates:
+                    set_parts.append(f"{key} = ?")
+                    val = updates[key]
+                    if key == 'tags' and isinstance(val, list):
+                        val = json.dumps(val)
+                    values.append(val)
+
+            if updates.get('status') == 'published':
+                set_parts.append("published_at = COALESCE(published_at, CURRENT_TIMESTAMP)")
+
+            if set_parts:
+                set_parts.append("updated_at = CURRENT_TIMESTAMP")
+                values.append(article_id)
+                cursor.execute(f"UPDATE kb_articles SET {', '.join(set_parts)} WHERE id = ?", values)
+                conn.commit()
+
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_article(self, article_id=None, slug=None, increment_view=True):
+        """Recupere un article"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            if article_id:
+                cursor.execute('''SELECT a.id, a.slug, a.title, a.content, a.excerpt, a.category_id, c.name as category_name,
+                    a.author, a.status, a.is_featured, a.view_count, a.helpful_yes, a.helpful_no, a.tags, a.created_at, a.published_at
+                    FROM kb_articles a LEFT JOIN kb_categories c ON a.category_id = c.id WHERE a.id = ?''', (article_id,))
+            else:
+                cursor.execute('''SELECT a.id, a.slug, a.title, a.content, a.excerpt, a.category_id, c.name as category_name,
+                    a.author, a.status, a.is_featured, a.view_count, a.helpful_yes, a.helpful_no, a.tags, a.created_at, a.published_at
+                    FROM kb_articles a LEFT JOIN kb_categories c ON a.category_id = c.id WHERE a.slug = ?''', (slug,))
+
+            row = cursor.fetchone()
+            if not row:
+                return {'error': 'Article non trouve'}
+
+            if increment_view:
+                cursor.execute('UPDATE kb_articles SET view_count = view_count + 1 WHERE id = ?', (row[0],))
+                conn.commit()
+
+            conn.close()
+            return {
+                'id': row[0], 'slug': row[1], 'title': row[2], 'content': row[3], 'excerpt': row[4],
+                'category_id': row[5], 'category_name': row[6], 'author': row[7], 'status': row[8],
+                'is_featured': bool(row[9]), 'view_count': row[10], 'helpful_yes': row[11], 'helpful_no': row[12],
+                'tags': json.loads(row[13]) if row[13] else [], 'created_at': row[14], 'published_at': row[15]
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_articles(self, category_id=None, status='published', limit=50):
+        """Liste les articles"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = '''SELECT a.id, a.slug, a.title, a.excerpt, c.name as category, a.view_count, a.published_at
+                FROM kb_articles a LEFT JOIN kb_categories c ON a.category_id = c.id WHERE 1=1'''
+            params = []
+
+            if status:
+                query += ' AND a.status = ?'
+                params.append(status)
+            if category_id:
+                query += ' AND a.category_id = ?'
+                params.append(category_id)
+
+            query += ' ORDER BY a.is_featured DESC, a.published_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'slug': r[1], 'title': r[2], 'excerpt': r[3], 'category': r[4], 'views': r[5], 'published_at': r[6]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def search_articles(self, query, limit=20):
+        """Recherche articles"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            search_term = f'%{query}%'
+            cursor.execute('''SELECT id, slug, title, excerpt, view_count FROM kb_articles
+                WHERE status = 'published' AND (title LIKE ? OR content LIKE ? OR tags LIKE ?)
+                ORDER BY view_count DESC LIMIT ?''', (search_term, search_term, search_term, limit))
+            rows = cursor.fetchall()
+
+            # Log search
+            cursor.execute('INSERT INTO kb_searches (query, results_count) VALUES (?, ?)', (query, len(rows)))
+            conn.commit()
+            conn.close()
+
+            return [{'id': r[0], 'slug': r[1], 'title': r[2], 'excerpt': r[3], 'views': r[4]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def answer_question_ai(self, question):
+        """Repond a une question avec IA en se basant sur la KB"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Chercher articles pertinents
+            search_term = f'%{question}%'
+            cursor.execute('''SELECT title, content FROM kb_articles
+                WHERE status = 'published' AND (title LIKE ? OR content LIKE ?)
+                LIMIT 3''', (search_term, search_term))
+            articles = cursor.fetchall()
+            conn.close()
+
+            context = "\n\n".join([f"Article: {a[0]}\n{a[1][:500]}" for a in articles]) if articles else "Aucun article trouve"
+
+            prompt = f"""Tu es un assistant support pour SEO par AI.
+Base de connaissances disponible:
+{context}
+
+Question du client: {question}
+
+Reponds de maniere claire et utile. Si tu ne trouves pas l'info, suggere de contacter le support."""
+
+            response = call_ollama(prompt, 500) or call_qwen(prompt, 500)
+            return {'answer': response, 'sources': [a[0] for a in articles]} if response else {'error': 'Pas de reponse'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def add_faq(self, question, answer, category_id=None):
+        """Ajoute une FAQ"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT MAX(sort_order) FROM kb_faq WHERE category_id = ?', (category_id,))
+            max_order = cursor.fetchone()[0] or 0
+            cursor.execute('INSERT INTO kb_faq (question, answer, category_id, sort_order) VALUES (?, ?, ?, ?)',
+                (question, answer, category_id, max_order + 1))
+            faq_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'faq_id': faq_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_faqs(self, category_id=None, limit=50):
+        """Liste les FAQ"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            if category_id:
+                cursor.execute('''SELECT f.id, f.question, f.answer, c.name as category, f.view_count
+                    FROM kb_faq f LEFT JOIN kb_categories c ON f.category_id = c.id
+                    WHERE f.is_active = 1 AND f.category_id = ? ORDER BY f.sort_order LIMIT ?''', (category_id, limit))
+            else:
+                cursor.execute('''SELECT f.id, f.question, f.answer, c.name as category, f.view_count
+                    FROM kb_faq f LEFT JOIN kb_categories c ON f.category_id = c.id
+                    WHERE f.is_active = 1 ORDER BY f.sort_order LIMIT ?''', (limit,))
+
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'question': r[1], 'answer': r[2], 'category': r[3], 'views': r[4]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def rate_article(self, article_id, is_helpful, comment=None, email=None):
+        """Note un article"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            if is_helpful:
+                cursor.execute('UPDATE kb_articles SET helpful_yes = helpful_yes + 1 WHERE id = ?', (article_id,))
+            else:
+                cursor.execute('UPDATE kb_articles SET helpful_no = helpful_no + 1 WHERE id = ?', (article_id,))
+
+            cursor.execute('INSERT INTO kb_feedback (article_id, is_helpful, comment, user_email) VALUES (?, ?, ?, ?)',
+                (article_id, is_helpful, comment, email))
+
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_categories(self):
+        """Liste les categories"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, slug, name, description, icon, article_count FROM kb_categories WHERE is_active = 1 ORDER BY sort_order')
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'slug': r[1], 'name': r[2], 'description': r[3], 'icon': r[4], 'article_count': r[5]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_popular_articles(self, limit=10):
+        """Articles populaires"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''SELECT id, slug, title, excerpt, view_count FROM kb_articles
+                WHERE status = 'published' ORDER BY view_count DESC LIMIT ?''', (limit,))
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'slug': r[1], 'title': r[2], 'excerpt': r[3], 'views': r[4]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_stats(self):
+        """Statistiques KB"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT COUNT(*) FROM kb_articles WHERE status = "published"')
+            published = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM kb_articles WHERE status = "draft"')
+            drafts = cursor.fetchone()[0]
+
+            cursor.execute('SELECT SUM(view_count) FROM kb_articles')
+            total_views = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT COUNT(*) FROM kb_faq WHERE is_active = 1')
+            faqs = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM kb_searches')
+            searches = cursor.fetchone()[0]
+
+            cursor.execute('SELECT SUM(helpful_yes), SUM(helpful_no) FROM kb_articles')
+            helpful = cursor.fetchone()
+            helpful_yes = helpful[0] or 0
+            helpful_no = helpful[1] or 0
+
+            cursor.execute('SELECT query, COUNT(*) as cnt FROM kb_searches GROUP BY query ORDER BY cnt DESC LIMIT 10')
+            top_searches = [{'query': r[0], 'count': r[1]} for r in cursor.fetchall()]
+
+            conn.close()
+            return {
+                'published_articles': published, 'draft_articles': drafts, 'total_views': total_views,
+                'total_faqs': faqs, 'total_searches': searches,
+                'helpful_rate': round(helpful_yes/(helpful_yes+helpful_no)*100, 1) if (helpful_yes+helpful_no) > 0 else 0,
+                'top_searches': top_searches
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================
+# AGENT 57: SURVEY AGENT - Sondages & Feedback
+# ============================================
+
+class SurveyAgent:
+    """Agent de sondages et feedback - NPS, CSAT, Formulaires personnalises"""
+    name = "Survey Agent"
+
+    def init_db(self):
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Sondages
+        cursor.execute('''CREATE TABLE IF NOT EXISTS surveys (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            type TEXT DEFAULT 'custom',
+            status TEXT DEFAULT 'draft',
+            is_anonymous BOOLEAN DEFAULT 0,
+            thank_you_message TEXT,
+            redirect_url TEXT,
+            starts_at TIMESTAMP,
+            ends_at TIMESTAMP,
+            response_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Questions
+        cursor.execute('''CREATE TABLE IF NOT EXISTS survey_questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            survey_id INTEGER,
+            question_type TEXT DEFAULT 'text',
+            question_text TEXT NOT NULL,
+            description TEXT,
+            options TEXT,
+            is_required BOOLEAN DEFAULT 1,
+            sort_order INTEGER DEFAULT 0,
+            settings TEXT,
+            FOREIGN KEY (survey_id) REFERENCES surveys(id))''')
+
+        # Reponses
+        cursor.execute('''CREATE TABLE IF NOT EXISTS survey_responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            survey_id INTEGER,
+            contact_id INTEGER,
+            email TEXT,
+            ip_address TEXT,
+            user_agent TEXT,
+            is_complete BOOLEAN DEFAULT 0,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            FOREIGN KEY (survey_id) REFERENCES surveys(id))''')
+
+        # Reponses aux questions
+        cursor.execute('''CREATE TABLE IF NOT EXISTS survey_answers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            response_id INTEGER,
+            question_id INTEGER,
+            answer_text TEXT,
+            answer_value INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (response_id) REFERENCES survey_responses(id),
+            FOREIGN KEY (question_id) REFERENCES survey_questions(id))''')
+
+        # NPS Scores
+        cursor.execute('''CREATE TABLE IF NOT EXISTS nps_scores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contact_id INTEGER,
+            email TEXT,
+            score INTEGER,
+            feedback TEXT,
+            source TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        conn.commit()
+        conn.close()
+        return {'success': True}
+
+    def create_survey(self, data):
+        """Cree un sondage"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''INSERT INTO surveys (name, description, type, status, is_anonymous, thank_you_message, redirect_url, starts_at, ends_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (data.get('name', 'Nouveau sondage'), data.get('description'), data.get('type', 'custom'),
+                 data.get('status', 'draft'), data.get('is_anonymous', False),
+                 data.get('thank_you_message', 'Merci pour votre reponse!'),
+                 data.get('redirect_url'), data.get('starts_at'), data.get('ends_at')))
+
+            survey_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'survey_id': survey_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def add_question(self, survey_id, data):
+        """Ajoute une question au sondage"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT MAX(sort_order) FROM survey_questions WHERE survey_id = ?', (survey_id,))
+            max_order = cursor.fetchone()[0] or 0
+
+            options = data.get('options')
+            if isinstance(options, list):
+                options = json.dumps(options)
+
+            settings = data.get('settings')
+            if isinstance(settings, dict):
+                settings = json.dumps(settings)
+
+            cursor.execute('''INSERT INTO survey_questions (survey_id, question_type, question_text, description, options, is_required, sort_order, settings)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                (survey_id, data.get('question_type', 'text'), data.get('question_text', ''),
+                 data.get('description'), options, data.get('is_required', True), max_order + 1, settings))
+
+            question_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'question_id': question_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_nps_survey(self, name="Enquete NPS"):
+        """Cree un sondage NPS predifini"""
+        try:
+            result = self.create_survey({'name': name, 'type': 'nps', 'status': 'active'})
+            if 'error' in result:
+                return result
+
+            survey_id = result['survey_id']
+
+            # Question NPS standard
+            self.add_question(survey_id, {
+                'question_type': 'nps',
+                'question_text': 'Sur une echelle de 0 a 10, quelle est la probabilite que vous recommandiez SEO par AI a un ami ou collegue?',
+                'settings': {'min': 0, 'max': 10}
+            })
+
+            # Question feedback
+            self.add_question(survey_id, {
+                'question_type': 'textarea',
+                'question_text': 'Pouvez-vous nous expliquer votre note?',
+                'is_required': False
+            })
+
+            return {'success': True, 'survey_id': survey_id, 'type': 'nps'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_csat_survey(self, name="Satisfaction Client"):
+        """Cree un sondage CSAT predifini"""
+        try:
+            result = self.create_survey({'name': name, 'type': 'csat', 'status': 'active'})
+            if 'error' in result:
+                return result
+
+            survey_id = result['survey_id']
+
+            self.add_question(survey_id, {
+                'question_type': 'rating',
+                'question_text': 'Comment evaluez-vous votre experience globale avec SEO par AI?',
+                'options': ['Tres insatisfait', 'Insatisfait', 'Neutre', 'Satisfait', 'Tres satisfait'],
+                'settings': {'min': 1, 'max': 5}
+            })
+
+            self.add_question(survey_id, {
+                'question_type': 'multiple_choice',
+                'question_text': 'Quels aspects appreciez-vous le plus?',
+                'options': ['Facilite utilisation', 'Support client', 'Resultats SEO', 'Rapport qualite-prix', 'Agents IA']
+            })
+
+            self.add_question(survey_id, {
+                'question_type': 'textarea',
+                'question_text': 'Avez-vous des suggestions pour nous ameliorer?',
+                'is_required': False
+            })
+
+            return {'success': True, 'survey_id': survey_id, 'type': 'csat'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def submit_response(self, survey_id, answers, contact_info=None):
+        """Soumet une reponse au sondage"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Creer la reponse
+            email = contact_info.get('email') if contact_info else None
+            contact_id = contact_info.get('contact_id') if contact_info else None
+
+            cursor.execute('''INSERT INTO survey_responses (survey_id, contact_id, email, is_complete, completed_at)
+                VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)''', (survey_id, contact_id, email))
+            response_id = cursor.lastrowid
+
+            # Enregistrer les reponses
+            for question_id, answer in answers.items():
+                answer_text = answer if isinstance(answer, str) else json.dumps(answer)
+                answer_value = answer if isinstance(answer, int) else None
+                cursor.execute('INSERT INTO survey_answers (response_id, question_id, answer_text, answer_value) VALUES (?, ?, ?, ?)',
+                    (response_id, int(question_id), answer_text, answer_value))
+
+            # Mettre a jour le compteur
+            cursor.execute('UPDATE surveys SET response_count = response_count + 1 WHERE id = ?', (survey_id,))
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'response_id': response_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def record_nps(self, score, email=None, contact_id=None, feedback=None, source='survey'):
+        """Enregistre un score NPS"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO nps_scores (contact_id, email, score, feedback, source) VALUES (?, ?, ?, ?, ?)',
+                (contact_id, email, score, feedback, source))
+            conn.commit()
+            conn.close()
+            return {'success': True, 'category': 'promoter' if score >= 9 else 'passive' if score >= 7 else 'detractor'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_survey(self, survey_id):
+        """Recupere un sondage avec questions"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT id, name, description, type, status, is_anonymous, thank_you_message, response_count FROM surveys WHERE id = ?', (survey_id,))
+            s = cursor.fetchone()
+            if not s:
+                return {'error': 'Sondage non trouve'}
+
+            cursor.execute('SELECT id, question_type, question_text, description, options, is_required, sort_order FROM survey_questions WHERE survey_id = ? ORDER BY sort_order', (survey_id,))
+            questions = []
+            for q in cursor.fetchall():
+                questions.append({
+                    'id': q[0], 'type': q[1], 'text': q[2], 'description': q[3],
+                    'options': json.loads(q[4]) if q[4] else None, 'required': bool(q[5]), 'order': q[6]
+                })
+
+            conn.close()
+            return {
+                'id': s[0], 'name': s[1], 'description': s[2], 'type': s[3], 'status': s[4],
+                'is_anonymous': bool(s[5]), 'thank_you_message': s[6], 'response_count': s[7], 'questions': questions
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_surveys(self, status=None, limit=50):
+        """Liste les sondages"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            if status:
+                cursor.execute('SELECT id, name, type, status, response_count, created_at FROM surveys WHERE status = ? ORDER BY created_at DESC LIMIT ?', (status, limit))
+            else:
+                cursor.execute('SELECT id, name, type, status, response_count, created_at FROM surveys ORDER BY created_at DESC LIMIT ?', (limit,))
+
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'name': r[1], 'type': r[2], 'status': r[3], 'responses': r[4], 'created_at': r[5]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_responses(self, survey_id, limit=100):
+        """Liste les reponses d'un sondage"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''SELECT r.id, r.email, r.completed_at,
+                (SELECT GROUP_CONCAT(q.question_text || ': ' || a.answer_text, ' | ')
+                 FROM survey_answers a JOIN survey_questions q ON a.question_id = q.id WHERE a.response_id = r.id)
+                FROM survey_responses r WHERE r.survey_id = ? AND r.is_complete = 1 ORDER BY r.completed_at DESC LIMIT ?''', (survey_id, limit))
+
+            rows = cursor.fetchall()
+            conn.close()
+            return [{'id': r[0], 'email': r[1], 'completed_at': r[2], 'answers': r[3]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_nps_score(self, days=90):
+        """Calcule le score NPS"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT score FROM nps_scores WHERE created_at >= ?', (start,))
+            scores = [r[0] for r in cursor.fetchall()]
+            conn.close()
+
+            if not scores:
+                return {'nps': 0, 'promoters': 0, 'passives': 0, 'detractors': 0, 'total': 0}
+
+            promoters = len([s for s in scores if s >= 9])
+            passives = len([s for s in scores if 7 <= s < 9])
+            detractors = len([s for s in scores if s < 7])
+            total = len(scores)
+
+            nps = round((promoters - detractors) / total * 100)
+
+            return {
+                'nps': nps, 'promoters': promoters, 'passives': passives, 'detractors': detractors,
+                'total': total, 'promoter_pct': round(promoters/total*100, 1),
+                'passive_pct': round(passives/total*100, 1), 'detractor_pct': round(detractors/total*100, 1)
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def analyze_feedback_ai(self, survey_id):
+        """Analyse les feedbacks avec IA"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''SELECT a.answer_text FROM survey_answers a
+                JOIN survey_responses r ON a.response_id = r.id
+                JOIN survey_questions q ON a.question_id = q.id
+                WHERE r.survey_id = ? AND q.question_type IN ('text', 'textarea')
+                ORDER BY r.completed_at DESC LIMIT 50''', (survey_id,))
+            feedbacks = [r[0] for r in cursor.fetchall() if r[0]]
+            conn.close()
+
+            if not feedbacks:
+                return {'error': 'Pas de feedback a analyser'}
+
+            prompt = f"""Analyse ces retours clients et genere un resume:
+
+Feedbacks:
+{chr(10).join(['- ' + f for f in feedbacks[:30]])}
+
+Retourne en JSON:
+{{
+    "sentiment_global": "positif/neutre/negatif",
+    "themes_principaux": ["theme1", "theme2", ...],
+    "points_positifs": ["...", "..."],
+    "points_amelioration": ["...", "..."],
+    "suggestions_action": ["...", "..."]
+}}"""
+
+            response = call_ollama(prompt, 800) or call_qwen(prompt, 800)
+            if response:
+                if '```json' in response:
+                    response = response.split('```json')[1].split('```')[0]
+                return json.loads(response.strip())
+            return {'error': 'Pas de reponse IA'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_stats(self, days=30):
+        """Statistiques sondages"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT COUNT(*) FROM surveys')
+            total_surveys = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM surveys WHERE status = "active"')
+            active = cursor.fetchone()[0]
+
+            cursor.execute('SELECT SUM(response_count) FROM surveys')
+            total_responses = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT COUNT(*) FROM survey_responses WHERE completed_at >= ?', (start,))
+            recent_responses = cursor.fetchone()[0]
+
+            # NPS
+            nps_data = self.get_nps_score(days)
+
+            conn.close()
+            return {
+                'total_surveys': total_surveys, 'active_surveys': active,
+                'total_responses': total_responses, 'recent_responses': recent_responses,
+                'nps_score': nps_data.get('nps', 0), 'nps_total': nps_data.get('total', 0)
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================
+# AGENT 58: WEBHOOK AGENT - Integrations & Automatisations
+# ============================================
+
+class WebhookAgent:
+    """Agent de webhooks - Integrations externes, evenements, callbacks"""
+    name = "Webhook Agent"
+
+    def init_db(self):
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Webhooks sortants (on envoie)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS webhooks_outgoing (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            method TEXT DEFAULT 'POST',
+            headers TEXT,
+            secret_key TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            retry_count INTEGER DEFAULT 3,
+            timeout_seconds INTEGER DEFAULT 30,
+            last_triggered_at TIMESTAMP,
+            success_count INTEGER DEFAULT 0,
+            failure_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Webhooks entrants (on recoit)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS webhooks_incoming (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            endpoint_key TEXT UNIQUE,
+            description TEXT,
+            action_type TEXT,
+            action_config TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            require_signature BOOLEAN DEFAULT 0,
+            secret_key TEXT,
+            allowed_ips TEXT,
+            received_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Logs des webhooks
+        cursor.execute('''CREATE TABLE IF NOT EXISTS webhook_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            webhook_id INTEGER,
+            direction TEXT,
+            event_type TEXT,
+            payload TEXT,
+            response_code INTEGER,
+            response_body TEXT,
+            duration_ms INTEGER,
+            status TEXT,
+            error_message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Event subscriptions
+        cursor.execute('''CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            webhook_id INTEGER,
+            event_type TEXT,
+            filter_conditions TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            FOREIGN KEY (webhook_id) REFERENCES webhooks_outgoing(id))''')
+
+        conn.commit()
+        conn.close()
+        return {'success': True}
+
+    def _generate_endpoint_key(self):
+        import hashlib
+        import random
+        return hashlib.sha256(f"{datetime.now().isoformat()}{random.random()}".encode()).hexdigest()[:32]
+
+    def _generate_secret(self):
+        import hashlib
+        import random
+        return hashlib.sha256(f"secret_{datetime.now().isoformat()}{random.random()}".encode()).hexdigest()[:40]
+
+    def create_outgoing_webhook(self, data):
+        """Cree un webhook sortant"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            headers = data.get('headers')
+            if isinstance(headers, dict):
+                headers = json.dumps(headers)
+
+            secret = data.get('secret_key') or self._generate_secret()
+
+            cursor.execute('''INSERT INTO webhooks_outgoing
+                (name, url, event_type, method, headers, secret_key, is_active, retry_count, timeout_seconds)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (data.get('name', 'Webhook'), data.get('url'), data.get('event_type', 'all'),
+                 data.get('method', 'POST'), headers, secret,
+                 data.get('is_active', True), data.get('retry_count', 3), data.get('timeout_seconds', 30)))
+
+            webhook_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'webhook_id': webhook_id, 'secret_key': secret}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_incoming_webhook(self, data):
+        """Cree un webhook entrant (endpoint)"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            endpoint_key = data.get('endpoint_key') or self._generate_endpoint_key()
+            secret = self._generate_secret() if data.get('require_signature') else None
+
+            action_config = data.get('action_config')
+            if isinstance(action_config, dict):
+                action_config = json.dumps(action_config)
+
+            cursor.execute('''INSERT INTO webhooks_incoming
+                (name, endpoint_key, description, action_type, action_config, is_active, require_signature, secret_key, allowed_ips)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (data.get('name', 'Incoming Webhook'), endpoint_key, data.get('description'),
+                 data.get('action_type', 'log'), action_config, data.get('is_active', True),
+                 data.get('require_signature', False), secret, data.get('allowed_ips')))
+
+            webhook_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {
+                'success': True, 'webhook_id': webhook_id,
+                'endpoint': f"/api/webhook/receive/{endpoint_key}",
+                'secret_key': secret
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def trigger_webhook(self, event_type, payload):
+        """Declenche les webhooks pour un evenement"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''SELECT id, url, method, headers, secret_key, retry_count, timeout_seconds
+                FROM webhooks_outgoing WHERE is_active = 1 AND (event_type = ? OR event_type = 'all')''', (event_type,))
+            webhooks = cursor.fetchall()
+
+            results = []
+            for wh in webhooks:
+                webhook_id, url, method, headers_json, secret, retries, timeout = wh
+                headers = json.loads(headers_json) if headers_json else {}
+                headers['Content-Type'] = 'application/json'
+                headers['X-Webhook-Event'] = event_type
+
+                # Signature HMAC
+                if secret:
+                    import hmac
+                    import hashlib
+                    payload_str = json.dumps(payload)
+                    signature = hmac.new(secret.encode(), payload_str.encode(), hashlib.sha256).hexdigest()
+                    headers['X-Webhook-Signature'] = signature
+
+                # Envoyer le webhook
+                start_time = datetime.now()
+                try:
+                    import requests
+                    response = requests.request(method, url, json=payload, headers=headers, timeout=timeout)
+                    duration = int((datetime.now() - start_time).total_seconds() * 1000)
+
+                    # Log
+                    cursor.execute('''INSERT INTO webhook_logs (webhook_id, direction, event_type, payload, response_code, response_body, duration_ms, status)
+                        VALUES (?, 'outgoing', ?, ?, ?, ?, ?, ?)''',
+                        (webhook_id, event_type, json.dumps(payload), response.status_code, response.text[:500], duration,
+                         'success' if response.status_code < 400 else 'failed'))
+
+                    if response.status_code < 400:
+                        cursor.execute('UPDATE webhooks_outgoing SET success_count = success_count + 1, last_triggered_at = CURRENT_TIMESTAMP WHERE id = ?', (webhook_id,))
+                        results.append({'webhook_id': webhook_id, 'status': 'success', 'code': response.status_code})
+                    else:
+                        cursor.execute('UPDATE webhooks_outgoing SET failure_count = failure_count + 1 WHERE id = ?', (webhook_id,))
+                        results.append({'webhook_id': webhook_id, 'status': 'failed', 'code': response.status_code})
+
+                except Exception as e:
+                    cursor.execute('''INSERT INTO webhook_logs (webhook_id, direction, event_type, payload, status, error_message)
+                        VALUES (?, 'outgoing', ?, ?, 'error', ?)''', (webhook_id, event_type, json.dumps(payload), str(e)))
+                    cursor.execute('UPDATE webhooks_outgoing SET failure_count = failure_count + 1 WHERE id = ?', (webhook_id,))
+                    results.append({'webhook_id': webhook_id, 'status': 'error', 'error': str(e)})
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'triggered': len(results), 'results': results}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def receive_webhook(self, endpoint_key, payload, headers=None, ip_address=None):
+        """Recoit et traite un webhook entrant"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT id, name, action_type, action_config, require_signature, secret_key, allowed_ips FROM webhooks_incoming WHERE endpoint_key = ? AND is_active = 1', (endpoint_key,))
+            webhook = cursor.fetchone()
+
+            if not webhook:
+                return {'error': 'Webhook not found', 'code': 404}
+
+            webhook_id, name, action_type, action_config, require_sig, secret, allowed_ips = webhook
+
+            # Verifier IP
+            if allowed_ips and ip_address:
+                allowed = [ip.strip() for ip in allowed_ips.split(',')]
+                if ip_address not in allowed:
+                    return {'error': 'IP not allowed', 'code': 403}
+
+            # Verifier signature
+            if require_sig and secret:
+                signature = headers.get('X-Webhook-Signature') or headers.get('x-webhook-signature')
+                if not signature:
+                    return {'error': 'Signature required', 'code': 401}
+                import hmac
+                import hashlib
+                expected = hmac.new(secret.encode(), json.dumps(payload).encode(), hashlib.sha256).hexdigest()
+                if not hmac.compare_digest(signature, expected):
+                    return {'error': 'Invalid signature', 'code': 401}
+
+            # Log reception
+            cursor.execute('''INSERT INTO webhook_logs (webhook_id, direction, event_type, payload, status)
+                VALUES (?, 'incoming', ?, ?, 'received')''', (webhook_id, action_type, json.dumps(payload)))
+            cursor.execute('UPDATE webhooks_incoming SET received_count = received_count + 1 WHERE id = ?', (webhook_id,))
+
+            # Executer action
+            result = self._execute_action(action_type, action_config, payload)
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'action': action_type, 'result': result}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def _execute_action(self, action_type, action_config, payload):
+        """Execute une action basee sur le webhook"""
+        config = json.loads(action_config) if action_config else {}
+
+        if action_type == 'log':
+            return {'logged': True}
+
+        elif action_type == 'create_contact':
+            from agents_system import CRMAgent
+            agent = CRMAgent()
+            return agent.add_contact({
+                'email': payload.get('email'),
+                'name': payload.get('name'),
+                'source': 'webhook'
+            })
+
+        elif action_type == 'create_ticket':
+            from agents_system import SupportTicketAgent
+            agent = SupportTicketAgent()
+            return agent.create_ticket({
+                'email': payload.get('email'),
+                'subject': payload.get('subject', 'Ticket via webhook'),
+                'description': payload.get('message', ''),
+                'channel': 'webhook'
+            })
+
+        elif action_type == 'trigger_notification':
+            from agents_system import NotificationAgent
+            agent = NotificationAgent()
+            return agent.send_notification({
+                'type': config.get('notification_type', 'webhook'),
+                'channel': config.get('channel', 'email'),
+                'recipient': payload.get('email'),
+                'subject': payload.get('subject', 'Notification webhook'),
+                'message': payload.get('message', '')
+            })
+
+        return {'action': action_type, 'status': 'executed'}
+
+    def get_webhooks(self, direction='outgoing', is_active=None, limit=50):
+        """Liste les webhooks"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            if direction == 'outgoing':
+                query = 'SELECT id, name, url, event_type, is_active, success_count, failure_count, last_triggered_at FROM webhooks_outgoing'
+            else:
+                query = 'SELECT id, name, endpoint_key, action_type, is_active, received_count, created_at FROM webhooks_incoming'
+
+            if is_active is not None:
+                query += f' WHERE is_active = {1 if is_active else 0}'
+            query += f' ORDER BY created_at DESC LIMIT {limit}'
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            conn.close()
+
+            if direction == 'outgoing':
+                return [{'id': r[0], 'name': r[1], 'url': r[2], 'event_type': r[3], 'active': bool(r[4]),
+                        'success': r[5], 'failures': r[6], 'last_triggered': r[7]} for r in rows]
+            else:
+                return [{'id': r[0], 'name': r[1], 'endpoint': f"/api/webhook/receive/{r[2]}",
+                        'action': r[3], 'active': bool(r[4]), 'received': r[5], 'created_at': r[6]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_logs(self, webhook_id=None, direction=None, limit=100):
+        """Liste les logs des webhooks"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, webhook_id, direction, event_type, response_code, duration_ms, status, error_message, created_at FROM webhook_logs WHERE 1=1'
+            params = []
+
+            if webhook_id:
+                query += ' AND webhook_id = ?'
+                params.append(webhook_id)
+            if direction:
+                query += ' AND direction = ?'
+                params.append(direction)
+
+            query += ' ORDER BY created_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'webhook_id': r[1], 'direction': r[2], 'event_type': r[3],
+                    'code': r[4], 'duration_ms': r[5], 'status': r[6], 'error': r[7], 'created_at': r[8]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def toggle_webhook(self, webhook_id, direction='outgoing', is_active=True):
+        """Active/desactive un webhook"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            table = 'webhooks_outgoing' if direction == 'outgoing' else 'webhooks_incoming'
+            cursor.execute(f'UPDATE {table} SET is_active = ? WHERE id = ?', (is_active, webhook_id))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def delete_webhook(self, webhook_id, direction='outgoing'):
+        """Supprime un webhook"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            table = 'webhooks_outgoing' if direction == 'outgoing' else 'webhooks_incoming'
+            cursor.execute(f'DELETE FROM {table} WHERE id = ?', (webhook_id,))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_event_types(self):
+        """Liste des types d'evenements disponibles"""
+        return [
+            {'type': 'contact.created', 'description': 'Nouveau contact CRM'},
+            {'type': 'contact.updated', 'description': 'Contact mis a jour'},
+            {'type': 'invoice.created', 'description': 'Nouvelle facture'},
+            {'type': 'invoice.paid', 'description': 'Facture payee'},
+            {'type': 'ticket.created', 'description': 'Nouveau ticket support'},
+            {'type': 'ticket.resolved', 'description': 'Ticket resolu'},
+            {'type': 'lead.scored', 'description': 'Lead score mis a jour'},
+            {'type': 'appointment.booked', 'description': 'Rendez-vous reserve'},
+            {'type': 'survey.completed', 'description': 'Sondage complete'},
+            {'type': 'all', 'description': 'Tous les evenements'}
+        ]
+
+    def get_stats(self, days=30):
+        """Statistiques webhooks"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT COUNT(*) FROM webhooks_outgoing WHERE is_active = 1')
+            active_outgoing = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM webhooks_incoming WHERE is_active = 1')
+            active_incoming = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM webhook_logs WHERE direction = "outgoing" AND created_at >= ?', (start,))
+            sent = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM webhook_logs WHERE direction = "incoming" AND created_at >= ?', (start,))
+            received = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM webhook_logs WHERE status = "success" AND created_at >= ?', (start,))
+            successful = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM webhook_logs WHERE status IN ("failed", "error") AND created_at >= ?', (start,))
+            failed = cursor.fetchone()[0]
+
+            conn.close()
+            return {
+                'active_outgoing': active_outgoing, 'active_incoming': active_incoming,
+                'sent': sent, 'received': received, 'successful': successful, 'failed': failed,
+                'success_rate': round(successful/(sent+received)*100, 1) if (sent+received) > 0 else 0
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================
+# AGENT 59: AUTOMATION AGENT - Workflows & Rules
+# ============================================
+
+class AutomationAgent:
+    """Agent d'automatisation - Workflows, regles, triggers, actions"""
+    name = "Automation Agent"
+
+    def init_db(self):
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Workflows
+        cursor.execute('''CREATE TABLE IF NOT EXISTS automations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            trigger_type TEXT NOT NULL,
+            trigger_config TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            run_count INTEGER DEFAULT 0,
+            last_run_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+
+        # Actions du workflow
+        cursor.execute('''CREATE TABLE IF NOT EXISTS automation_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            automation_id INTEGER,
+            action_type TEXT NOT NULL,
+            action_config TEXT,
+            sort_order INTEGER DEFAULT 0,
+            delay_minutes INTEGER DEFAULT 0,
+            condition TEXT,
+            FOREIGN KEY (automation_id) REFERENCES automations(id))''')
+
+        # Logs d'execution
+        cursor.execute('''CREATE TABLE IF NOT EXISTS automation_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            automation_id INTEGER,
+            trigger_data TEXT,
+            status TEXT,
+            actions_executed INTEGER DEFAULT 0,
+            error_message TEXT,
+            duration_ms INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (automation_id) REFERENCES automations(id))''')
+
+        # Scheduled tasks
+        cursor.execute('''CREATE TABLE IF NOT EXISTS scheduled_tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            automation_id INTEGER,
+            scheduled_for TIMESTAMP,
+            action_data TEXT,
+            status TEXT DEFAULT 'pending',
+            executed_at TIMESTAMP,
+            FOREIGN KEY (automation_id) REFERENCES automations(id))''')
+
+        conn.commit()
+        conn.close()
+        return {'success': True}
+
+    def create_automation(self, data):
+        """Cree une automation"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            trigger_config = data.get('trigger_config')
+            if isinstance(trigger_config, dict):
+                trigger_config = json.dumps(trigger_config)
+
+            cursor.execute('''INSERT INTO automations (name, description, trigger_type, trigger_config, is_active)
+                VALUES (?, ?, ?, ?, ?)''',
+                (data.get('name', 'New Automation'), data.get('description'),
+                 data.get('trigger_type', 'manual'), trigger_config, data.get('is_active', True)))
+
+            automation_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'automation_id': automation_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def add_action(self, automation_id, data):
+        """Ajoute une action a l'automation"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT MAX(sort_order) FROM automation_actions WHERE automation_id = ?', (automation_id,))
+            max_order = cursor.fetchone()[0] or 0
+
+            action_config = data.get('action_config')
+            if isinstance(action_config, dict):
+                action_config = json.dumps(action_config)
+
+            cursor.execute('''INSERT INTO automation_actions (automation_id, action_type, action_config, sort_order, delay_minutes, condition)
+                VALUES (?, ?, ?, ?, ?, ?)''',
+                (automation_id, data.get('action_type'), action_config, max_order + 1,
+                 data.get('delay_minutes', 0), data.get('condition')))
+
+            action_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return {'success': True, 'action_id': action_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_workflow_template(self, template_name):
+        """Cree un workflow depuis un template"""
+        templates = {
+            'welcome_sequence': {
+                'name': 'Sequence Bienvenue',
+                'trigger_type': 'contact.created',
+                'actions': [
+                    {'action_type': 'send_email', 'action_config': {'template': 'welcome'}, 'delay_minutes': 0},
+                    {'action_type': 'send_email', 'action_config': {'template': 'getting_started'}, 'delay_minutes': 1440},
+                    {'action_type': 'create_task', 'action_config': {'task': 'Appeler nouveau client'}, 'delay_minutes': 2880}
+                ]
+            },
+            'lead_nurturing': {
+                'name': 'Nurturing Leads',
+                'trigger_type': 'lead.scored',
+                'trigger_config': {'min_score': 50},
+                'actions': [
+                    {'action_type': 'send_email', 'action_config': {'template': 'hot_lead'}},
+                    {'action_type': 'notify_team', 'action_config': {'channel': 'slack', 'message': 'Nouveau lead chaud!'}}
+                ]
+            },
+            'ticket_escalation': {
+                'name': 'Escalade Tickets',
+                'trigger_type': 'ticket.overdue',
+                'actions': [
+                    {'action_type': 'update_ticket', 'action_config': {'priority': 'urgent'}},
+                    {'action_type': 'notify_team', 'action_config': {'message': 'Ticket en retard!'}}
+                ]
+            },
+            'invoice_reminder': {
+                'name': 'Rappel Facture',
+                'trigger_type': 'invoice.overdue',
+                'actions': [
+                    {'action_type': 'send_email', 'action_config': {'template': 'payment_reminder'}},
+                    {'action_type': 'send_email', 'action_config': {'template': 'payment_urgent'}, 'delay_minutes': 4320}
+                ]
+            }
+        }
+
+        if template_name not in templates:
+            return {'error': f'Template inconnu. Disponibles: {list(templates.keys())}'}
+
+        template = templates[template_name]
+        result = self.create_automation({
+            'name': template['name'],
+            'trigger_type': template['trigger_type'],
+            'trigger_config': template.get('trigger_config')
+        })
+
+        if 'error' in result:
+            return result
+
+        automation_id = result['automation_id']
+        for action in template['actions']:
+            self.add_action(automation_id, action)
+
+        return {'success': True, 'automation_id': automation_id, 'template': template_name}
+
+    def trigger_automation(self, trigger_type, trigger_data):
+        """Declenche les automations correspondant au trigger"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT id, name, trigger_config FROM automations WHERE trigger_type = ? AND is_active = 1', (trigger_type,))
+            automations = cursor.fetchall()
+
+            results = []
+            for auto in automations:
+                auto_id, name, trigger_config = auto
+                config = json.loads(trigger_config) if trigger_config else {}
+
+                # Verifier conditions
+                if not self._check_conditions(config, trigger_data):
+                    continue
+
+                # Executer
+                start_time = datetime.now()
+                actions_executed = 0
+                error = None
+
+                try:
+                    cursor.execute('SELECT action_type, action_config, delay_minutes, condition FROM automation_actions WHERE automation_id = ? ORDER BY sort_order', (auto_id,))
+                    actions = cursor.fetchall()
+
+                    for action in actions:
+                        action_type, action_config, delay, condition = action
+                        config = json.loads(action_config) if action_config else {}
+
+                        if delay > 0:
+                            # Scheduler pour plus tard
+                            scheduled_time = datetime.now() + timedelta(minutes=delay)
+                            cursor.execute('INSERT INTO scheduled_tasks (automation_id, scheduled_for, action_data, status) VALUES (?, ?, ?, ?)',
+                                (auto_id, scheduled_time.strftime('%Y-%m-%d %H:%M:%S'),
+                                 json.dumps({'action_type': action_type, 'config': config, 'trigger_data': trigger_data}), 'pending'))
+                        else:
+                            self._execute_action(action_type, config, trigger_data)
+                        actions_executed += 1
+
+                except Exception as e:
+                    error = str(e)
+
+                duration = int((datetime.now() - start_time).total_seconds() * 1000)
+
+                # Log
+                cursor.execute('''INSERT INTO automation_logs (automation_id, trigger_data, status, actions_executed, error_message, duration_ms)
+                    VALUES (?, ?, ?, ?, ?, ?)''',
+                    (auto_id, json.dumps(trigger_data), 'error' if error else 'success', actions_executed, error, duration))
+
+                cursor.execute('UPDATE automations SET run_count = run_count + 1, last_run_at = CURRENT_TIMESTAMP WHERE id = ?', (auto_id,))
+
+                results.append({'automation_id': auto_id, 'name': name, 'actions': actions_executed, 'status': 'error' if error else 'success'})
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'triggered': len(results), 'results': results}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def _check_conditions(self, config, data):
+        """Verifie les conditions du trigger"""
+        if not config:
+            return True
+        if 'min_score' in config and data.get('score', 0) < config['min_score']:
+            return False
+        if 'status' in config and data.get('status') != config['status']:
+            return False
+        if 'source' in config and data.get('source') != config['source']:
+            return False
+        return True
+
+    def _execute_action(self, action_type, config, trigger_data):
+        """Execute une action"""
+        if action_type == 'send_email':
+            return {'action': 'send_email', 'template': config.get('template'), 'status': 'sent'}
+
+        elif action_type == 'create_contact':
+            from agents_system import CRMAgent
+            agent = CRMAgent()
+            return agent.add_contact(trigger_data)
+
+        elif action_type == 'update_contact':
+            from agents_system import CRMAgent
+            agent = CRMAgent()
+            return agent.update_contact(trigger_data.get('contact_id'), config)
+
+        elif action_type == 'create_ticket':
+            from agents_system import SupportTicketAgent
+            agent = SupportTicketAgent()
+            return agent.create_ticket({**trigger_data, **config})
+
+        elif action_type == 'update_ticket':
+            from agents_system import SupportTicketAgent
+            agent = SupportTicketAgent()
+            return agent.update_ticket(trigger_data.get('ticket_id'), config)
+
+        elif action_type == 'send_notification':
+            from agents_system import NotificationAgent
+            agent = NotificationAgent()
+            return agent.send_notification({**config, **trigger_data})
+
+        elif action_type == 'enroll_sequence':
+            from agents_system import EmailCampaignAgent
+            agent = EmailCampaignAgent()
+            return agent.enroll_contact(config.get('sequence_id'), trigger_data.get('contact_id'))
+
+        elif action_type == 'score_lead':
+            from agents_system import LeadScoringAgent
+            agent = LeadScoringAgent()
+            return agent.score_lead(trigger_data.get('contact_id'), config)
+
+        elif action_type == 'trigger_webhook':
+            from agents_system import WebhookAgent
+            agent = WebhookAgent()
+            return agent.trigger_webhook(config.get('event_type', 'automation'), trigger_data)
+
+        return {'action': action_type, 'status': 'executed'}
+
+    def get_automation(self, automation_id):
+        """Recupere une automation avec ses actions"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT id, name, description, trigger_type, trigger_config, is_active, run_count, last_run_at FROM automations WHERE id = ?', (automation_id,))
+            a = cursor.fetchone()
+            if not a:
+                return {'error': 'Automation non trouvee'}
+
+            cursor.execute('SELECT id, action_type, action_config, sort_order, delay_minutes, condition FROM automation_actions WHERE automation_id = ? ORDER BY sort_order', (automation_id,))
+            actions = [{'id': r[0], 'type': r[1], 'config': json.loads(r[2]) if r[2] else None, 'order': r[3], 'delay': r[4], 'condition': r[5]} for r in cursor.fetchall()]
+
+            conn.close()
+            return {
+                'id': a[0], 'name': a[1], 'description': a[2], 'trigger_type': a[3],
+                'trigger_config': json.loads(a[4]) if a[4] else None, 'is_active': bool(a[5]),
+                'run_count': a[6], 'last_run_at': a[7], 'actions': actions
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_automations(self, is_active=None, limit=50):
+        """Liste les automations"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, name, trigger_type, is_active, run_count, last_run_at FROM automations'
+            if is_active is not None:
+                query += f' WHERE is_active = {1 if is_active else 0}'
+            query += ' ORDER BY created_at DESC LIMIT ?'
+
+            cursor.execute(query, (limit,))
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'name': r[1], 'trigger': r[2], 'active': bool(r[3]), 'runs': r[4], 'last_run': r[5]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def toggle_automation(self, automation_id, is_active=True):
+        """Active/desactive une automation"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('UPDATE automations SET is_active = ? WHERE id = ?', (is_active, automation_id))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def delete_automation(self, automation_id):
+        """Supprime une automation"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM automation_actions WHERE automation_id = ?', (automation_id,))
+            cursor.execute('DELETE FROM automations WHERE id = ?', (automation_id,))
+            conn.commit()
+            conn.close()
+            return {'success': True}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_logs(self, automation_id=None, status=None, limit=100):
+        """Liste les logs"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT l.id, l.automation_id, a.name, l.status, l.actions_executed, l.duration_ms, l.created_at FROM automation_logs l JOIN automations a ON l.automation_id = a.id WHERE 1=1'
+            params = []
+
+            if automation_id:
+                query += ' AND l.automation_id = ?'
+                params.append(automation_id)
+            if status:
+                query += ' AND l.status = ?'
+                params.append(status)
+
+            query += ' ORDER BY l.created_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'automation_id': r[1], 'name': r[2], 'status': r[3], 'actions': r[4], 'duration_ms': r[5], 'created_at': r[6]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_trigger_types(self):
+        """Liste des types de triggers"""
+        return [
+            {'type': 'contact.created', 'description': 'Nouveau contact'},
+            {'type': 'contact.updated', 'description': 'Contact modifie'},
+            {'type': 'lead.scored', 'description': 'Lead score change'},
+            {'type': 'ticket.created', 'description': 'Nouveau ticket'},
+            {'type': 'ticket.resolved', 'description': 'Ticket resolu'},
+            {'type': 'ticket.overdue', 'description': 'Ticket en retard'},
+            {'type': 'invoice.created', 'description': 'Nouvelle facture'},
+            {'type': 'invoice.paid', 'description': 'Facture payee'},
+            {'type': 'invoice.overdue', 'description': 'Facture en retard'},
+            {'type': 'appointment.booked', 'description': 'RDV reserve'},
+            {'type': 'survey.completed', 'description': 'Sondage termine'},
+            {'type': 'manual', 'description': 'Declenchement manuel'},
+            {'type': 'scheduled', 'description': 'Planifie (cron)'}
+        ]
+
+    def get_action_types(self):
+        """Liste des types d'actions"""
+        return [
+            {'type': 'send_email', 'description': 'Envoyer un email'},
+            {'type': 'send_notification', 'description': 'Envoyer notification'},
+            {'type': 'create_contact', 'description': 'Creer contact CRM'},
+            {'type': 'update_contact', 'description': 'Modifier contact'},
+            {'type': 'create_ticket', 'description': 'Creer ticket support'},
+            {'type': 'update_ticket', 'description': 'Modifier ticket'},
+            {'type': 'enroll_sequence', 'description': 'Inscrire a sequence email'},
+            {'type': 'score_lead', 'description': 'Scorer le lead'},
+            {'type': 'trigger_webhook', 'description': 'Declencher webhook'},
+            {'type': 'wait', 'description': 'Attendre X minutes'}
+        ]
+
+    def get_stats(self, days=30):
+        """Statistiques automations"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT COUNT(*) FROM automations WHERE is_active = 1')
+            active = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM automations')
+            total = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM automation_logs WHERE created_at >= ?', (start,))
+            executions = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM automation_logs WHERE status = "success" AND created_at >= ?', (start,))
+            successful = cursor.fetchone()[0]
+
+            cursor.execute('SELECT SUM(actions_executed) FROM automation_logs WHERE created_at >= ?', (start,))
+            actions = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT AVG(duration_ms) FROM automation_logs WHERE created_at >= ?', (start,))
+            avg_duration = cursor.fetchone()[0] or 0
+
+            conn.close()
+            return {
+                'total_automations': total, 'active_automations': active,
+                'executions': executions, 'successful': successful,
+                'success_rate': round(successful/executions*100, 1) if executions > 0 else 0,
+                'actions_executed': actions, 'avg_duration_ms': round(avg_duration)
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ========== AGENT 60: AFFILIATE AGENT ==========
+class AffiliateAgent:
+    """Agent de programme d'affiliation - Affilies, commissions, payouts, tracking"""
+    name = "Affiliate Agent"
+
+    def init_db(self):
+        """Initialise les tables affiliation"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Table affilies
+        cursor.execute('''CREATE TABLE IF NOT EXISTS affiliates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            phone TEXT,
+            company TEXT,
+            website TEXT,
+            referral_code TEXT UNIQUE NOT NULL,
+            tier TEXT DEFAULT 'standard',
+            commission_rate REAL DEFAULT 10.0,
+            status TEXT DEFAULT 'pending',
+            balance REAL DEFAULT 0,
+            total_earned REAL DEFAULT 0,
+            total_paid REAL DEFAULT 0,
+            referrals_count INTEGER DEFAULT 0,
+            payment_method TEXT,
+            payment_details TEXT,
+            notes TEXT,
+            approved_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # Table referrals (conversions)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS affiliate_referrals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            affiliate_id INTEGER NOT NULL,
+            referral_code TEXT NOT NULL,
+            visitor_ip TEXT,
+            visitor_country TEXT,
+            landing_page TEXT,
+            source TEXT,
+            converted INTEGER DEFAULT 0,
+            customer_email TEXT,
+            customer_name TEXT,
+            order_id TEXT,
+            order_amount REAL,
+            commission_amount REAL,
+            commission_paid INTEGER DEFAULT 0,
+            click_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            converted_at TEXT,
+            FOREIGN KEY (affiliate_id) REFERENCES affiliates(id)
+        )''')
+
+        # Table commissions
+        cursor.execute('''CREATE TABLE IF NOT EXISTS affiliate_commissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            affiliate_id INTEGER NOT NULL,
+            referral_id INTEGER,
+            amount REAL NOT NULL,
+            type TEXT DEFAULT 'sale',
+            description TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (affiliate_id) REFERENCES affiliates(id)
+        )''')
+
+        # Table payouts
+        cursor.execute('''CREATE TABLE IF NOT EXISTS affiliate_payouts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            affiliate_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            payment_method TEXT,
+            payment_reference TEXT,
+            status TEXT DEFAULT 'pending',
+            notes TEXT,
+            processed_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (affiliate_id) REFERENCES affiliates(id)
+        )''')
+
+        # Table tiers (paliers de commission)
+        cursor.execute('''CREATE TABLE IF NOT EXISTS affiliate_tiers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            min_sales INTEGER DEFAULT 0,
+            commission_rate REAL NOT NULL,
+            bonus_rate REAL DEFAULT 0,
+            description TEXT,
+            benefits TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # Table clicks tracking
+        cursor.execute('''CREATE TABLE IF NOT EXISTS affiliate_clicks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            affiliate_id INTEGER NOT NULL,
+            referral_code TEXT NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            landing_page TEXT,
+            referer TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (affiliate_id) REFERENCES affiliates(id)
+        )''')
+
+        conn.commit()
+        conn.close()
+
+    def _generate_referral_code(self, name):
+        """Genere un code de parrainage unique"""
+        import hashlib
+        base = name.lower().replace(' ', '')[:6]
+        suffix = hashlib.md5(f"{name}{datetime.now().isoformat()}".encode()).hexdigest()[:4]
+        return f"{base}{suffix}".upper()
+
+    def register_affiliate(self, data):
+        """Inscrit un nouvel affilie"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            name = data.get('name', '')
+            email = data.get('email', '')
+            if not name or not email:
+                return {'error': 'Nom et email requis'}
+
+            # Verifier si email existe
+            cursor.execute('SELECT id FROM affiliates WHERE email = ?', (email,))
+            if cursor.fetchone():
+                return {'error': 'Email deja inscrit'}
+
+            referral_code = self._generate_referral_code(name)
+
+            cursor.execute('''INSERT INTO affiliates (user_name, email, phone, company, website, referral_code, payment_method, payment_details, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (name, email, data.get('phone'), data.get('company'), data.get('website'),
+                 referral_code, data.get('payment_method'), data.get('payment_details'), data.get('notes')))
+
+            affiliate_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {
+                'success': True,
+                'affiliate_id': affiliate_id,
+                'referral_code': referral_code,
+                'referral_link': f"https://seoparai.ca/?ref={referral_code}",
+                'message': 'Inscription soumise, en attente d\'approbation'
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def approve_affiliate(self, affiliate_id, commission_rate=None, tier='standard'):
+        """Approuve un affilie"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            rate = commission_rate if commission_rate else 10.0
+            cursor.execute('''UPDATE affiliates SET status = 'active', tier = ?, commission_rate = ?, approved_at = ? WHERE id = ?''',
+                (tier, rate, datetime.now().isoformat(), affiliate_id))
+
+            conn.commit()
+            conn.close()
+            return {'success': True, 'message': 'Affilie approuve'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def track_click(self, referral_code, data):
+        """Enregistre un clic sur lien affilie"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Trouver l'affilie
+            cursor.execute('SELECT id, status FROM affiliates WHERE referral_code = ?', (referral_code,))
+            affiliate = cursor.fetchone()
+            if not affiliate:
+                return {'error': 'Code invalide'}
+            if affiliate[1] != 'active':
+                return {'error': 'Affilie non actif'}
+
+            cursor.execute('''INSERT INTO affiliate_clicks (affiliate_id, referral_code, ip_address, user_agent, landing_page, referer)
+                VALUES (?, ?, ?, ?, ?, ?)''',
+                (affiliate[0], referral_code, data.get('ip'), data.get('user_agent'), data.get('page'), data.get('referer')))
+
+            # Creer referral pour tracking conversion
+            cursor.execute('''INSERT INTO affiliate_referrals (affiliate_id, referral_code, visitor_ip, landing_page, source)
+                VALUES (?, ?, ?, ?, ?)''',
+                (affiliate[0], referral_code, data.get('ip'), data.get('page'), data.get('source')))
+
+            referral_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'referral_id': referral_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def record_conversion(self, referral_code, data):
+        """Enregistre une conversion (vente)"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Trouver l'affilie
+            cursor.execute('SELECT id, commission_rate FROM affiliates WHERE referral_code = ? AND status = "active"', (referral_code,))
+            affiliate = cursor.fetchone()
+            if not affiliate:
+                return {'error': 'Affilie non trouve ou inactif'}
+
+            affiliate_id = affiliate[0]
+            commission_rate = affiliate[1]
+            order_amount = data.get('amount', 0)
+            commission = round(order_amount * (commission_rate / 100), 2)
+
+            # Mettre a jour ou creer referral
+            cursor.execute('''INSERT INTO affiliate_referrals (affiliate_id, referral_code, converted, customer_email, customer_name, order_id, order_amount, commission_amount, converted_at)
+                VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)''',
+                (affiliate_id, referral_code, data.get('customer_email'), data.get('customer_name'),
+                 data.get('order_id'), order_amount, commission, datetime.now().isoformat()))
+
+            referral_id = cursor.lastrowid
+
+            # Creer commission
+            cursor.execute('''INSERT INTO affiliate_commissions (affiliate_id, referral_id, amount, type, description)
+                VALUES (?, ?, ?, 'sale', ?)''',
+                (affiliate_id, referral_id, commission, f"Commission sur commande {data.get('order_id')}"))
+
+            # Mettre a jour stats affilie
+            cursor.execute('''UPDATE affiliates SET
+                balance = balance + ?,
+                total_earned = total_earned + ?,
+                referrals_count = referrals_count + 1
+                WHERE id = ?''', (commission, commission, affiliate_id))
+
+            conn.commit()
+            conn.close()
+
+            return {
+                'success': True,
+                'referral_id': referral_id,
+                'commission': commission,
+                'message': f'Commission de ${commission} enregistree'
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_affiliate(self, affiliate_id):
+        """Recupere un affilie"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''SELECT id, user_name, email, phone, company, website, referral_code, tier, commission_rate, status, balance, total_earned, total_paid, referrals_count, payment_method, approved_at, created_at
+                FROM affiliates WHERE id = ?''', (affiliate_id,))
+            a = cursor.fetchone()
+            conn.close()
+
+            if not a:
+                return {'error': 'Affilie non trouve'}
+
+            return {
+                'id': a[0], 'name': a[1], 'email': a[2], 'phone': a[3],
+                'company': a[4], 'website': a[5], 'referral_code': a[6],
+                'tier': a[7], 'commission_rate': a[8], 'status': a[9],
+                'balance': a[10], 'total_earned': a[11], 'total_paid': a[12],
+                'referrals_count': a[13], 'payment_method': a[14],
+                'approved_at': a[15], 'created_at': a[16],
+                'referral_link': f"https://seoparai.ca/?ref={a[6]}"
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_affiliates(self, status=None, tier=None, limit=50):
+        """Liste les affilies"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, user_name, email, referral_code, tier, commission_rate, status, balance, referrals_count, created_at FROM affiliates WHERE 1=1'
+            params = []
+
+            if status:
+                query += ' AND status = ?'
+                params.append(status)
+            if tier:
+                query += ' AND tier = ?'
+                params.append(tier)
+
+            query += ' ORDER BY created_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'name': r[1], 'email': r[2], 'code': r[3], 'tier': r[4], 'rate': r[5], 'status': r[6], 'balance': r[7], 'referrals': r[8], 'created_at': r[9]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_referrals(self, affiliate_id=None, converted=None, limit=100):
+        """Liste les referrals"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = '''SELECT r.id, r.affiliate_id, a.user_name, r.referral_code, r.converted, r.customer_email, r.order_amount, r.commission_amount, r.click_at, r.converted_at
+                FROM affiliate_referrals r JOIN affiliates a ON r.affiliate_id = a.id WHERE 1=1'''
+            params = []
+
+            if affiliate_id:
+                query += ' AND r.affiliate_id = ?'
+                params.append(affiliate_id)
+            if converted is not None:
+                query += ' AND r.converted = ?'
+                params.append(1 if converted else 0)
+
+            query += ' ORDER BY r.click_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'affiliate_id': r[1], 'affiliate_name': r[2], 'code': r[3], 'converted': bool(r[4]), 'customer': r[5], 'amount': r[6], 'commission': r[7], 'clicked_at': r[8], 'converted_at': r[9]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def request_payout(self, affiliate_id, amount=None):
+        """Demande de paiement"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT balance, payment_method, status FROM affiliates WHERE id = ?', (affiliate_id,))
+            affiliate = cursor.fetchone()
+            if not affiliate:
+                return {'error': 'Affilie non trouve'}
+            if affiliate[2] != 'active':
+                return {'error': 'Affilie non actif'}
+
+            balance = affiliate[0]
+            payout_amount = amount if amount and amount <= balance else balance
+
+            if payout_amount < 50:
+                return {'error': 'Minimum $50 pour paiement'}
+
+            cursor.execute('''INSERT INTO affiliate_payouts (affiliate_id, amount, payment_method, status)
+                VALUES (?, ?, ?, 'pending')''', (affiliate_id, payout_amount, affiliate[1]))
+
+            payout_id = cursor.lastrowid
+
+            # Deduire du solde
+            cursor.execute('UPDATE affiliates SET balance = balance - ? WHERE id = ?', (payout_amount, affiliate_id))
+
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'payout_id': payout_id, 'amount': payout_amount}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def process_payout(self, payout_id, payment_reference=None):
+        """Traite un paiement"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT affiliate_id, amount FROM affiliate_payouts WHERE id = ? AND status = "pending"', (payout_id,))
+            payout = cursor.fetchone()
+            if not payout:
+                return {'error': 'Paiement non trouve ou deja traite'}
+
+            cursor.execute('''UPDATE affiliate_payouts SET status = 'completed', payment_reference = ?, processed_at = ? WHERE id = ?''',
+                (payment_reference, datetime.now().isoformat(), payout_id))
+
+            cursor.execute('UPDATE affiliates SET total_paid = total_paid + ? WHERE id = ?', (payout[1], payout[0]))
+
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'message': 'Paiement effectue'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_payouts(self, affiliate_id=None, status=None, limit=50):
+        """Liste les paiements"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = '''SELECT p.id, p.affiliate_id, a.user_name, p.amount, p.payment_method, p.payment_reference, p.status, p.processed_at, p.created_at
+                FROM affiliate_payouts p JOIN affiliates a ON p.affiliate_id = a.id WHERE 1=1'''
+            params = []
+
+            if affiliate_id:
+                query += ' AND p.affiliate_id = ?'
+                params.append(affiliate_id)
+            if status:
+                query += ' AND p.status = ?'
+                params.append(status)
+
+            query += ' ORDER BY p.created_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'affiliate_id': r[1], 'name': r[2], 'amount': r[3], 'method': r[4], 'reference': r[5], 'status': r[6], 'processed_at': r[7], 'created_at': r[8]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_tier(self, data):
+        """Cree un palier de commission"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''INSERT INTO affiliate_tiers (name, min_sales, commission_rate, bonus_rate, description, benefits)
+                VALUES (?, ?, ?, ?, ?, ?)''',
+                (data.get('name'), data.get('min_sales', 0), data.get('commission_rate', 10),
+                 data.get('bonus_rate', 0), data.get('description'), data.get('benefits')))
+
+            tier_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'tier_id': tier_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_tiers(self):
+        """Liste les paliers"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, min_sales, commission_rate, bonus_rate, description, benefits FROM affiliate_tiers ORDER BY min_sales')
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'name': r[1], 'min_sales': r[2], 'rate': r[3], 'bonus': r[4], 'description': r[5], 'benefits': r[6]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def setup_default_tiers(self):
+        """Configure les paliers par defaut"""
+        try:
+            tiers = [
+                {'name': 'bronze', 'min_sales': 0, 'commission_rate': 10, 'bonus_rate': 0, 'description': 'Niveau debutant', 'benefits': 'Commission 10%'},
+                {'name': 'silver', 'min_sales': 5, 'commission_rate': 12, 'bonus_rate': 2, 'description': '5+ ventes', 'benefits': 'Commission 12% + Bonus 2%'},
+                {'name': 'gold', 'min_sales': 15, 'commission_rate': 15, 'bonus_rate': 5, 'description': '15+ ventes', 'benefits': 'Commission 15% + Bonus 5%'},
+                {'name': 'platinum', 'min_sales': 30, 'commission_rate': 20, 'bonus_rate': 10, 'description': '30+ ventes', 'benefits': 'Commission 20% + Bonus 10% + Support prioritaire'}
+            ]
+            for t in tiers:
+                self.create_tier(t)
+            return {'success': True, 'message': '4 paliers crees'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def update_affiliate_tier(self, affiliate_id):
+        """Met a jour le palier selon les ventes"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT referrals_count FROM affiliates WHERE id = ?', (affiliate_id,))
+            result = cursor.fetchone()
+            if not result:
+                return {'error': 'Affilie non trouve'}
+
+            sales = result[0]
+
+            cursor.execute('SELECT name, commission_rate, bonus_rate FROM affiliate_tiers WHERE min_sales <= ? ORDER BY min_sales DESC LIMIT 1', (sales,))
+            tier = cursor.fetchone()
+
+            if tier:
+                cursor.execute('UPDATE affiliates SET tier = ?, commission_rate = ? WHERE id = ?',
+                    (tier[0], tier[1] + tier[2], affiliate_id))
+                conn.commit()
+                conn.close()
+                return {'success': True, 'tier': tier[0], 'new_rate': tier[1] + tier[2]}
+
+            conn.close()
+            return {'success': True, 'message': 'Aucun changement'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_affiliate_dashboard(self, affiliate_id):
+        """Dashboard affilie avec stats"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Info affilie
+            cursor.execute('SELECT user_name, referral_code, tier, commission_rate, balance, total_earned, total_paid, referrals_count FROM affiliates WHERE id = ?', (affiliate_id,))
+            a = cursor.fetchone()
+            if not a:
+                return {'error': 'Affilie non trouve'}
+
+            # Clics ce mois
+            month_start = datetime.now().replace(day=1).strftime('%Y-%m-%d')
+            cursor.execute('SELECT COUNT(*) FROM affiliate_clicks WHERE affiliate_id = ? AND created_at >= ?', (affiliate_id, month_start))
+            clicks_month = cursor.fetchone()[0]
+
+            # Conversions ce mois
+            cursor.execute('SELECT COUNT(*), SUM(order_amount), SUM(commission_amount) FROM affiliate_referrals WHERE affiliate_id = ? AND converted = 1 AND converted_at >= ?', (affiliate_id, month_start))
+            conv = cursor.fetchone()
+
+            # Paiements en attente
+            cursor.execute('SELECT SUM(amount) FROM affiliate_payouts WHERE affiliate_id = ? AND status = "pending"', (affiliate_id,))
+            pending = cursor.fetchone()[0] or 0
+
+            # Top landing pages
+            cursor.execute('SELECT landing_page, COUNT(*) as cnt FROM affiliate_clicks WHERE affiliate_id = ? GROUP BY landing_page ORDER BY cnt DESC LIMIT 5', (affiliate_id,))
+            top_pages = [{'page': r[0], 'clicks': r[1]} for r in cursor.fetchall()]
+
+            conn.close()
+
+            return {
+                'name': a[0],
+                'referral_code': a[1],
+                'referral_link': f"https://seoparai.ca/?ref={a[1]}",
+                'tier': a[2],
+                'commission_rate': a[3],
+                'balance': a[4],
+                'total_earned': a[5],
+                'total_paid': a[6],
+                'total_referrals': a[7],
+                'month': {
+                    'clicks': clicks_month,
+                    'conversions': conv[0] or 0,
+                    'revenue': conv[1] or 0,
+                    'commissions': conv[2] or 0
+                },
+                'pending_payout': pending,
+                'top_pages': top_pages
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_stats(self, days=30):
+        """Statistiques globales programme affiliation"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT COUNT(*) FROM affiliates WHERE status = "active"')
+            active_affiliates = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM affiliates WHERE status = "pending"')
+            pending = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM affiliate_clicks WHERE created_at >= ?', (start,))
+            clicks = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*), SUM(order_amount), SUM(commission_amount) FROM affiliate_referrals WHERE converted = 1 AND converted_at >= ?', (start,))
+            conv = cursor.fetchone()
+
+            cursor.execute('SELECT SUM(amount) FROM affiliate_payouts WHERE status = "completed" AND processed_at >= ?', (start,))
+            paid = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT SUM(balance) FROM affiliates')
+            total_owed = cursor.fetchone()[0] or 0
+
+            # Top affilies
+            cursor.execute('''SELECT a.user_name, COUNT(r.id) as sales, SUM(r.commission_amount) as comm
+                FROM affiliates a JOIN affiliate_referrals r ON a.id = r.affiliate_id
+                WHERE r.converted = 1 AND r.converted_at >= ?
+                GROUP BY a.id ORDER BY comm DESC LIMIT 5''', (start,))
+            top = [{'name': r[0], 'sales': r[1], 'commissions': r[2]} for r in cursor.fetchall()]
+
+            conn.close()
+
+            conversion_rate = round((conv[0] or 0) / clicks * 100, 2) if clicks > 0 else 0
+
+            return {
+                'active_affiliates': active_affiliates,
+                'pending_applications': pending,
+                'period_clicks': clicks,
+                'period_conversions': conv[0] or 0,
+                'conversion_rate': conversion_rate,
+                'period_revenue': conv[1] or 0,
+                'period_commissions': conv[2] or 0,
+                'period_paid': paid,
+                'total_owed': total_owed,
+                'top_affiliates': top
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ========== AGENT 61: LOYALTY AGENT ==========
+class LoyaltyAgent:
+    """Agent de programme de fidelite - Points, recompenses, niveaux, promotions"""
+    name = "Loyalty Agent"
+
+    def init_db(self):
+        """Initialise les tables fidelite"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Table membres fidelite
+        cursor.execute('''CREATE TABLE IF NOT EXISTS loyalty_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            customer_email TEXT UNIQUE NOT NULL,
+            customer_name TEXT,
+            phone TEXT,
+            points_balance INTEGER DEFAULT 0,
+            points_earned_total INTEGER DEFAULT 0,
+            points_redeemed_total INTEGER DEFAULT 0,
+            tier TEXT DEFAULT 'bronze',
+            tier_points INTEGER DEFAULT 0,
+            join_date TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_activity TEXT,
+            birthday TEXT,
+            preferences TEXT,
+            status TEXT DEFAULT 'active',
+            referral_code TEXT UNIQUE,
+            referred_by INTEGER,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # Table transactions points
+        cursor.execute('''CREATE TABLE IF NOT EXISTS loyalty_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER NOT NULL,
+            type TEXT NOT NULL,
+            points INTEGER NOT NULL,
+            description TEXT,
+            order_id TEXT,
+            order_amount REAL,
+            expires_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (member_id) REFERENCES loyalty_members(id)
+        )''')
+
+        # Table recompenses
+        cursor.execute('''CREATE TABLE IF NOT EXISTS loyalty_rewards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            points_cost INTEGER NOT NULL,
+            reward_type TEXT DEFAULT 'discount',
+            reward_value REAL,
+            reward_code TEXT,
+            stock INTEGER DEFAULT -1,
+            tier_required TEXT,
+            is_active INTEGER DEFAULT 1,
+            valid_from TEXT,
+            valid_until TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # Table echanges recompenses
+        cursor.execute('''CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER NOT NULL,
+            reward_id INTEGER NOT NULL,
+            points_spent INTEGER NOT NULL,
+            redemption_code TEXT UNIQUE,
+            status TEXT DEFAULT 'pending',
+            used_at TEXT,
+            expires_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (member_id) REFERENCES loyalty_members(id),
+            FOREIGN KEY (reward_id) REFERENCES loyalty_rewards(id)
+        )''')
+
+        # Table niveaux/tiers
+        cursor.execute('''CREATE TABLE IF NOT EXISTS loyalty_tiers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            min_points INTEGER DEFAULT 0,
+            points_multiplier REAL DEFAULT 1.0,
+            benefits TEXT,
+            badge_color TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # Table promotions bonus points
+        cursor.execute('''CREATE TABLE IF NOT EXISTS loyalty_promotions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT,
+            promo_type TEXT DEFAULT 'multiplier',
+            value REAL DEFAULT 2.0,
+            conditions TEXT,
+            valid_from TEXT,
+            valid_until TEXT,
+            is_active INTEGER DEFAULT 1,
+            usage_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        conn.commit()
+        conn.close()
+
+    def _generate_referral_code(self, name):
+        """Genere un code de parrainage"""
+        import hashlib
+        base = name.upper().replace(' ', '')[:4]
+        suffix = hashlib.md5(f"{name}{datetime.now().isoformat()}".encode()).hexdigest()[:4].upper()
+        return f"REF{base}{suffix}"
+
+    def _generate_redemption_code(self):
+        """Genere un code d'echange"""
+        import hashlib
+        return hashlib.md5(f"{datetime.now().isoformat()}".encode()).hexdigest()[:10].upper()
+
+    def enroll_member(self, data):
+        """Inscrit un nouveau membre"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            email = data.get('email', '')
+            name = data.get('name', '')
+            if not email:
+                return {'error': 'Email requis'}
+
+            # Verifier si existe
+            cursor.execute('SELECT id FROM loyalty_members WHERE customer_email = ?', (email,))
+            if cursor.fetchone():
+                return {'error': 'Membre deja inscrit'}
+
+            referral_code = self._generate_referral_code(name or email.split('@')[0])
+
+            # Bonus parrainage
+            referred_by = None
+            bonus_points = 100  # Points de bienvenue
+            if data.get('referral_code'):
+                cursor.execute('SELECT id FROM loyalty_members WHERE referral_code = ?', (data.get('referral_code'),))
+                referrer = cursor.fetchone()
+                if referrer:
+                    referred_by = referrer[0]
+                    bonus_points = 200  # Bonus parrainage
+
+            cursor.execute('''INSERT INTO loyalty_members (customer_id, customer_email, customer_name, phone, points_balance, points_earned_total, referral_code, referred_by, birthday)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (data.get('customer_id'), email, name, data.get('phone'), bonus_points, bonus_points,
+                 referral_code, referred_by, data.get('birthday')))
+
+            member_id = cursor.lastrowid
+
+            # Transaction points bienvenue
+            cursor.execute('''INSERT INTO loyalty_transactions (member_id, type, points, description)
+                VALUES (?, 'earn', ?, ?)''',
+                (member_id, bonus_points, 'Points de bienvenue' if not referred_by else 'Bonus parrainage'))
+
+            # Bonus au parrain
+            if referred_by:
+                cursor.execute('UPDATE loyalty_members SET points_balance = points_balance + 150, points_earned_total = points_earned_total + 150 WHERE id = ?', (referred_by,))
+                cursor.execute('''INSERT INTO loyalty_transactions (member_id, type, points, description)
+                    VALUES (?, 'earn', 150, ?)''', (referred_by, f'Parrainage de {name or email}'))
+
+            conn.commit()
+            conn.close()
+
+            return {
+                'success': True,
+                'member_id': member_id,
+                'referral_code': referral_code,
+                'points': bonus_points,
+                'message': 'Bienvenue au programme de fidelite!'
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def earn_points(self, member_id, data):
+        """Ajoute des points pour un achat"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT tier, status FROM loyalty_members WHERE id = ?', (member_id,))
+            member = cursor.fetchone()
+            if not member:
+                return {'error': 'Membre non trouve'}
+            if member[1] != 'active':
+                return {'error': 'Membre inactif'}
+
+            order_amount = data.get('amount', 0)
+            order_id = data.get('order_id')
+
+            # Calculer points (1$ = 1 point par defaut)
+            base_points = int(order_amount)
+
+            # Multiplicateur selon tier
+            cursor.execute('SELECT points_multiplier FROM loyalty_tiers WHERE name = ?', (member[0],))
+            tier = cursor.fetchone()
+            multiplier = tier[0] if tier else 1.0
+
+            # Verifier promotions actives
+            now = datetime.now().isoformat()
+            cursor.execute('''SELECT value FROM loyalty_promotions
+                WHERE promo_type = 'multiplier' AND is_active = 1
+                AND (valid_from IS NULL OR valid_from <= ?) AND (valid_until IS NULL OR valid_until >= ?)''', (now, now))
+            promo = cursor.fetchone()
+            if promo:
+                multiplier *= promo[0]
+
+            points = int(base_points * multiplier)
+
+            # Ajouter points
+            cursor.execute('''UPDATE loyalty_members SET
+                points_balance = points_balance + ?,
+                points_earned_total = points_earned_total + ?,
+                tier_points = tier_points + ?,
+                last_activity = ?
+                WHERE id = ?''', (points, points, points, now, member_id))
+
+            cursor.execute('''INSERT INTO loyalty_transactions (member_id, type, points, description, order_id, order_amount)
+                VALUES (?, 'earn', ?, ?, ?, ?)''',
+                (member_id, points, f'Achat #{order_id}' if order_id else 'Achat', order_id, order_amount))
+
+            conn.commit()
+
+            # Verifier upgrade tier
+            self._check_tier_upgrade(member_id, conn)
+
+            conn.close()
+
+            return {
+                'success': True,
+                'points_earned': points,
+                'multiplier': multiplier,
+                'message': f'{points} points gagnes!'
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def _check_tier_upgrade(self, member_id, conn=None):
+        """Verifie et met a jour le tier"""
+        try:
+            close_conn = False
+            if not conn:
+                conn = get_db()
+                close_conn = True
+
+            cursor = conn.cursor()
+            cursor.execute('SELECT tier_points, tier FROM loyalty_members WHERE id = ?', (member_id,))
+            member = cursor.fetchone()
+            if not member:
+                return
+
+            cursor.execute('SELECT name FROM loyalty_tiers WHERE min_points <= ? ORDER BY min_points DESC LIMIT 1', (member[0],))
+            new_tier = cursor.fetchone()
+
+            if new_tier and new_tier[0] != member[1]:
+                cursor.execute('UPDATE loyalty_members SET tier = ? WHERE id = ?', (new_tier[0], member_id))
+                conn.commit()
+
+            if close_conn:
+                conn.close()
+        except:
+            pass
+
+    def redeem_reward(self, member_id, reward_id):
+        """Echange points contre recompense"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Verifier membre
+            cursor.execute('SELECT points_balance, tier, status FROM loyalty_members WHERE id = ?', (member_id,))
+            member = cursor.fetchone()
+            if not member:
+                return {'error': 'Membre non trouve'}
+            if member[2] != 'active':
+                return {'error': 'Membre inactif'}
+
+            # Verifier recompense
+            cursor.execute('SELECT name, points_cost, reward_type, reward_value, reward_code, stock, tier_required, is_active FROM loyalty_rewards WHERE id = ?', (reward_id,))
+            reward = cursor.fetchone()
+            if not reward:
+                return {'error': 'Recompense non trouvee'}
+            if not reward[7]:
+                return {'error': 'Recompense inactive'}
+            if reward[5] == 0:
+                return {'error': 'Stock epuise'}
+            if member[0] < reward[1]:
+                return {'error': f'Points insuffisants ({member[0]}/{reward[1]})'}
+
+            # Verifier tier requis
+            if reward[6]:
+                tier_order = ['bronze', 'silver', 'gold', 'platinum', 'diamond']
+                member_tier_idx = tier_order.index(member[1]) if member[1] in tier_order else 0
+                required_tier_idx = tier_order.index(reward[6]) if reward[6] in tier_order else 0
+                if member_tier_idx < required_tier_idx:
+                    return {'error': f'Tier {reward[6]} requis'}
+
+            redemption_code = self._generate_redemption_code()
+            expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+
+            # Deduire points
+            cursor.execute('''UPDATE loyalty_members SET
+                points_balance = points_balance - ?,
+                points_redeemed_total = points_redeemed_total + ?,
+                last_activity = ?
+                WHERE id = ?''', (reward[1], reward[1], datetime.now().isoformat(), member_id))
+
+            # Creer echange
+            cursor.execute('''INSERT INTO loyalty_redemptions (member_id, reward_id, points_spent, redemption_code, expires_at)
+                VALUES (?, ?, ?, ?, ?)''', (member_id, reward_id, reward[1], redemption_code, expires_at))
+
+            redemption_id = cursor.lastrowid
+
+            # Transaction
+            cursor.execute('''INSERT INTO loyalty_transactions (member_id, type, points, description)
+                VALUES (?, 'redeem', ?, ?)''', (member_id, -reward[1], f'Echange: {reward[0]}'))
+
+            # Diminuer stock
+            if reward[5] > 0:
+                cursor.execute('UPDATE loyalty_rewards SET stock = stock - 1 WHERE id = ?', (reward_id,))
+
+            conn.commit()
+            conn.close()
+
+            return {
+                'success': True,
+                'redemption_id': redemption_id,
+                'redemption_code': redemption_code,
+                'reward': reward[0],
+                'reward_type': reward[2],
+                'reward_value': reward[3],
+                'expires_at': expires_at,
+                'message': f'Recompense "{reward[0]}" obtenue!'
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def use_redemption(self, redemption_code):
+        """Utilise un code d'echange"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''SELECT r.id, r.status, r.expires_at, rw.name, rw.reward_type, rw.reward_value, rw.reward_code
+                FROM loyalty_redemptions r JOIN loyalty_rewards rw ON r.reward_id = rw.id
+                WHERE r.redemption_code = ?''', (redemption_code,))
+            redemption = cursor.fetchone()
+
+            if not redemption:
+                return {'error': 'Code invalide'}
+            if redemption[1] == 'used':
+                return {'error': 'Code deja utilise'}
+            if redemption[2] and redemption[2] < datetime.now().isoformat():
+                return {'error': 'Code expire'}
+
+            cursor.execute('UPDATE loyalty_redemptions SET status = "used", used_at = ? WHERE id = ?',
+                (datetime.now().isoformat(), redemption[0]))
+
+            conn.commit()
+            conn.close()
+
+            return {
+                'success': True,
+                'reward': redemption[3],
+                'type': redemption[4],
+                'value': redemption[5],
+                'code': redemption[6]
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_member(self, member_id=None, email=None):
+        """Recupere un membre"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            if member_id:
+                cursor.execute('''SELECT id, customer_email, customer_name, phone, points_balance, points_earned_total, points_redeemed_total, tier, tier_points, referral_code, join_date, last_activity, status
+                    FROM loyalty_members WHERE id = ?''', (member_id,))
+            elif email:
+                cursor.execute('''SELECT id, customer_email, customer_name, phone, points_balance, points_earned_total, points_redeemed_total, tier, tier_points, referral_code, join_date, last_activity, status
+                    FROM loyalty_members WHERE customer_email = ?''', (email,))
+            else:
+                return {'error': 'ID ou email requis'}
+
+            m = cursor.fetchone()
+            conn.close()
+
+            if not m:
+                return {'error': 'Membre non trouve'}
+
+            return {
+                'id': m[0], 'email': m[1], 'name': m[2], 'phone': m[3],
+                'points_balance': m[4], 'points_earned': m[5], 'points_redeemed': m[6],
+                'tier': m[7], 'tier_points': m[8], 'referral_code': m[9],
+                'join_date': m[10], 'last_activity': m[11], 'status': m[12]
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_members(self, tier=None, status='active', limit=50):
+        """Liste les membres"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, customer_email, customer_name, points_balance, tier, tier_points, last_activity, status FROM loyalty_members WHERE 1=1'
+            params = []
+
+            if tier:
+                query += ' AND tier = ?'
+                params.append(tier)
+            if status:
+                query += ' AND status = ?'
+                params.append(status)
+
+            query += ' ORDER BY points_balance DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'email': r[1], 'name': r[2], 'points': r[3], 'tier': r[4], 'tier_points': r[5], 'last_activity': r[6], 'status': r[7]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_transactions(self, member_id, trans_type=None, limit=50):
+        """Liste les transactions d'un membre"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, type, points, description, order_id, order_amount, created_at FROM loyalty_transactions WHERE member_id = ?'
+            params = [member_id]
+
+            if trans_type:
+                query += ' AND type = ?'
+                params.append(trans_type)
+
+            query += ' ORDER BY created_at DESC LIMIT ?'
+            params.append(limit)
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'type': r[1], 'points': r[2], 'description': r[3], 'order_id': r[4], 'amount': r[5], 'date': r[6]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_reward(self, data):
+        """Cree une recompense"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''INSERT INTO loyalty_rewards (name, description, points_cost, reward_type, reward_value, reward_code, stock, tier_required, valid_from, valid_until)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (data.get('name'), data.get('description'), data.get('points_cost', 100),
+                 data.get('type', 'discount'), data.get('value'), data.get('code'),
+                 data.get('stock', -1), data.get('tier_required'), data.get('valid_from'), data.get('valid_until')))
+
+            reward_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'reward_id': reward_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_rewards(self, is_active=True, tier=None):
+        """Liste les recompenses"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, name, description, points_cost, reward_type, reward_value, stock, tier_required, is_active FROM loyalty_rewards WHERE 1=1'
+            params = []
+
+            if is_active is not None:
+                query += ' AND is_active = ?'
+                params.append(1 if is_active else 0)
+
+            query += ' ORDER BY points_cost ASC'
+
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+
+            rewards = [{'id': r[0], 'name': r[1], 'description': r[2], 'points': r[3], 'type': r[4], 'value': r[5], 'stock': r[6], 'tier_required': r[7], 'active': bool(r[8])} for r in rows]
+
+            # Filtrer par tier si specifie
+            if tier:
+                tier_order = ['bronze', 'silver', 'gold', 'platinum', 'diamond']
+                tier_idx = tier_order.index(tier) if tier in tier_order else 0
+                rewards = [r for r in rewards if not r['tier_required'] or tier_order.index(r['tier_required']) <= tier_idx]
+
+            return rewards
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_tier(self, data):
+        """Cree un niveau de fidelite"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''INSERT INTO loyalty_tiers (name, min_points, points_multiplier, benefits, badge_color)
+                VALUES (?, ?, ?, ?, ?)''',
+                (data.get('name'), data.get('min_points', 0), data.get('multiplier', 1.0),
+                 data.get('benefits'), data.get('color', '#CD7F32')))
+
+            tier_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'tier_id': tier_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_tiers(self):
+        """Liste les niveaux"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, min_points, points_multiplier, benefits, badge_color FROM loyalty_tiers ORDER BY min_points')
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'name': r[1], 'min_points': r[2], 'multiplier': r[3], 'benefits': r[4], 'color': r[5]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def setup_default_tiers(self):
+        """Configure les niveaux par defaut"""
+        try:
+            tiers = [
+                {'name': 'bronze', 'min_points': 0, 'multiplier': 1.0, 'benefits': '1 point par dollar', 'color': '#CD7F32'},
+                {'name': 'silver', 'min_points': 500, 'multiplier': 1.25, 'benefits': '1.25x points, livraison gratuite', 'color': '#C0C0C0'},
+                {'name': 'gold', 'min_points': 2000, 'multiplier': 1.5, 'benefits': '1.5x points, acces VIP, offres exclusives', 'color': '#FFD700'},
+                {'name': 'platinum', 'min_points': 5000, 'multiplier': 2.0, 'benefits': '2x points, support prioritaire, cadeaux', 'color': '#E5E4E2'},
+                {'name': 'diamond', 'min_points': 15000, 'multiplier': 3.0, 'benefits': '3x points, concierge dedie, evenements prives', 'color': '#B9F2FF'}
+            ]
+            for t in tiers:
+                self.create_tier(t)
+            return {'success': True, 'message': '5 niveaux crees'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def setup_default_rewards(self):
+        """Configure les recompenses par defaut"""
+        try:
+            rewards = [
+                {'name': '5$ de rabais', 'description': 'Rabais de 5$ sur prochain achat', 'points_cost': 100, 'type': 'discount', 'value': 5},
+                {'name': '10$ de rabais', 'description': 'Rabais de 10$ sur prochain achat', 'points_cost': 200, 'type': 'discount', 'value': 10},
+                {'name': '25$ de rabais', 'description': 'Rabais de 25$ sur prochain achat', 'points_cost': 450, 'type': 'discount', 'value': 25},
+                {'name': 'Livraison gratuite', 'description': 'Livraison gratuite sur commande', 'points_cost': 150, 'type': 'free_shipping', 'value': 1},
+                {'name': '10% de rabais', 'description': '10% sur tout le panier', 'points_cost': 300, 'type': 'percent', 'value': 10, 'tier_required': 'silver'},
+                {'name': '20% de rabais', 'description': '20% sur tout le panier', 'points_cost': 600, 'type': 'percent', 'value': 20, 'tier_required': 'gold'},
+                {'name': 'Cadeau surprise', 'description': 'Un cadeau exclusif', 'points_cost': 1000, 'type': 'gift', 'value': 1, 'tier_required': 'platinum'}
+            ]
+            for r in rewards:
+                self.create_reward(r)
+            return {'success': True, 'message': '7 recompenses creees'}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def create_promotion(self, data):
+        """Cree une promotion bonus"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('''INSERT INTO loyalty_promotions (name, description, promo_type, value, conditions, valid_from, valid_until)
+                VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                (data.get('name'), data.get('description'), data.get('type', 'multiplier'),
+                 data.get('value', 2.0), data.get('conditions'), data.get('valid_from'), data.get('valid_until')))
+
+            promo_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'promotion_id': promo_id}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_promotions(self, active_only=True):
+        """Liste les promotions"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            query = 'SELECT id, name, description, promo_type, value, valid_from, valid_until, is_active, usage_count FROM loyalty_promotions'
+            if active_only:
+                now = datetime.now().isoformat()
+                query += f' WHERE is_active = 1 AND (valid_from IS NULL OR valid_from <= "{now}") AND (valid_until IS NULL OR valid_until >= "{now}")'
+
+            query += ' ORDER BY created_at DESC'
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            conn.close()
+
+            return [{'id': r[0], 'name': r[1], 'description': r[2], 'type': r[3], 'value': r[4], 'valid_from': r[5], 'valid_until': r[6], 'active': bool(r[7]), 'usage': r[8]} for r in rows]
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_member_dashboard(self, member_id):
+        """Dashboard membre avec stats"""
+        try:
+            member = self.get_member(member_id=member_id)
+            if 'error' in member:
+                return member
+
+            transactions = self.get_transactions(member_id, limit=10)
+            rewards = self.get_rewards(tier=member.get('tier'))
+
+            # Prochains niveaux
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('SELECT name, min_points FROM loyalty_tiers WHERE min_points > ? ORDER BY min_points LIMIT 1', (member.get('tier_points', 0),))
+            next_tier = cursor.fetchone()
+
+            # Redemptions recentes
+            cursor.execute('''SELECT r.id, rw.name, r.redemption_code, r.status, r.created_at
+                FROM loyalty_redemptions r JOIN loyalty_rewards rw ON r.reward_id = rw.id
+                WHERE r.member_id = ? ORDER BY r.created_at DESC LIMIT 5''', (member_id,))
+            redemptions = [{'id': r[0], 'reward': r[1], 'code': r[2], 'status': r[3], 'date': r[4]} for r in cursor.fetchall()]
+
+            conn.close()
+
+            return {
+                'member': member,
+                'next_tier': {'name': next_tier[0], 'points_needed': next_tier[1] - member.get('tier_points', 0)} if next_tier else None,
+                'recent_transactions': transactions if isinstance(transactions, list) else [],
+                'recent_redemptions': redemptions,
+                'available_rewards': len(rewards) if isinstance(rewards, list) else 0
+            }
+        except Exception as e:
+            return {'error': str(e)}
+
+    def adjust_points(self, member_id, points, reason='Ajustement manuel'):
+        """Ajuste les points manuellement"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+
+            cursor.execute('SELECT id FROM loyalty_members WHERE id = ?', (member_id,))
+            if not cursor.fetchone():
+                return {'error': 'Membre non trouve'}
+
+            trans_type = 'earn' if points > 0 else 'redeem'
+            cursor.execute('UPDATE loyalty_members SET points_balance = points_balance + ? WHERE id = ?', (points, member_id))
+            cursor.execute('''INSERT INTO loyalty_transactions (member_id, type, points, description)
+                VALUES (?, ?, ?, ?)''', (member_id, trans_type, points, reason))
+
+            conn.commit()
+            conn.close()
+
+            return {'success': True, 'points_adjusted': points}
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_stats(self, days=30):
+        """Statistiques programme fidelite"""
+        try:
+            self.init_db()
+            conn = get_db()
+            cursor = conn.cursor()
+            start = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+            cursor.execute('SELECT COUNT(*) FROM loyalty_members WHERE status = "active"')
+            active_members = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM loyalty_members WHERE join_date >= ?', (start,))
+            new_members = cursor.fetchone()[0]
+
+            cursor.execute('SELECT SUM(points) FROM loyalty_transactions WHERE type = "earn" AND created_at >= ?', (start,))
+            points_earned = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT SUM(ABS(points)) FROM loyalty_transactions WHERE type = "redeem" AND created_at >= ?', (start,))
+            points_redeemed = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT SUM(points_balance) FROM loyalty_members')
+            total_points = cursor.fetchone()[0] or 0
+
+            cursor.execute('SELECT COUNT(*) FROM loyalty_redemptions WHERE created_at >= ?', (start,))
+            redemptions = cursor.fetchone()[0]
+
+            # Par tier
+            cursor.execute('SELECT tier, COUNT(*) FROM loyalty_members WHERE status = "active" GROUP BY tier')
+            by_tier = {r[0]: r[1] for r in cursor.fetchall()}
+
+            # Top membres
+            cursor.execute('SELECT customer_name, customer_email, points_balance, tier FROM loyalty_members WHERE status = "active" ORDER BY points_balance DESC LIMIT 5')
+            top = [{'name': r[0] or r[1], 'points': r[2], 'tier': r[3]} for r in cursor.fetchall()]
+
+            conn.close()
+
+            return {
+                'active_members': active_members,
+                'new_members': new_members,
+                'points_earned': points_earned,
+                'points_redeemed': points_redeemed,
+                'total_points_outstanding': total_points,
+                'redemptions': redemptions,
+                'members_by_tier': by_tier,
+                'top_members': top
+            }
         except Exception as e:
             return {'error': str(e)}
