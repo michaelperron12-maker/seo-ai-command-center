@@ -36,7 +36,7 @@ SITES = {
     1: {'nom': 'Deneigement Excellence', 'domaine': 'deneigement-excellence.ca', 'niche': 'deneigement', 'path': '/var/www/deneigement'},
     2: {'nom': 'Paysagiste Excellence', 'domaine': 'paysagiste-excellence.ca', 'niche': 'paysagement', 'path': '/var/www/paysagement'},
     3: {'nom': 'JC Peintre', 'domaine': 'jcpeintre.com', 'niche': 'peinture', 'path': '/var/www/jcpeintre.com'},
-    4: {'nom': 'SEO par AI', 'domaine': 'seoparai.ca', 'niche': 'seo-marketing', 'path': '/var/www/seoparai'}
+    4: {'nom': 'SEO par AI', 'domaine': 'seoparai.com', 'niche': 'seo-marketing', 'path': '/var/www/seoparai'}
 }
 
 def get_db():
@@ -14620,7 +14620,7 @@ class AffiliateAgent:
                 'success': True,
                 'affiliate_id': affiliate_id,
                 'referral_code': referral_code,
-                'referral_link': f"https://seoparai.ca/?ref={referral_code}",
+                'referral_link': f"https://seoparai.com/?ref={referral_code}",
                 'message': 'Inscription soumise, en attente d\'approbation'
             }
         except Exception as e:
@@ -14747,7 +14747,7 @@ class AffiliateAgent:
                 'balance': a[10], 'total_earned': a[11], 'total_paid': a[12],
                 'referrals_count': a[13], 'payment_method': a[14],
                 'approved_at': a[15], 'created_at': a[16],
-                'referral_link': f"https://seoparai.ca/?ref={a[6]}"
+                'referral_link': f"https://seoparai.com/?ref={a[6]}"
             }
         except Exception as e:
             return {'error': str(e)}
@@ -15010,7 +15010,7 @@ class AffiliateAgent:
             return {
                 'name': a[0],
                 'referral_code': a[1],
-                'referral_link': f"https://seoparai.ca/?ref={a[1]}",
+                'referral_link': f"https://seoparai.com/?ref={a[1]}",
                 'tier': a[2],
                 'commission_rate': a[3],
                 'balance': a[4],
