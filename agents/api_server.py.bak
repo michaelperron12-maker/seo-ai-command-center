@@ -791,10 +791,6 @@ def api_index():
 
 
 
-# Self-audit routes
-from self_audit_routes import register_self_audit_routes
-register_self_audit_routes(app)
-
 if __name__ == "__main__":
     print("=== SEO Agent API Server v3.0 ===")
     print("Port: 8002")
