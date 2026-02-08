@@ -6644,50 +6644,30 @@ h1, h2, h3, .hero-title {
             messages.innerHTML += `<div id="${typingId}" class="chat-message bot" style="background: rgba(99, 102, 241, 0.1); padding: 12px 15px; border-radius: 12px 12px 12px 4px; margin-bottom: 10px; font-size: 0.9rem;"><span style="display: inline-flex; gap: 4px;"><span style="width: 8px; height: 8px; background: #6366f1; border-radius: 50%; animation: bounce 0.6s infinite;"></span><span style="width: 8px; height: 8px; background: #6366f1; border-radius: 50%; animation: bounce 0.6s infinite 0.2s;"></span><span style="width: 8px; height: 8px; background: #6366f1; border-radius: 50%; animation: bounce 0.6s infinite 0.4s;"></span></span></div>`;
             messages.scrollTop = messages.scrollHeight;
 
-            let response = '';
-            const q = question.toLowerCase();
+            try {
+                // Appel API Fireworks via backend
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: question })
+                });
 
-            // Reponses intelligentes
-            if (q.includes('prix') || q.includes('cout') || q.includes('forfait') || q.includes('recommand') || q.includes('tarif')) {
-                response = "💰 <b>Notre tarification simple et transparente:</b><br><br>• <b>Site SEO + IA</b>: 600$/mois<br>&nbsp;&nbsp;→ 62 agents IA, contenu auto, backlinks, audit<br><br>• <b>Modules additionnels</b>: +25$/mois chacun<br>&nbsp;&nbsp;→ CRM, Facturation, Chatbot, Calendrier, etc.<br><br>• <b>Pack Complet</b>: 750$/mois<br>&nbsp;&nbsp;→ Site + les 7 modules! (Economie de 25$)<br><br>✨ Service entierement gere - On fait TOUT pour vous!";
-            } else if (q.includes('agent') || q.includes('62')) {
-                response = "🤖 <b>Nos 62 agents IA specialises:</b><br><br>• <b>14 agents Contenu</b> - Articles, FAQ, meta descriptions<br>• <b>12 agents Backlinks</b> - Reddit, forums, annuaires<br>• <b>10 agents Technique</b> - Audit, Core Web Vitals, SSL<br>• <b>10 agents Analytics</b> - SERP tracking, rapports<br>• <b>8 agents Social</b> - Posts, reponses forums<br>• <b>6 agents Veille</b> - Surveillance concurrence<br>• <b>2 agents SAIO</b> - Optimisation IA (ChatGPT, Claude)<br><br>Chaque agent travaille 24/7 en parallele!";
-            } else if (q.includes('comment') || q.includes('fonctionne') || q.includes('marche')) {
-                response = "⚡ <b>Comment fonctionne SEO par AI:</b><br><br>1️⃣ <b>Analyse</b> - Nos agents scannent votre site<br>2️⃣ <b>Strategie</b> - On identifie les opportunites<br>3️⃣ <b>Creation</b> - Contenu SEO genere automatiquement<br>4️⃣ <b>Backlinks</b> - Posts Reddit, forums, annuaires<br>5️⃣ <b>Surveillance</b> - Monitoring 24/7 de vos positions<br>6️⃣ <b>Rapports</b> - Dashboard en temps reel<br><br>Vous gardez le controle total - on vous envoie tout pour validation!";
-            } else if (q.includes('aeo') || q.includes('geo') || q.includes('saio')) {
-                response = "📚 <b>Les 4 types d'optimisation:</b><br><br>🔍 <b>SEO</b> (Search Engine Optimization)<br>→ Optimisation pour Google, Bing<br><br>🤖 <b>AEO</b> (Answer Engine Optimization)<br>→ Optimisation pour ChatGPT, Claude, Perplexity<br><br>🌍 <b>GEO</b> (Generative Engine Optimization)<br>→ Etre cite par les IA generatives<br><br>🧠 <b>SAIO</b> (Search AI Optimization)<br>→ Combiner SEO classique + IA<br><br>Nous faisons les 4! C'est ca notre avantage.";
-            } else if (q.includes('resultat') || q.includes('attendre') || q.includes('temps') || q.includes('combien de temps')) {
-                response = "📈 <b>Resultats typiques de nos clients:</b><br><br>• <b>30 jours</b>: +50% de trafic organique<br>• <b>60 jours</b>: Premieres positions Top 10<br>• <b>90 jours</b>: +200% de trafic, leads qualifies<br><br>⏱️ L'IA travaille 24/7 sans pause!<br><br>⚠️ <i>Note: Les resultats varient selon la concurrence de votre secteur. On vous donne une estimation realiste apres analyse de votre site.</i>";
-            } else if (q.includes('claude') || q.includes('deepseek') || q.includes('ia') || q.includes('intelligence') || q.includes('model')) {
-                response = "🧠 <b>Nos modeles IA:</b><br><br>• <b>Claude (Anthropic)</b><br>&nbsp;&nbsp;→ Redaction de qualite superieure<br>&nbsp;&nbsp;→ Analyse strategique<br><br>• <b>DeepSeek R1</b><br>&nbsp;&nbsp;→ Raisonnement avance<br>&nbsp;&nbsp;→ Recherche de mots-cles<br><br>• <b>Qwen 235B</b><br>&nbsp;&nbsp;→ Traitement multilingue<br><br>• <b>Llama, Mistral</b><br>&nbsp;&nbsp;→ Taches specialisees rapides<br><br>Chaque agent utilise le modele optimal pour sa tache!";
-            } else if (q.includes('site') || q.includes('web') || q.includes('creer') || q.includes('developpement')) {
-                response = "🏗️ <b>Oui, nous creons des sites web 100% SEO!</b><br><br>✅ Core Web Vitals 100/100<br>✅ HTML5 semantique parfait<br>✅ Schema.org integre<br>✅ Mobile-first responsive<br>✅ HTTPS & securite<br>✅ Hebergement inclus<br><br>Le site est inclus dans le forfait de base (600$/mois).<br><br>📧 Contactez-nous: <b>contact@seoparai.com</b>";
-            } else if (q.includes('crm') || q.includes('client') || q.includes('gestion')) {
-                response = "📋 <b>Module CRM (+25$/mois):</b><br><br>• Gestion des contacts/leads<br>• Suivi des opportunites<br>• Pipeline de vente visuel<br>• Automatisation des suivis<br>• Integration email<br>• Rappels et taches<br><br>Parfait pour les agences et entreprises de services!";
-            } else if (q.includes('facturation') || q.includes('facture') || q.includes('paiement')) {
-                response = "💳 <b>Module Facturation (+25$/mois):</b><br><br>• Creation de factures professionnelles<br>• Devis et soumissions<br>• Suivi des paiements<br>• Rappels automatiques<br>• Export comptable<br>• Paiements en ligne (Stripe)<br><br>Conforme aux normes fiscales Quebec/Canada!";
-            } else if (q.includes('chatbot') || q.includes('chat') || q.includes('assistant')) {
-                response = "💬 <b>Module Chatbot IA (+25$/mois):</b><br><br>• Assistant IA pour votre site<br>• Repond aux questions clients 24/7<br>• Qualification des leads automatique<br>• Integration avec votre CRM<br>• Personnalise a votre entreprise<br><br>Propulse par Claude pour des reponses de qualite!";
-            } else if (q.includes('backlink') || q.includes('lien')) {
-                response = "🔗 <b>Notre strategie Backlinks:</b><br><br>• <b>Reddit</b> - Posts authentiques dans les subreddits pertinents<br>• <b>Forums</b> - Reponses utiles avec liens naturels<br>• <b>Annuaires</b> - Soumissions aux directories de qualite<br>• <b>Guest posts</b> - Articles invites sur blogs autorises<br>• <b>Citations NAP</b> - Coherence nom/adresse/telephone<br><br>Tout est fait de maniere ethique et durable!";
-            } else if (q.includes('concurren') || q.includes('compet')) {
-                response = "🎯 <b>Veille concurrentielle incluse:</b><br><br>• Suivi des positions de vos concurrents<br>• Alerte nouveaux contenus<br>• Analyse de leurs backlinks<br>• Detection des opportunites manquees<br>• Rapport hebdomadaire<br><br>On surveille vos 5 principaux concurrents 24/7!";
-            } else if (q.includes('contact') || q.includes('joindre') || q.includes('appeler') || q.includes('email')) {
-                response = "📞 <b>Contactez-nous:</b><br><br>📧 Email: <b>contact@seoparai.com</b><br><br>💬 Ou utilisez notre formulaire sur le site!<br><br>On repond generalement en moins de 24h.";
-            } else if (q.includes('bonjour') || q.includes('salut') || q.includes('allo') || q.includes('hello')) {
-                response = "👋 Bonjour! Je suis l'assistant SEO par AI.<br><br>Comment puis-je vous aider aujourd'hui?<br><br>• 💰 Nos forfaits<br>• 🤖 Nos 62 agents IA<br>• ⚡ Comment ca marche<br>• 📚 SEO/AEO/GEO explique";
-            } else if (q.includes('merci') || q.includes('super') || q.includes('parfait') || q.includes('genial')) {
-                response = "🙏 Merci a vous! N'hesitez pas si vous avez d'autres questions.<br><br>Pour commencer avec SEO par AI, contactez-nous a <b>contact@seoparai.com</b> ou utilisez le calculateur de forfait sur cette page!";
-            } else {
-                response = "🤔 Bonne question! Je n'ai pas de reponse specifique pour ca, mais je peux vous aider avec:<br><br>• 💰 Nos forfaits et tarifs<br>• 🤖 Nos 62 agents IA<br>• ⚡ Le fonctionnement de la plateforme<br>• 📚 SEO/AEO/GEO/SAIO explique<br>• 🏗️ Creation de sites web<br><br>Ou contactez-nous: <b>contact@seoparai.com</b>";
+                const data = await res.json();
+                document.getElementById(typingId)?.remove();
+
+                if (data.response) {
+                    // Formater la reponse (convertir \n en <br>)
+                    const formatted = data.response.replace(/\n/g, '<br>');
+                    messages.innerHTML += `<div class="chat-message bot" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); padding: 12px 15px; border-radius: 12px 12px 12px 4px; margin-bottom: 10px; font-size: 0.9rem; line-height: 1.6;">${formatted}</div>`;
+                } else {
+                    messages.innerHTML += `<div class="chat-message bot" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); padding: 12px 15px; border-radius: 12px 12px 12px 4px; margin-bottom: 10px; font-size: 0.9rem;">Desole, une erreur s'est produite. Contactez-nous a contact@seoparai.com</div>`;
+                }
+            } catch (error) {
+                document.getElementById(typingId)?.remove();
+                messages.innerHTML += `<div class="chat-message bot" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); padding: 12px 15px; border-radius: 12px 12px 12px 4px; margin-bottom: 10px; font-size: 0.9rem;">Connexion impossible. Reessayez ou contactez contact@seoparai.com</div>`;
             }
 
-            // Supprimer indicateur de frappe et afficher reponse
-            setTimeout(() => {
-                document.getElementById(typingId)?.remove();
-                messages.innerHTML += `<div class="chat-message bot" style="background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); padding: 12px 15px; border-radius: 12px 12px 12px 4px; margin-bottom: 10px; font-size: 0.9rem; line-height: 1.6;">${response}</div>`;
-                messages.scrollTop = messages.scrollHeight;
-            }, 800 + Math.random() * 400);
+            messages.scrollTop = messages.scrollHeight;
         }
     </script>
 

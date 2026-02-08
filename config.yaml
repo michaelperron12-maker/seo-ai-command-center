@@ -41,6 +41,18 @@ sites:
       - "peinture intérieure Montréal"
       - "peintre commercial"
 
+  - nom: "SEO par AI"
+    domaine: "seoparai.com"
+    chemin: "/var/www/seoparai"
+    categorie: "seo-marketing"
+    blog_path: "/var/www/seoparai/blog"
+    actif: true
+    mots_cles_seed:
+      - "SEO automatisé Québec"
+      - "optimisation SEO par intelligence artificielle"
+      - "agence SEO AI Montréal"
+      - "référencement automatique"
+
 notifications:
   telegram:
     enabled: true
