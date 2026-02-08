@@ -1,86 +1,68 @@
-# SEO Agent Configuration
-# ========================
+# SEO par AI - Configuration
+# ═══════════════════════════════════════
 
-agent:
-  name: "SEO Agent"
-  version: "1.0.0"
-  max_articles_per_day: 3
-  similarity_threshold: 0.70
-  working_hours:
-    start: 8
-    end: 22
+general:
+  pause_active: false
+  version: "2.0.0"
 
-# Site configuration
-site:
-  name: "Safe Stack"
-  url: "https://example.com"
-  blog_path: "/var/www/site/blog"
-  sitemap_path: "/var/www/site/sitemap.xml"
+sites:
+  - id: deneigement
+    name: "Deneigement Excellence"
+    domain: "deneigement-excellence.ca"
+    path: "/var/www/deneigement/"
+    niche: "deneigement"
+    active: true
 
-# API Configuration
-api:
-  # Claude (Anthropic)
-  claude_model: "claude-3-sonnet-20240229"
-  # OpenAI
-  openai_model: "gpt-4-turbo-preview"
-  # Provider preference: claude or openai
-  preferred_provider: "claude"
+  - id: paysagement
+    name: "Paysagiste Excellence"
+    domain: "paysagiste-excellence.ca"
+    path: "/var/www/paysagement/"
+    niche: "paysagement"
+    active: true
 
-# Kill Switch Thresholds
+  - id: jcpeintre
+    name: "JC Peintre"
+    domain: "jcpeintre.com"
+    path: "/var/www/jcpeintre.com/"
+    niche: "peinture"
+    active: true
+
+  - id: seoparai
+    name: "SEO par AI"
+    domain: "seoparai.ca"
+    path: "/var/www/html/"
+    niche: "seo-automation"
+    active: true
+
+# Kill Switch
 kill_switch:
   max_publications_per_day: 5
-  max_pending_drafts: 20
-  max_similarity_average: 0.60
-  max_site_errors: 10
-  default_pause_hours: 24
-  # Enable automatic checks
-  auto_check_enabled: true
-  auto_check_interval_minutes: 60
+  max_similarity_threshold: 0.70
+  max_errors_before_pause: 10
+  pause_duration_hours: 48
 
-# Notifications
-notifications:
-  telegram:
-    enabled: true
-    # Set via environment: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-    token: ""
-    chat_id: ""
-
-  email:
-    enabled: true
-    host: "smtp.gmail.com"
-    port: 587
-    # Set via environment: SMTP_USER, SMTP_PASSWORD
-    user: ""
-    password: ""
-    from: ""
-    to: ""
-
-  sms:
-    enabled: false
-    # Twilio config via environment: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN
-    # TWILIO_FROM_NUMBER, TWILIO_TO_NUMBER
-
-# Content Generation
+# Contenu
 content:
   min_words: 800
   max_words: 2000
   target_words: 1200
   language: "fr"
 
-  # SEO parameters
-  seo:
-    keyword_density_min: 0.01
-    keyword_density_max: 0.02
-    meta_description_length: 155
-    title_max_length: 60
+# Timing
+timing:
+  monitoring_interval_hours: 3
+  content_generation: "09:00"
+  weekly_audit: "sunday 02:00"
 
-# Database
-database:
-  path: "/home/serinityvault/Desktop/projet web/seo-agent-stack/data/seo_agent.db"
+# API (DeepSeek ou Fireworks - via env vars)
+api:
+  preferred_provider: "fireworks"
 
-# Logging
-logging:
-  level: "INFO"
-  path: "/home/serinityvault/Desktop/projet web/seo-agent-stack/logs"
-  max_size_mb: 10
-  backup_count: 5
+# Notifications
+notifications:
+  telegram:
+    enabled: false
+  email:
+    enabled: false
+  sms:
+    enabled: false

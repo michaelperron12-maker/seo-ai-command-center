@@ -41,6 +41,18 @@ sites:
       - "peinture intérieure Montréal"
       - "peintre commercial"
 
+  - nom: "SEO par AI"
+    domaine: "seoparai.ca"
+    chemin: "/var/www/seoparai"
+    categorie: "seo-marketing"
+    blog_path: "/var/www/seoparai/blog"
+    actif: true
+    mots_cles_seed:
+      - "SEO automatise Quebec"
+      - "agence SEO AI Montreal"
+      - "optimisation site web Quebec"
+      - "SEO par intelligence artificielle"
+
 notifications:
   telegram:
     enabled: true
@@ -55,7 +67,6 @@ notifications:
     to_email: "${ADMIN_EMAIL}"
   sms:
     enabled: true
-    # Utilise config Twilio existante
 
 apis:
   anthropic_key: "${ANTHROPIC_API_KEY}"
@@ -68,9 +79,8 @@ logging:
   level: "INFO"
   path: "/opt/seo-agent/logs/seo_agent.log"
 
-# Délais pour paraître humain
 timing:
-  delai_generation_min: 900      # 15 minutes minimum entre génération et notification
-  delai_generation_max: 1800     # 30 minutes max (randomisé)
-  delai_entre_articles: 14400    # 4 heures minimum entre 2 articles
-  heures_publication: [9, 10, 11, 14, 15, 16]  # Heures "humaines" de publication
+  delai_generation_min: 900
+  delai_generation_max: 1800
+  delai_entre_articles: 14400
+  heures_publication: [9, 10, 11, 14, 15, 16]

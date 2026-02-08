@@ -1,59 +1,81 @@
 version: '3.8'
 
+# SEO par AI - Infrastructure Self-Hosted
+# n8n + API + Reverse Proxy (interne seulement)
+
 services:
+  # ═══════════════════════════════════════
+  # n8n - Workflow Automation (NOT public)
+  # ═══════════════════════════════════════
   n8n:
-    image: n8nio/n8n
+    image: n8nio/n8n:latest
     container_name: seo-agent-n8n
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:5678:5678"
     environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
-      - GENERIC_TIMEZONE=America/Montreal
       - N8N_HOST=localhost
+      - N8N_PORT=5678
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://localhost:5678/
-      - DB_TYPE=postgresdb
-      - DB_POSTGRESDB_HOST=postgres
-      - DB_POSTGRESDB_PORT=5432
-      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
-      - DB_POSTGRESDB_USER=${POSTGRES_USER}
-      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASS:-seoparai2024}
+      - DB_TYPE=sqlite
+      - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
+      - GENERIC_TIMEZONE=America/Montreal
+      - N8N_LOG_LEVEL=info
+      - N8N_METRICS=true
+      # Securite: pas d'execution de code arbitraire
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
     volumes:
       - n8n_data:/home/node/.n8n
+      - /opt/seo-agent:/opt/seo-agent:ro
+    ports:
+      # BIND localhost SEULEMENT - pas expose publiquement
+      - "127.0.0.1:5678:5678"
     networks:
-      - seo-agent-network
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - seo-internal
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  postgres:
-    image: postgres:15-alpine
-    container_name: seo-agent-postgres
+  # ═══════════════════════════════════════
+  # API Backend (Flask)
+  # ═══════════════════════════════════════
+  api:
+    build:
+      context: ./opt/seo-agent
+      dockerfile: Dockerfile.api
+    container_name: seo-agent-api
     restart: unless-stopped
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
+      - DB_PATH=/opt/seo-agent/db/seo_brain.db
+      - CONFIG_PATH=/opt/seo-agent/config/config.yaml
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /opt/seo-agent/db:/opt/seo-agent/db
+      - /opt/seo-agent/config:/opt/seo-agent/config
+      - /opt/seo-agent/logs:/opt/seo-agent/logs
+    ports:
+      - "127.0.0.1:8002:8002"
     networks:
-      - seo-agent-network
+      - seo-internal
+    depends_on:
+      n8n:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/health"]
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
 
 volumes:
   n8n_data:
     driver: local
-  postgres_data:
-    driver: local
 
 networks:
-  seo-agent-network:
+  seo-internal:
     driver: bridge
-    internal: false
+    internal: false  # false pour permettre acces internet (API calls)

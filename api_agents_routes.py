@@ -26,6 +26,14 @@ from agents_system import (
     SiteSpeedAgent,
     ROICalculatorAgent,
     CompetitorWatchAgent,
+    InvoiceAgent,
+    CRMAgent,
+    AccountingAgent,
+    CalendarAgent,
+    ChatbotAgent,
+    NotificationAgent,
+    DashboardAgent,
+    LeadScoringAgent,
     SITES
 )
 
@@ -1526,4 +1534,1554 @@ def register_all_agent_routes(app):
 
         return jsonify({'success': True, 'report': report})
 
-    print(f"[API] Registered {44} agent routes (including Business Agents)")
+    # ============================================
+    # AGENT 45: LOCAL SEO AGENT
+    # ============================================
+    @app.route('/api/agent/local-seo/gmb/profile', methods=['POST'])
+    def agent_local_seo_gmb_create():
+        """
+        Cree ou met a jour le profil Google Business
+        Body: {"client_id": 1, "profile": {...}}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+        profile_data = data.get('profile', data)
+
+        agent = LocalSEOAgent()
+        result = agent.create_gmb_profile(int(client_id), profile_data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/local-seo/gmb/profile/<int:client_id>', methods=['GET'])
+    def agent_local_seo_gmb_get(client_id):
+        """Recupere le profil GMB du client"""
+        agent = LocalSEOAgent()
+        profile = agent.get_gmb_profile(client_id)
+
+        if not profile:
+            return jsonify({'success': False, 'error': 'Profil non trouve'}), 404
+
+        if isinstance(profile, dict) and 'error' in profile:
+            return jsonify({'success': False, 'error': profile['error']}), 400
+
+        return jsonify({'success': True, 'profile': profile})
+
+    @app.route('/api/agent/local-seo/gmb/audit/<int:client_id>', methods=['GET'])
+    def agent_local_seo_gmb_audit(client_id):
+        """Audit complet du profil GMB"""
+        agent = LocalSEOAgent()
+        audit = agent.audit_gmb_profile(client_id)
+
+        if 'error' in audit:
+            return jsonify({'success': False, 'error': audit['error']}), 400
+
+        return jsonify({'success': True, 'audit': audit})
+
+    @app.route('/api/agent/local-seo/citations', methods=['POST'])
+    def agent_local_seo_citation_add():
+        """
+        Ajoute une citation NAP
+        Body: {"client_id": 1, "source_name": "...", "source_url": "...", ...}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+
+        agent = LocalSEOAgent()
+        result = agent.add_citation(int(client_id), data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/local-seo/citations/<int:client_id>', methods=['GET'])
+    def agent_local_seo_citations_list(client_id):
+        """Liste toutes les citations NAP d'un client"""
+        agent = LocalSEOAgent()
+        citations = agent.get_citations(client_id)
+
+        if isinstance(citations, dict) and 'error' in citations:
+            return jsonify({'success': False, 'error': citations['error']}), 400
+
+        return jsonify({'success': True, 'citations': citations, 'count': len(citations)})
+
+    @app.route('/api/agent/local-seo/nap/audit/<int:client_id>', methods=['GET'])
+    def agent_local_seo_nap_audit(client_id):
+        """Verifie la coherence NAP sur toutes les citations"""
+        agent = LocalSEOAgent()
+        audit = agent.audit_nap_consistency(client_id)
+
+        if 'error' in audit:
+            return jsonify({'success': False, 'error': audit['error']}), 400
+
+        return jsonify({'success': True, 'audit': audit})
+
+    @app.route('/api/agent/local-seo/reviews', methods=['POST'])
+    def agent_local_seo_review_add():
+        """
+        Ajoute un avis client
+        Body: {"client_id": 1, "platform": "Google", "rating": 5, ...}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+
+        agent = LocalSEOAgent()
+        result = agent.add_review(int(client_id), data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/local-seo/reviews/<int:client_id>', methods=['GET'])
+    def agent_local_seo_reviews_list(client_id):
+        """
+        Liste les avis d'un client
+        Query: ?platform=Google
+        """
+        platform = request.args.get('platform')
+
+        agent = LocalSEOAgent()
+        reviews = agent.get_reviews(client_id, platform)
+
+        if isinstance(reviews, dict) and 'error' in reviews:
+            return jsonify({'success': False, 'error': reviews['error']}), 400
+
+        return jsonify({'success': True, 'reviews': reviews, 'count': len(reviews)})
+
+    @app.route('/api/agent/local-seo/reviews/analyze/<int:client_id>', methods=['GET'])
+    def agent_local_seo_reviews_analyze(client_id):
+        """Analyse complete des avis"""
+        agent = LocalSEOAgent()
+        analysis = agent.analyze_reviews(client_id)
+
+        return jsonify({'success': True, 'analysis': analysis})
+
+    @app.route('/api/agent/local-seo/reviews/respond', methods=['POST'])
+    def agent_local_seo_review_respond():
+        """
+        Genere une reponse IA pour un avis
+        Body: {"client_id": 1, "review_id": 5}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+        review_id = data.get('review_id')
+
+        if not review_id:
+            return jsonify({'success': False, 'error': 'review_id requis'}), 400
+
+        agent = LocalSEOAgent()
+        result = agent.generate_review_response(int(client_id), int(review_id))
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/local-seo/service-areas', methods=['POST'])
+    def agent_local_seo_area_add():
+        """
+        Ajoute une zone de service
+        Body: {"client_id": 1, "area_name": "Montreal", "area_type": "city", ...}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+
+        agent = LocalSEOAgent()
+        result = agent.add_service_area(int(client_id), data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/local-seo/service-areas/<int:client_id>', methods=['GET'])
+    def agent_local_seo_areas_list(client_id):
+        """Liste les zones de service"""
+        agent = LocalSEOAgent()
+        areas = agent.get_service_areas(client_id)
+
+        if isinstance(areas, dict) and 'error' in areas:
+            return jsonify({'success': False, 'error': areas['error']}), 400
+
+        return jsonify({'success': True, 'service_areas': areas, 'count': len(areas)})
+
+    @app.route('/api/agent/local-seo/landing-page', methods=['POST'])
+    def agent_local_seo_landing_page():
+        """
+        Genere le contenu d'une page locale
+        Body: {"client_id": 1, "area_name": "Laval"}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+        area_name = data.get('area_name')
+
+        if not area_name:
+            return jsonify({'success': False, 'error': 'area_name requis'}), 400
+
+        agent = LocalSEOAgent()
+        result = agent.generate_local_landing_page(int(client_id), area_name)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/local-seo/score/<int:client_id>', methods=['GET'])
+    def agent_local_seo_score(client_id):
+        """Calcule le score SEO local global"""
+        agent = LocalSEOAgent()
+        score = agent.get_local_seo_score(client_id)
+
+        return jsonify({'success': True, 'score': score})
+
+    # ============================================
+    # AGENT 46: INVOICE AGENT - Facturation
+    # ============================================
+    @app.route('/api/agent/invoice/client', methods=['POST'])
+    def agent_invoice_client_create():
+        """
+        Cree un client facturation
+        Body: {"client_id": 1, "company_name": "...", "email": "...", ...}
+        """
+        data = request.get_json() or {}
+        client_id = data.get('client_id') or data.get('site_id', 1)
+
+        agent = InvoiceAgent()
+        result = agent.create_billing_client(int(client_id), data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/invoice/client/<int:billing_client_id>', methods=['GET'])
+    def agent_invoice_client_get(billing_client_id):
+        """Recupere un client facturation"""
+        agent = InvoiceAgent()
+        client = agent.get_billing_client(billing_client_id)
+
+        if not client:
+            return jsonify({'success': False, 'error': 'Client non trouve'}), 404
+
+        return jsonify({'success': True, 'client': client})
+
+    @app.route('/api/agent/invoice/quote', methods=['POST'])
+    def agent_invoice_quote_create():
+        """
+        Cree un devis
+        Body: {"billing_client_id": 1, "items": [...], "notes": "...", "valid_days": 30}
+        """
+        data = request.get_json() or {}
+        billing_client_id = data.get('billing_client_id')
+        items = data.get('items', [])
+        notes = data.get('notes', '')
+        valid_days = data.get('valid_days', 30)
+
+        if not billing_client_id:
+            return jsonify({'success': False, 'error': 'billing_client_id requis'}), 400
+
+        if not items:
+            return jsonify({'success': False, 'error': 'items requis'}), 400
+
+        agent = InvoiceAgent()
+        result = agent.create_quote(int(billing_client_id), items, notes, valid_days)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/invoice/quote/<int:quote_id>', methods=['GET'])
+    def agent_invoice_quote_get(quote_id):
+        """Recupere un devis"""
+        agent = InvoiceAgent()
+        quote = agent.get_quote(quote_id)
+
+        if 'error' in quote:
+            return jsonify({'success': False, 'error': quote['error']}), 404
+
+        return jsonify({'success': True, 'quote': quote})
+
+    @app.route('/api/agent/invoice/quote/<int:quote_id>/convert', methods=['POST'])
+    def agent_invoice_quote_convert(quote_id):
+        """Convertit un devis en facture"""
+        agent = InvoiceAgent()
+        result = agent.convert_quote_to_invoice(quote_id)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/invoice/create', methods=['POST'])
+    def agent_invoice_create():
+        """
+        Cree une facture directement
+        Body: {"billing_client_id": 1, "items": [...], "notes": "...", "due_days": 30}
+        """
+        data = request.get_json() or {}
+        billing_client_id = data.get('billing_client_id')
+        items = data.get('items', [])
+        notes = data.get('notes', '')
+        due_days = data.get('due_days', 30)
+
+        if not billing_client_id:
+            return jsonify({'success': False, 'error': 'billing_client_id requis'}), 400
+
+        if not items:
+            return jsonify({'success': False, 'error': 'items requis'}), 400
+
+        agent = InvoiceAgent()
+        result = agent.create_invoice(int(billing_client_id), items, notes, due_days)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/invoice/<int:invoice_id>', methods=['GET'])
+    def agent_invoice_get(invoice_id):
+        """Recupere une facture"""
+        agent = InvoiceAgent()
+        invoice = agent.get_invoice(invoice_id)
+
+        if 'error' in invoice:
+            return jsonify({'success': False, 'error': invoice['error']}), 404
+
+        return jsonify({'success': True, 'invoice': invoice})
+
+    @app.route('/api/agent/invoice/list', methods=['GET'])
+    def agent_invoice_list():
+        """
+        Liste les factures
+        Query: ?status=paid&limit=50
+        """
+        status = request.args.get('status')
+        limit = int(request.args.get('limit', 50))
+
+        agent = InvoiceAgent()
+        invoices = agent.list_invoices(status, limit)
+
+        if isinstance(invoices, dict) and 'error' in invoices:
+            return jsonify({'success': False, 'error': invoices['error']}), 400
+
+        return jsonify({'success': True, 'invoices': invoices, 'count': len(invoices)})
+
+    @app.route('/api/agent/invoice/payment', methods=['POST'])
+    def agent_invoice_payment():
+        """
+        Enregistre un paiement
+        Body: {"invoice_id": 1, "amount": 500, "method": "virement", "reference": "..."}
+        """
+        data = request.get_json() or {}
+        invoice_id = data.get('invoice_id')
+        amount = data.get('amount')
+        method = data.get('method', 'virement')
+        reference = data.get('reference', '')
+
+        if not invoice_id or not amount:
+            return jsonify({'success': False, 'error': 'invoice_id et amount requis'}), 400
+
+        agent = InvoiceAgent()
+        result = agent.record_payment(int(invoice_id), float(amount), method, reference)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/invoice/overdue', methods=['GET'])
+    def agent_invoice_overdue():
+        """Liste les factures en retard"""
+        agent = InvoiceAgent()
+        invoices = agent.get_overdue_invoices()
+
+        if isinstance(invoices, dict) and 'error' in invoices:
+            return jsonify({'success': False, 'error': invoices['error']}), 400
+
+        return jsonify({'success': True, 'overdue_invoices': invoices, 'count': len(invoices)})
+
+    @app.route('/api/agent/invoice/reminder', methods=['POST'])
+    def agent_invoice_reminder():
+        """
+        Genere un email de rappel
+        Body: {"invoice_id": 1}
+        """
+        data = request.get_json() or {}
+        invoice_id = data.get('invoice_id')
+
+        if not invoice_id:
+            return jsonify({'success': False, 'error': 'invoice_id requis'}), 400
+
+        agent = InvoiceAgent()
+        result = agent.generate_reminder(int(invoice_id))
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/invoice/stats', methods=['GET'])
+    def agent_invoice_stats():
+        """
+        Statistiques de revenus
+        Query: ?period=month|year|all
+        """
+        period = request.args.get('period', 'month')
+
+        agent = InvoiceAgent()
+        stats = agent.get_revenue_stats(period)
+
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 400
+
+        return jsonify({'success': True, 'stats': stats})
+
+    # ============================================
+    # AGENT 47: CRM AGENT
+    # ============================================
+    @app.route('/api/agent/crm/contact', methods=['POST'])
+    def agent_crm_contact_create():
+        """
+        Cree un contact/lead
+        Body: {"first_name": "...", "last_name": "...", "email": "...", ...}
+        """
+        data = request.get_json() or {}
+        agent = CRMAgent()
+        result = agent.create_contact(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/contact/<int:contact_id>', methods=['GET'])
+    def agent_crm_contact_get(contact_id):
+        """Recupere un contact avec historique"""
+        agent = CRMAgent()
+        contact = agent.get_contact(contact_id)
+
+        if 'error' in contact:
+            return jsonify({'success': False, 'error': contact['error']}), 404
+
+        return jsonify({'success': True, 'contact': contact})
+
+    @app.route('/api/agent/crm/contact/<int:contact_id>', methods=['PUT'])
+    def agent_crm_contact_update(contact_id):
+        """Met a jour un contact"""
+        data = request.get_json() or {}
+        agent = CRMAgent()
+        result = agent.update_contact(contact_id, data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/contacts', methods=['GET'])
+    def agent_crm_contacts_list():
+        """
+        Liste les contacts
+        Query: ?type=lead&status=new&search=...&limit=50
+        """
+        filters = {
+            'type': request.args.get('type'),
+            'status': request.args.get('status'),
+            'assigned_to': request.args.get('assigned_to'),
+            'search': request.args.get('search')
+        }
+        filters = {k: v for k, v in filters.items() if v}
+        limit = int(request.args.get('limit', 50))
+
+        agent = CRMAgent()
+        contacts = agent.list_contacts(filters if filters else None, limit)
+
+        if isinstance(contacts, dict) and 'error' in contacts:
+            return jsonify({'success': False, 'error': contacts['error']}), 400
+
+        return jsonify({'success': True, 'contacts': contacts, 'count': len(contacts)})
+
+    @app.route('/api/agent/crm/contact/<int:contact_id>/interaction', methods=['POST'])
+    def agent_crm_interaction_add(contact_id):
+        """
+        Ajoute une interaction
+        Body: {"type": "call|email|meeting|note", "subject": "...", "description": "...", ...}
+        """
+        data = request.get_json() or {}
+        agent = CRMAgent()
+        result = agent.add_interaction(contact_id, data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/contact/<int:contact_id>/opportunity', methods=['POST'])
+    def agent_crm_opportunity_create(contact_id):
+        """
+        Cree une opportunite
+        Body: {"title": "...", "value": 5000, "stage": "qualification", ...}
+        """
+        data = request.get_json() or {}
+        agent = CRMAgent()
+        result = agent.create_opportunity(contact_id, data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/opportunity/<int:opportunity_id>/stage', methods=['PUT'])
+    def agent_crm_opportunity_update_stage(opportunity_id):
+        """
+        Met a jour l'etape d'une opportunite
+        Body: {"stage": "Negociation", "won": true/false, "loss_reason": "..."}
+        """
+        data = request.get_json() or {}
+        stage = data.get('stage')
+        won = data.get('won')
+        loss_reason = data.get('loss_reason')
+
+        if not stage:
+            return jsonify({'success': False, 'error': 'stage requis'}), 400
+
+        agent = CRMAgent()
+        result = agent.update_opportunity_stage(opportunity_id, stage, won, loss_reason)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/pipeline', methods=['GET'])
+    def agent_crm_pipeline():
+        """Recupere le pipeline complet"""
+        agent = CRMAgent()
+        pipeline = agent.get_pipeline()
+
+        if 'error' in pipeline:
+            return jsonify({'success': False, 'error': pipeline['error']}), 400
+
+        return jsonify({'success': True, 'data': pipeline})
+
+    @app.route('/api/agent/crm/task', methods=['POST'])
+    def agent_crm_task_create():
+        """
+        Cree une tache
+        Body: {"contact_id": 1, "title": "...", "due_date": "...", "priority": "high|medium|low", ...}
+        """
+        data = request.get_json() or {}
+        agent = CRMAgent()
+        result = agent.create_task(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/tasks', methods=['GET'])
+    def agent_crm_tasks_list():
+        """
+        Liste les taches
+        Query: ?status=pending&priority=high&assigned_to=...
+        """
+        filters = {
+            'status': request.args.get('status'),
+            'priority': request.args.get('priority'),
+            'assigned_to': request.args.get('assigned_to')
+        }
+        filters = {k: v for k, v in filters.items() if v}
+
+        agent = CRMAgent()
+        tasks = agent.get_tasks(filters if filters else None)
+
+        if isinstance(tasks, dict) and 'error' in tasks:
+            return jsonify({'success': False, 'error': tasks['error']}), 400
+
+        return jsonify({'success': True, 'tasks': tasks, 'count': len(tasks)})
+
+    @app.route('/api/agent/crm/task/<int:task_id>/complete', methods=['POST'])
+    def agent_crm_task_complete(task_id):
+        """Complete une tache"""
+        agent = CRMAgent()
+        result = agent.complete_task(task_id)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/crm/dashboard', methods=['GET'])
+    def agent_crm_dashboard():
+        """Statistiques CRM pour dashboard"""
+        agent = CRMAgent()
+        stats = agent.get_dashboard_stats()
+
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 400
+
+        return jsonify({'success': True, 'stats': stats})
+
+    @app.route('/api/agent/crm/contact/<int:contact_id>/score', methods=['GET'])
+    def agent_crm_lead_score(contact_id):
+        """Calcule le score d'un lead"""
+        agent = CRMAgent()
+        score = agent.score_lead(contact_id)
+
+        if 'error' in score:
+            return jsonify({'success': False, 'error': score['error']}), 400
+
+        return jsonify({'success': True, 'score': score})
+
+    # ============================================
+    # AGENT 48: ACCOUNTING - Comptabilite
+    # ============================================
+
+    @app.route('/api/agent/accounting/init', methods=['POST'])
+    def agent_accounting_init():
+        """Initialise les tables comptables"""
+        agent = AccountingAgent()
+        result = agent.init_db()
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/accounting/transaction', methods=['POST'])
+    def agent_accounting_add_transaction():
+        """
+        Ajoute une transaction
+        Body: {
+            date, description, amount, type (revenue|expense),
+            category, include_taxes, payment_method, reference
+        }
+        """
+        data = request.get_json() or {}
+        agent = AccountingAgent()
+        result = agent.add_transaction(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'transaction': result})
+
+    @app.route('/api/agent/accounting/transactions', methods=['GET'])
+    def agent_accounting_list_transactions():
+        """
+        Liste les transactions
+        Query: ?type=expense&category=MKTG&start_date=2024-01-01&end_date=2024-12-31&limit=50
+        """
+        filters = {
+            'type': request.args.get('type'),
+            'category': request.args.get('category'),
+            'start_date': request.args.get('start_date'),
+            'end_date': request.args.get('end_date')
+        }
+        filters = {k: v for k, v in filters.items() if v}
+        limit = int(request.args.get('limit', 50))
+
+        agent = AccountingAgent()
+        transactions = agent.list_transactions(filters if filters else None, limit)
+
+        if isinstance(transactions, dict) and 'error' in transactions:
+            return jsonify({'success': False, 'error': transactions['error']}), 400
+
+        return jsonify({'success': True, 'transactions': transactions, 'count': len(transactions)})
+
+    @app.route('/api/agent/accounting/summary', methods=['GET'])
+    def agent_accounting_summary():
+        """
+        Resume financier pour une periode
+        Query: ?start_date=2024-01-01&end_date=2024-12-31
+        """
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        agent = AccountingAgent()
+        summary = agent.get_financial_summary(start_date, end_date)
+
+        if 'error' in summary:
+            return jsonify({'success': False, 'error': summary['error']}), 400
+
+        return jsonify({'success': True, 'summary': summary})
+
+    @app.route('/api/agent/accounting/income-statement', methods=['GET'])
+    def agent_accounting_income_statement():
+        """
+        Etat des resultats (Profit & Loss)
+        Query: ?start_date=2024-01-01&end_date=2024-12-31
+        """
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        agent = AccountingAgent()
+        statement = agent.get_income_statement(start_date, end_date)
+
+        if 'error' in statement:
+            return jsonify({'success': False, 'error': statement['error']}), 400
+
+        return jsonify({'success': True, 'income_statement': statement})
+
+    @app.route('/api/agent/accounting/balance-sheet', methods=['GET'])
+    def agent_accounting_balance_sheet():
+        """Bilan comptable"""
+        agent = AccountingAgent()
+        balance = agent.get_balance_sheet()
+
+        if 'error' in balance:
+            return jsonify({'success': False, 'error': balance['error']}), 400
+
+        return jsonify({'success': True, 'balance_sheet': balance})
+
+    @app.route('/api/agent/accounting/tax-report', methods=['GET'])
+    def agent_accounting_tax_report():
+        """
+        Rapport TPS/TVQ pour declaration
+        Query: ?quarter=1&year=2024
+        """
+        quarter = request.args.get('quarter', type=int)
+        year = request.args.get('year', type=int)
+
+        agent = AccountingAgent()
+        report = agent.get_tax_report(quarter, year)
+
+        if 'error' in report:
+            return jsonify({'success': False, 'error': report['error']}), 400
+
+        return jsonify({'success': True, 'tax_report': report})
+
+    @app.route('/api/agent/accounting/expenses', methods=['GET'])
+    def agent_accounting_expenses():
+        """
+        Ventilation des depenses par categorie
+        Query: ?start_date=2024-01-01&end_date=2024-12-31
+        """
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        agent = AccountingAgent()
+        breakdown = agent.get_expense_breakdown(start_date, end_date)
+
+        if 'error' in breakdown:
+            return jsonify({'success': False, 'error': breakdown['error']}), 400
+
+        return jsonify({'success': True, 'expense_breakdown': breakdown})
+
+    @app.route('/api/agent/accounting/insights', methods=['GET'])
+    def agent_accounting_insights():
+        """
+        Genere des insights financiers avec AI (Qwen 235B)
+        Query: ?months=6
+        """
+        months = int(request.args.get('months', 6))
+
+        agent = AccountingAgent()
+        insights = agent.generate_financial_insights(months)
+
+        if 'error' in insights:
+            return jsonify({'success': False, 'error': insights['error']}), 400
+
+        return jsonify({'success': True, 'insights': insights})
+
+    @app.route('/api/agent/accounting/categories', methods=['GET'])
+    def agent_accounting_categories():
+        """Retourne les categories de depenses et revenus"""
+        agent = AccountingAgent()
+        categories = agent.get_categories()
+        return jsonify({'success': True, 'categories': categories})
+
+    # ============================================
+    # AGENT 49: CALENDAR - Calendrier/Reservations
+    # ============================================
+
+    @app.route('/api/agent/calendar/init', methods=['POST'])
+    def agent_calendar_init():
+        """Initialise les tables calendrier"""
+        agent = CalendarAgent()
+        result = agent.init_db()
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/calendar/event', methods=['POST'])
+    def agent_calendar_create_event():
+        """
+        Cree un evenement
+        Body: {title, description, event_type, start_datetime, end_datetime,
+               location, video_link, contact_name, contact_email, assigned_to, notes}
+        """
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.create_event(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'event': result})
+
+    @app.route('/api/agent/calendar/events', methods=['GET'])
+    def agent_calendar_list_events():
+        """
+        Liste les evenements
+        Query: ?start_date=2024-01-01&end_date=2024-12-31&status=confirmed&event_type=MEETING
+        """
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        filters = {
+            'status': request.args.get('status'),
+            'event_type': request.args.get('event_type')
+        }
+        filters = {k: v for k, v in filters.items() if v}
+
+        agent = CalendarAgent()
+        events = agent.get_events(start_date, end_date, filters if filters else None)
+
+        if isinstance(events, dict) and 'error' in events:
+            return jsonify({'success': False, 'error': events['error']}), 400
+
+        return jsonify({'success': True, 'events': events, 'count': len(events)})
+
+    @app.route('/api/agent/calendar/event/<int:event_id>', methods=['PUT'])
+    def agent_calendar_update_event(event_id):
+        """Met a jour un evenement"""
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.update_event(event_id, data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/calendar/event/<int:event_id>/cancel', methods=['POST'])
+    def agent_calendar_cancel_event(event_id):
+        """Annule un evenement"""
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.cancel_event(event_id, data.get('reason'))
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/calendar/availability', methods=['GET'])
+    def agent_calendar_availability():
+        """
+        Creneaux disponibles
+        Query: ?date=2024-01-15&service_id=1
+        """
+        date = request.args.get('date')
+        service_id = request.args.get('service_id', type=int)
+
+        agent = CalendarAgent()
+        availability = agent.get_availability(date, service_id)
+
+        if 'error' in availability:
+            return jsonify({'success': False, 'error': availability['error']}), 400
+
+        return jsonify({'success': True, 'availability': availability})
+
+    @app.route('/api/agent/calendar/availability', methods=['POST'])
+    def agent_calendar_set_availability():
+        """Configure les disponibilites"""
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.set_availability(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/calendar/booking', methods=['POST'])
+    def agent_calendar_create_booking():
+        """
+        Cree une reservation
+        Body: {service_id, client_name, client_email, client_phone, booking_date, start_time, notes}
+        """
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.create_booking(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'booking': result})
+
+    @app.route('/api/agent/calendar/bookings', methods=['GET'])
+    def agent_calendar_list_bookings():
+        """
+        Liste les reservations
+        Query: ?status=pending&date=2024-01-15
+        """
+        filters = {
+            'status': request.args.get('status'),
+            'date': request.args.get('date')
+        }
+        filters = {k: v for k, v in filters.items() if v}
+        limit = int(request.args.get('limit', 50))
+
+        agent = CalendarAgent()
+        bookings = agent.get_bookings(filters if filters else None, limit)
+
+        if isinstance(bookings, dict) and 'error' in bookings:
+            return jsonify({'success': False, 'error': bookings['error']}), 400
+
+        return jsonify({'success': True, 'bookings': bookings, 'count': len(bookings)})
+
+    @app.route('/api/agent/calendar/booking/confirm', methods=['POST'])
+    def agent_calendar_confirm_booking():
+        """Confirme une reservation par ID ou code"""
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.confirm_booking(data.get('booking_id'), data.get('confirmation_code'))
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/calendar/booking/cancel', methods=['POST'])
+    def agent_calendar_cancel_booking():
+        """Annule une reservation par ID ou code"""
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.cancel_booking(data.get('booking_id'), data.get('confirmation_code'))
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/calendar/service', methods=['POST'])
+    def agent_calendar_create_service():
+        """
+        Cree un service reservable
+        Body: {name, description, duration, price, buffer_after, max_advance_days, color}
+        """
+        data = request.get_json() or {}
+        agent = CalendarAgent()
+        result = agent.create_service(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'service': result})
+
+    @app.route('/api/agent/calendar/services', methods=['GET'])
+    def agent_calendar_list_services():
+        """Liste les services reservables"""
+        active_only = request.args.get('active_only', 'true').lower() == 'true'
+
+        agent = CalendarAgent()
+        services = agent.get_services(active_only)
+
+        if isinstance(services, dict) and 'error' in services:
+            return jsonify({'success': False, 'error': services['error']}), 400
+
+        return jsonify({'success': True, 'services': services})
+
+    @app.route('/api/agent/calendar/stats', methods=['GET'])
+    def agent_calendar_stats():
+        """Statistiques calendrier"""
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        agent = CalendarAgent()
+        stats = agent.get_stats(start_date, end_date)
+
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 400
+
+        return jsonify({'success': True, 'stats': stats})
+
+    @app.route('/api/agent/calendar/event-types', methods=['GET'])
+    def agent_calendar_event_types():
+        """Types d'evenements disponibles"""
+        agent = CalendarAgent()
+        return jsonify({'success': True, 'event_types': agent.get_event_types()})
+
+    # ============================================
+    # AGENT 50: CHATBOT - Assistant IA
+    # ============================================
+
+    @app.route('/api/agent/chatbot/init', methods=['POST'])
+    def agent_chatbot_init():
+        """Initialise les tables chatbot"""
+        agent = ChatbotAgent()
+        result = agent.init_db()
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/chatbot/start', methods=['POST'])
+    def agent_chatbot_start():
+        """
+        Demarre une conversation
+        Body: {session_id, source, language}
+        """
+        data = request.get_json() or {}
+        session_id = data.get('session_id')
+
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+
+        agent = ChatbotAgent()
+        result = agent.start_conversation(
+            session_id,
+            data.get('source', 'website'),
+            data.get('language', 'fr')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'conversation': result})
+
+    @app.route('/api/agent/chatbot/message', methods=['POST'])
+    def agent_chatbot_message():
+        """
+        Envoie un message
+        Body: {session_id, message, use_ai}
+        """
+        data = request.get_json() or {}
+
+        if not data.get('session_id') or not data.get('message'):
+            return jsonify({'success': False, 'error': 'session_id et message requis'}), 400
+
+        agent = ChatbotAgent()
+        result = agent.send_message(
+            data['session_id'],
+            data['message'],
+            data.get('use_ai', True)
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/chatbot/lead', methods=['POST'])
+    def agent_chatbot_capture_lead():
+        """
+        Capture infos du lead
+        Body: {session_id, name, email, phone}
+        """
+        data = request.get_json() or {}
+
+        if not data.get('session_id'):
+            return jsonify({'success': False, 'error': 'session_id requis'}), 400
+
+        agent = ChatbotAgent()
+        result = agent.capture_lead(
+            data['session_id'],
+            data.get('name'),
+            data.get('email'),
+            data.get('phone')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/chatbot/end', methods=['POST'])
+    def agent_chatbot_end():
+        """Termine une conversation"""
+        data = request.get_json() or {}
+        agent = ChatbotAgent()
+        result = agent.end_conversation(data.get('session_id'))
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/chatbot/conversation/<session_id>', methods=['GET'])
+    def agent_chatbot_get_conversation(session_id):
+        """Obtient une conversation"""
+        agent = ChatbotAgent()
+        result = agent.get_conversation(session_id)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'conversation': result})
+
+    @app.route('/api/agent/chatbot/conversations', methods=['GET'])
+    def agent_chatbot_list_conversations():
+        """Liste les conversations"""
+        filters = {
+            'status': request.args.get('status'),
+            'lead_captured': request.args.get('lead_captured') == 'true',
+            'has_email': request.args.get('has_email') == 'true'
+        }
+        filters = {k: v for k, v in filters.items() if v}
+        limit = int(request.args.get('limit', 50))
+
+        agent = ChatbotAgent()
+        conversations = agent.list_conversations(filters if filters else None, limit)
+
+        if isinstance(conversations, dict) and 'error' in conversations:
+            return jsonify({'success': False, 'error': conversations['error']}), 400
+
+        return jsonify({'success': True, 'conversations': conversations, 'count': len(conversations)})
+
+    @app.route('/api/agent/chatbot/faq', methods=['POST'])
+    def agent_chatbot_add_faq():
+        """Ajoute une FAQ"""
+        data = request.get_json() or {}
+        agent = ChatbotAgent()
+        result = agent.add_faq(
+            data.get('question', ''),
+            data.get('answer', ''),
+            data.get('keywords'),
+            data.get('language', 'fr')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'faq': result})
+
+    @app.route('/api/agent/chatbot/faqs', methods=['GET'])
+    def agent_chatbot_list_faqs():
+        """Liste les FAQs"""
+        language = request.args.get('language', 'fr')
+        agent = ChatbotAgent()
+        faqs = agent.get_faqs(language)
+
+        if isinstance(faqs, dict) and 'error' in faqs:
+            return jsonify({'success': False, 'error': faqs['error']}), 400
+
+        return jsonify({'success': True, 'faqs': faqs})
+
+    @app.route('/api/agent/chatbot/faq/search', methods=['GET'])
+    def agent_chatbot_search_faq():
+        """Recherche FAQ"""
+        query = request.args.get('q', '')
+        language = request.args.get('language', 'fr')
+
+        agent = ChatbotAgent()
+        results = agent.search_faq(query, language)
+
+        if isinstance(results, dict) and 'error' in results:
+            return jsonify({'success': False, 'error': results['error']}), 400
+
+        return jsonify({'success': True, 'results': results})
+
+    @app.route('/api/agent/chatbot/response', methods=['POST'])
+    def agent_chatbot_add_response():
+        """Ajoute une reponse pre-configuree"""
+        data = request.get_json() or {}
+        agent = ChatbotAgent()
+        result = agent.add_response(
+            data.get('intent', ''),
+            data.get('response', ''),
+            data.get('language', 'fr'),
+            data.get('priority', 0)
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/chatbot/config', methods=['GET'])
+    def agent_chatbot_get_config():
+        """Obtient la config chatbot"""
+        agent = ChatbotAgent()
+        config = agent.get_config()
+
+        if isinstance(config, dict) and 'error' in config:
+            return jsonify({'success': False, 'error': config['error']}), 400
+
+        return jsonify({'success': True, 'config': config})
+
+    @app.route('/api/agent/chatbot/config', methods=['POST'])
+    def agent_chatbot_update_config():
+        """Met a jour la config"""
+        data = request.get_json() or {}
+        agent = ChatbotAgent()
+
+        for key, value in data.items():
+            agent.update_config(key, value)
+
+        return jsonify({'success': True})
+
+    @app.route('/api/agent/chatbot/stats', methods=['GET'])
+    def agent_chatbot_stats():
+        """Statistiques chatbot"""
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        agent = ChatbotAgent()
+        stats = agent.get_stats(start_date, end_date)
+
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 400
+
+        return jsonify({'success': True, 'stats': stats})
+
+    @app.route('/api/agent/chatbot/intents', methods=['GET'])
+    def agent_chatbot_intents():
+        """Liste les intentions"""
+        agent = ChatbotAgent()
+        return jsonify({'success': True, 'intents': agent.get_intents()})
+
+    # ============================================
+    # AGENT 51: NOTIFICATION - Email/SMS/Push
+    # ============================================
+
+    @app.route('/api/agent/notification/init', methods=['POST'])
+    def agent_notification_init():
+        """Initialise les tables notifications"""
+        agent = NotificationAgent()
+        result = agent.init_db()
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/notification/send', methods=['POST'])
+    def agent_notification_send():
+        """
+        Envoie une notification
+        Body: {type, channel, recipient: {email, phone, name}, data: {...}, template_id}
+        """
+        data = request.get_json() or {}
+        agent = NotificationAgent()
+        result = agent.send_notification(
+            data.get('type', 'CUSTOM'),
+            data.get('channel', 'email'),
+            data.get('recipient', {}),
+            data.get('data', {}),
+            data.get('template_id')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'notification': result})
+
+    @app.route('/api/agent/notification/schedule', methods=['POST'])
+    def agent_notification_schedule():
+        """
+        Planifie une notification
+        Body: {type, channel, recipient, data, scheduled_at}
+        """
+        data = request.get_json() or {}
+        agent = NotificationAgent()
+        result = agent.schedule_notification(
+            data.get('type', 'CUSTOM'),
+            data.get('channel', 'email'),
+            data.get('recipient', {}),
+            data.get('data', {}),
+            data.get('scheduled_at')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'scheduled': result})
+
+    @app.route('/api/agent/notification/process-queue', methods=['POST'])
+    def agent_notification_process_queue():
+        """Traite la file d'attente"""
+        data = request.get_json() or {}
+        limit = int(data.get('limit', 10))
+
+        agent = NotificationAgent()
+        result = agent.process_queue(limit)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/notification/list', methods=['GET'])
+    def agent_notification_list():
+        """Liste les notifications"""
+        filters = {
+            'type': request.args.get('type'),
+            'channel': request.args.get('channel'),
+            'status': request.args.get('status')
+        }
+        filters = {k: v for k, v in filters.items() if v}
+        limit = int(request.args.get('limit', 50))
+
+        agent = NotificationAgent()
+        notifications = agent.get_notifications(filters if filters else None, limit)
+
+        if isinstance(notifications, dict) and 'error' in notifications:
+            return jsonify({'success': False, 'error': notifications['error']}), 400
+
+        return jsonify({'success': True, 'notifications': notifications, 'count': len(notifications)})
+
+    @app.route('/api/agent/notification/template', methods=['POST'])
+    def agent_notification_create_template():
+        """Cree un template"""
+        data = request.get_json() or {}
+        agent = NotificationAgent()
+        result = agent.create_template(data)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'template': result})
+
+    @app.route('/api/agent/notification/templates', methods=['GET'])
+    def agent_notification_list_templates():
+        """Liste les templates"""
+        channel = request.args.get('channel')
+        notification_type = request.args.get('type')
+
+        agent = NotificationAgent()
+        templates = agent.get_templates(channel, notification_type)
+
+        if isinstance(templates, dict) and 'error' in templates:
+            return jsonify({'success': False, 'error': templates['error']}), 400
+
+        return jsonify({'success': True, 'templates': templates})
+
+    @app.route('/api/agent/notification/stats', methods=['GET'])
+    def agent_notification_stats():
+        """Statistiques notifications"""
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        agent = NotificationAgent()
+        stats = agent.get_stats(start_date, end_date)
+
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 400
+
+        return jsonify({'success': True, 'stats': stats})
+
+    @app.route('/api/agent/notification/types', methods=['GET'])
+    def agent_notification_types():
+        """Types de notifications"""
+        agent = NotificationAgent()
+        return jsonify({'success': True, 'types': agent.get_notification_types()})
+
+    # ============================================
+    # AGENT 52: DASHBOARD - Tableau de Bord Unifie
+    # ============================================
+
+    @app.route('/api/agent/dashboard/init', methods=['POST'])
+    def agent_dashboard_init():
+        """Initialise les tables dashboard"""
+        agent = DashboardAgent()
+        result = agent.init_db()
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/dashboard/overview', methods=['GET'])
+    def agent_dashboard_overview():
+        """
+        Vue d'ensemble globale
+        Query: ?period_days=30
+        """
+        period_days = int(request.args.get('period_days', 30))
+        agent = DashboardAgent()
+        overview = agent.get_overview(period_days)
+
+        if 'error' in overview:
+            return jsonify({'success': False, 'error': overview['error']}), 400
+
+        return jsonify({'success': True, 'overview': overview})
+
+    @app.route('/api/agent/dashboard/revenue', methods=['GET'])
+    def agent_dashboard_revenue():
+        """
+        Tendance revenus
+        Query: ?months=6
+        """
+        months = int(request.args.get('months', 6))
+        agent = DashboardAgent()
+        revenue = agent.get_revenue_trend(months)
+
+        if isinstance(revenue, dict) and 'error' in revenue:
+            return jsonify({'success': False, 'error': revenue['error']}), 400
+
+        return jsonify({'success': True, 'revenue_trend': revenue})
+
+    @app.route('/api/agent/dashboard/metrics', methods=['GET'])
+    def agent_dashboard_metrics():
+        """Metriques cles pour widgets"""
+        agent = DashboardAgent()
+        metrics = agent.get_top_metrics()
+
+        if 'error' in metrics:
+            return jsonify({'success': False, 'error': metrics['error']}), 400
+
+        return jsonify({'success': True, 'metrics': metrics})
+
+    @app.route('/api/agent/dashboard/activity', methods=['GET'])
+    def agent_dashboard_activity():
+        """
+        Flux activite recente
+        Query: ?limit=20
+        """
+        limit = int(request.args.get('limit', 20))
+        agent = DashboardAgent()
+        activity = agent.get_recent_activity(limit)
+
+        if isinstance(activity, dict) and 'error' in activity:
+            return jsonify({'success': False, 'error': activity['error']}), 400
+
+        return jsonify({'success': True, 'activity': activity})
+
+    @app.route('/api/agent/dashboard/alerts', methods=['GET'])
+    def agent_dashboard_alerts():
+        """Alertes et actions requises"""
+        agent = DashboardAgent()
+        alerts = agent.get_alerts()
+
+        if 'error' in alerts:
+            return jsonify({'success': False, 'error': alerts['error']}), 400
+
+        return jsonify({'success': True, 'alerts': alerts})
+
+    @app.route('/api/agent/dashboard/insights', methods=['GET'])
+    def agent_dashboard_insights():
+        """Insights AI generes"""
+        agent = DashboardAgent()
+        insights = agent.generate_insights()
+
+        if 'error' in insights:
+            return jsonify({'success': False, 'error': insights['error']}), 400
+
+        return jsonify({'success': True, 'insights': insights})
+
+    # ============================================
+    # AGENT 53: LEAD SCORING - Qualification IA
+    # ============================================
+
+    @app.route('/api/agent/lead-scoring/init', methods=['POST'])
+    def agent_lead_scoring_init():
+        """Initialise les tables lead scoring"""
+        agent = LeadScoringAgent()
+        result = agent.init_db()
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/lead-scoring/score', methods=['POST'])
+    def agent_lead_scoring_score():
+        """
+        Score un lead
+        Body: {contact_id, data: {source, engagement, budget, timeline, fit, ...}}
+        """
+        data = request.get_json() or {}
+        agent = LeadScoringAgent()
+        result = agent.score_lead(
+            data.get('contact_id'),
+            data.get('data')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/lead-scoring/score-ai/<int:contact_id>', methods=['POST'])
+    def agent_lead_scoring_score_ai(contact_id):
+        """Score un lead avec analyse IA complete"""
+        agent = LeadScoringAgent()
+        result = agent.score_lead_ai(contact_id)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/lead-scoring/batch', methods=['POST'])
+    def agent_lead_scoring_batch():
+        """Score tous les leads non scores"""
+        data = request.get_json() or {}
+        limit = int(data.get('limit', 50))
+
+        agent = LeadScoringAgent()
+        result = agent.batch_score(limit)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/lead-scoring/hot-leads', methods=['GET'])
+    def agent_lead_scoring_hot_leads():
+        """Liste les leads chauds"""
+        min_score = int(request.args.get('min_score', 70))
+        limit = int(request.args.get('limit', 20))
+
+        agent = LeadScoringAgent()
+        leads = agent.get_hot_leads(min_score, limit)
+
+        if isinstance(leads, dict) and 'error' in leads:
+            return jsonify({'success': False, 'error': leads['error']}), 400
+
+        return jsonify({'success': True, 'leads': leads, 'count': len(leads)})
+
+    @app.route('/api/agent/lead-scoring/history/<int:contact_id>', methods=['GET'])
+    def agent_lead_scoring_history(contact_id):
+        """Historique des scores d'un contact"""
+        limit = int(request.args.get('limit', 10))
+
+        agent = LeadScoringAgent()
+        history = agent.get_score_history(contact_id, limit)
+
+        if isinstance(history, dict) and 'error' in history:
+            return jsonify({'success': False, 'error': history['error']}), 400
+
+        return jsonify({'success': True, 'history': history})
+
+    @app.route('/api/agent/lead-scoring/action', methods=['POST'])
+    def agent_lead_scoring_create_action():
+        """Cree une action pour un lead"""
+        data = request.get_json() or {}
+        agent = LeadScoringAgent()
+        result = agent.create_action(
+            data.get('contact_id'),
+            data.get('action_type', 'call'),
+            data.get('description', ''),
+            data.get('priority', 3),
+            data.get('due_date'),
+            data.get('assigned_to')
+        )
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True, 'result': result})
+
+    @app.route('/api/agent/lead-scoring/actions', methods=['GET'])
+    def agent_lead_scoring_pending_actions():
+        """Actions en attente"""
+        limit = int(request.args.get('limit', 50))
+
+        agent = LeadScoringAgent()
+        actions = agent.get_pending_actions(limit)
+
+        if isinstance(actions, dict) and 'error' in actions:
+            return jsonify({'success': False, 'error': actions['error']}), 400
+
+        return jsonify({'success': True, 'actions': actions})
+
+    @app.route('/api/agent/lead-scoring/action/<int:action_id>/complete', methods=['POST'])
+    def agent_lead_scoring_complete_action(action_id):
+        """Marque une action comme terminee"""
+        agent = LeadScoringAgent()
+        result = agent.complete_action(action_id)
+
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 400
+
+        return jsonify({'success': True})
+
+    @app.route('/api/agent/lead-scoring/stats', methods=['GET'])
+    def agent_lead_scoring_stats():
+        """Statistiques de scoring"""
+        agent = LeadScoringAgent()
+        stats = agent.get_stats()
+
+        if 'error' in stats:
+            return jsonify({'success': False, 'error': stats['error']}), 400
+
+        return jsonify({'success': True, 'stats': stats})
+
+    print(f"[API] Registered {53} agent routes (including Business Agents)")
