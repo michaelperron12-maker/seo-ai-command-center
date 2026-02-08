@@ -66,9 +66,46 @@ FIX_LEVELS = {
 
 
 class SelfAuditAgent:
+    # IPs admin connues — pas d'alerte email si connecte depuis ces IPs
+    ADMIN_USERS = ["ubuntu", "root", "michael"]
+
     def __init__(self, db_path: str = "/opt/seo-agent/db/seo_agent.db"):
         self.db_path = db_path
         self._init_db()
+
+    def is_admin_connected(self) -> bool:
+        """Verifie si un admin est connecte en SSH (via w command)"""
+        try:
+            import subprocess
+            result = subprocess.run(["w", "-h"], capture_output=True, text=True, timeout=5)
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                user = line.split()[0]
+                if user in self.ADMIN_USERS:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def get_admin_session_info(self) -> Optional[str]:
+        """Retourne info sur la session admin active"""
+        try:
+            import subprocess
+            result = subprocess.run(["w", "-h"], capture_output=True, text=True, timeout=5)
+            sessions = []
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                parts = line.split()
+                user = parts[0]
+                if user in self.ADMIN_USERS:
+                    # user + IP source
+                    ip = parts[2] if len(parts) > 2 else "local"
+                    sessions.append(f"{user} from {ip}")
+            return "; ".join(sessions) if sessions else None
+        except Exception:
+            return None
 
     def _init_db(self):
         """Cree les tables pour le self-audit"""
@@ -165,12 +202,13 @@ class SelfAuditAgent:
         conn.close()
 
         # Aussi creer une alerte dans mon_alerts pour le dashboard
-        self._create_dashboard_alert(site_id, check_type, severity, message)
+        self._create_dashboard_alert(site_id, check_type, severity, message, auto_fixed=auto_fixed)
 
         return issue_id
 
     def _create_dashboard_alert(self, site_id: str, alert_type: str,
-                                severity: str, message: str):
+                                severity: str, message: str,
+                                auto_fixed: bool = False):
         """Cree une alerte visible dans le dashboard existant"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
@@ -180,12 +218,22 @@ class SelfAuditAgent:
             WHERE site_id = ? AND alert_type = ? AND message = ? AND resolved = 0
             AND created_at > datetime('now', '-6 hours')
         """, (site_id, f"self_audit_{alert_type}", message))
-        if not cursor.fetchone():
+        existing = cursor.fetchone()
+        if not existing:
+            status = "auto_fixed" if auto_fixed else "new"
             cursor.execute("""
-                INSERT INTO mon_alerts (site_id, alert_type, severity, message, details)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO mon_alerts (site_id, alert_type, severity, message, details, source_agent)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (site_id, f"self_audit_{alert_type}", severity, message,
-                  f"Detecte par Self-Audit Agent le {datetime.now().strftime('%Y-%m-%d %H:%M')}"))
+                  f"Detecte par Self-Audit Agent le {datetime.now().strftime('%Y-%m-%d %H:%M')} | Status: {status}",
+                  "self_audit_agent"))
+            # Si auto-fixed, marquer comme resolu immediatement
+            if auto_fixed:
+                cursor.execute("""
+                    UPDATE mon_alerts SET resolved = 1, resolved_at = datetime('now'),
+                    corrected_by = 'self_audit_agent', corrected_at = datetime('now')
+                    WHERE id = last_insert_rowid()
+                """)
             conn.commit()
         conn.close()
 
@@ -984,13 +1032,32 @@ python3 /opt/seo-agent/self_audit_agent.py report
         return self.send_email(subject, html)
 
     def full_audit_with_email(self, site_id: str = None) -> Dict:
-        """Audit complet + envoi email automatique"""
+        """Audit complet + envoi email automatique (sauf si admin connecte SSH)"""
         if site_id:
             results = {site_id: self.full_audit(site_id)}
         else:
             results = self.full_audit_all()
 
-        # Envoyer le rapport par email
+        # Checker si admin est connecte en SSH
+        admin_connected = self.is_admin_connected()
+        admin_info = self.get_admin_session_info()
+
+        if admin_connected:
+            logger.info(f"Admin connecte SSH ({admin_info}) — emails supprimes, issues en SQLite seulement")
+            # Sauvegarder dans SQLite qu'on a skip les emails
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO self_audit_runs (site_id, checks_total, issues_found, auto_fixed, pending_confirm, manual_required, completed_at)
+                VALUES ('_email_skip', 0, 0, 0, 0, 0, datetime('now'))
+            """)
+            conn.commit()
+            conn.close()
+            results["_email_skipped"] = True
+            results["_admin_session"] = admin_info
+            return results
+
+        # Personne connecte — envoyer le rapport par email
         self.send_audit_report(results)
 
         # Envoyer alertes critiques instantanees

@@ -126,10 +126,24 @@ def get_alerts():
     resolved = request.args.get('resolved', 'false') == 'true'
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, site_id, alert_type, severity, message, created_at FROM mon_alerts WHERE resolved = ? ORDER BY created_at DESC LIMIT 50", (1 if resolved else 0,))
+    cursor.execute("""SELECT id, site_id, alert_type, severity, message, created_at,
+        COALESCE(source_agent, 'unknown') as source_agent,
+        COALESCE(corrected_by, '') as corrected_by,
+        resolved, resolved_at,
+        CASE
+            WHEN resolved = 1 AND corrected_by = 'self_audit_agent' THEN 'auto_fixed'
+            WHEN resolved = 1 THEN 'resolved'
+            WHEN created_at > datetime('now', '-1 hour') THEN 'new'
+            ELSE 'active'
+        END as status
+    FROM mon_alerts WHERE resolved = ?
+    ORDER BY
+        CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+        created_at DESC
+    LIMIT 50""", (1 if resolved else 0,))
     rows = cursor.fetchall()
     conn.close()
-    return jsonify({"alerts": [{"id": r[0], "site_id": r[1], "type": r[2], "severity": r[3], "message": r[4], "created_at": r[5]} for r in rows]})
+    return jsonify({"alerts": [{"id": r[0], "site_id": r[1], "type": r[2], "severity": r[3], "message": r[4], "created_at": r[5], "source_agent": r[6], "corrected_by": r[7], "is_resolved": bool(r[8]), "resolved_at": r[9], "status": r[10]} for r in rows]})
 
 @app.route('/api/alerts/<int:alert_id>/resolve', methods=['POST'])
 def resolve_alert(alert_id):
@@ -790,6 +804,39 @@ def api_index():
     })
 
 
+
+
+@app.route("/api/self-audit/dashboard", methods=["GET"])
+def self_audit_dashboard():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN auto_fixed = 1 THEN 1 ELSE 0 END) as auto_fixed,
+        SUM(CASE WHEN fix_level = 'confirm' AND confirmed = 0 THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN fix_level = 'manual' AND executed = 0 THEN 1 ELSE 0 END) as manual,
+        SUM(CASE WHEN severity = 'critical' AND auto_fixed = 0 AND confirmed = 0 THEN 1 ELSE 0 END) as critical_open
+    FROM self_audit_results""")
+    stats = cursor.fetchone()
+    cursor.execute("""SELECT id, site_id, check_type, severity, message, fix_level, auto_fixed, confirmed, created_at
+    FROM self_audit_results ORDER BY created_at DESC LIMIT 30""")
+    issues = cursor.fetchall()
+    cursor.execute("""SELECT site_id, issues_found, auto_fixed, pending_confirm, completed_at
+    FROM self_audit_runs WHERE site_id != '_email_skip' ORDER BY completed_at DESC LIMIT 1""")
+    last_run = cursor.fetchone()
+    conn.close()
+    return jsonify({
+        "stats": {"total": stats[0] if stats else 0, "auto_fixed": stats[1] if stats else 0,
+            "pending_confirm": stats[2] if stats else 0, "manual_required": stats[3] if stats else 0,
+            "critical_open": stats[4] if stats else 0},
+        "issues": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3],
+            "message": r[4], "fix_level": r[5], "auto_fixed": bool(r[6]), "confirmed": bool(r[7]),
+            "created_at": r[8],
+            "status": "auto_fixed" if r[6] else ("confirmed" if r[7] else "pending" if r[5]=="confirm" else "manual")
+        } for r in issues],
+        "last_run": {"site_id": last_run[0], "issues_found": last_run[1], "auto_fixed": last_run[2],
+            "pending_confirm": last_run[3], "completed_at": last_run[4]} if last_run else None
+    })
 
 # Self-audit routes
 from self_audit_routes import register_self_audit_routes
