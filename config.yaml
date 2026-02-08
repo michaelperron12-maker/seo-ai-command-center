@@ -42,7 +42,7 @@ sites:
       - "peintre commercial"
 
   - nom: "SEO par AI"
-    domaine: "seoparai.ca"
+    domaine: "seoparai.com"
     chemin: "/var/www/seoparai"
     categorie: "seo-marketing"
     blog_path: "/var/www/seoparai/blog"
