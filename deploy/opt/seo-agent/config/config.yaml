@@ -1,0 +1,68 @@
+# SEO par AI - Configuration
+# ═══════════════════════════════════════
+
+general:
+  pause_active: false
+  version: "2.0.0"
+
+sites:
+  - id: deneigement
+    name: "Deneigement Excellence"
+    domain: "deneigement-excellence.ca"
+    path: "/var/www/deneigement/"
+    niche: "deneigement"
+    active: true
+
+  - id: paysagement
+    name: "Paysagiste Excellence"
+    domain: "paysagiste-excellence.ca"
+    path: "/var/www/paysagement/"
+    niche: "paysagement"
+    active: true
+
+  - id: jcpeintre
+    name: "JC Peintre"
+    domain: "jcpeintre.com"
+    path: "/var/www/jcpeintre.com/"
+    niche: "peinture"
+    active: true
+
+  - id: seoparai
+    name: "SEO par AI"
+    domain: "seoparai.ca"
+    path: "/var/www/html/"
+    niche: "seo-automation"
+    active: true
+
+# Kill Switch
+kill_switch:
+  max_publications_per_day: 5
+  max_similarity_threshold: 0.70
+  max_errors_before_pause: 10
+  pause_duration_hours: 48
+
+# Contenu
+content:
+  min_words: 800
+  max_words: 2000
+  target_words: 1200
+  language: "fr"
+
+# Timing
+timing:
+  monitoring_interval_hours: 3
+  content_generation: "09:00"
+  weekly_audit: "sunday 02:00"
+
+# API (DeepSeek ou Fireworks - via env vars)
+api:
+  preferred_provider: "fireworks"
+
+# Notifications
+notifications:
+  telegram:
+    enabled: false
+  email:
+    enabled: false
+  sms:
+    enabled: false

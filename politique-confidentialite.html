@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="fr-CA">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Politique de confidentialite - SEO par AI | Protection des renseignements personnels</title>
+    <meta name="description" content="Politique de confidentialite de SEO par AI. Decouvrez comment nous collectons, utilisons et protegeons vos renseignements personnels conformement a la Loi 25 du Quebec et a la LPRPDE.">
+    <meta name="keywords" content="politique confidentialite, vie privee, protection donnees, Loi 25, LPRPDE, PIPEDA, SEO par AI, renseignements personnels Quebec">
+    <meta name="author" content="SEO par AI">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://seoparai.ca/politique-confidentialite.html">
+    <link rel="alternate" hreflang="fr-CA" href="https://seoparai.ca/politique-confidentialite.html">
+    <link rel="alternate" hreflang="fr" href="https://seoparai.ca/politique-confidentialite.html">
+    <link rel="alternate" hreflang="x-default" href="https://seoparai.ca/politique-confidentialite.html">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Politique de confidentialite - SEO par AI">
+    <meta property="og:description" content="Politique de confidentialite de SEO par AI. Protection de vos renseignements personnels conformement a la Loi 25 du Quebec et a la LPRPDE.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://seoparai.ca/politique-confidentialite.html">
+    <meta property="og:site_name" content="SEO par AI">
+    <meta property="og:locale" content="fr_CA">
+
+    <!-- Schema.org - WebPage -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "Politique de confidentialite - SEO par AI",
+        "description": "Politique de confidentialite de SEO par AI. Protection des renseignements personnels conformement a la Loi 25 du Quebec, a la LPRPDE et au RGPD.",
+        "url": "https://seoparai.ca/politique-confidentialite.html",
+        "inLanguage": "fr-CA",
+        "isPartOf": {
+            "@type": "WebSite",
+            "name": "SEO par AI",
+            "url": "https://seoparai.ca"
+        },
+        "about": {
+            "@type": "Thing",
+            "name": "Politique de confidentialite",
+            "description": "Protection des renseignements personnels et donnees privees"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "SEO par AI",
+            "url": "https://seoparai.ca",
+            "logo": "https://seoparai.ca/logo.png",
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "email": "contact@seoparai.ca",
+                "contactType": "customer service",
+                "areaServed": "CA",
+                "availableLanguage": ["French", "English"]
+            }
+        },
+        "datePublished": "2024-09-01",
+        "dateModified": "2025-02-07",
+        "breadcrumb": {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {
+                    "@type": "ListItem",
+                    "position": 1,
+                    "name": "Accueil",
+                    "item": "https://seoparai.ca/"
+                },
+                {
+                    "@type": "ListItem",
+                    "position": 2,
+                    "name": "Politique de confidentialite",
+                    "item": "https://seoparai.ca/politique-confidentialite.html"
+                }
+            ]
+        }
+    }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #22d3ee;
+            --accent: #f59e0b;
+            --success: #22c55e;
+            --bg: #0a0a12;
+            --surface: #12121f;
+            --surface-2: #1a1a2e;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --gradient: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
+            --gradient-gold: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+            --gradient-purple: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 30%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 70%, rgba(34, 211, 238, 0.08) 0%, transparent 50%);
+            animation: bgMove 20s ease-in-out infinite;
+        }
+
+        @keyframes bgMove {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            50% { transform: translate(-5%, -5%) rotate(5deg); }
+        }
+
+        /* Floating particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--primary);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 15s infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(100vh) scale(0); opacity: 0; }
+            10% { opacity: 0.3; }
+            90% { opacity: 0.3; }
+            100% { transform: translateY(-100vh) scale(1); opacity: 0; }
+        }
+
+        /* Navbar */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 18, 0.9);
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .logo {
+            font-size: 1.75rem;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            text-decoration: none;
+        }
+
+        .logo span:first-child { color: var(--text); }
+        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+        .nav-links { display: flex; gap: 2rem; }
+        .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: all 0.3s; position: relative; }
+        .nav-links a:hover { color: var(--text); }
+        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--gradient); transition: width 0.3s; }
+        .nav-links a:hover::after { width: 100%; }
+        .nav-links a.active { color: var(--text); }
+        .nav-links a.active::after { width: 100%; }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before { left: 100%; }
+
+        .btn-primary { background: var(--gradient); color: white; }
+        .btn-primary:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4); }
+
+        /* Page Header */
+        .page-header {
+            padding: 8rem 2rem 4rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .page-header h1 {
+            font-size: clamp(2.25rem, 5vw, 3.5rem);
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 1rem;
+        }
+
+        .page-header h1 .highlight {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .page-header .subtitle {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto 1.5rem;
+        }
+
+        .page-header .last-updated {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.25);
+            padding: 0.5rem 1.25rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            color: var(--secondary);
+        }
+
+        /* Policy Content */
+        .policy-content {
+            max-width: 880px;
+            margin: 0 auto;
+            padding: 0 2rem 6rem;
+        }
+
+        /* Table of Contents */
+        .toc {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 2rem 2.5rem;
+            margin-bottom: 3.5rem;
+        }
+
+        .toc h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1.25rem;
+            color: var(--text);
+        }
+
+        .toc ol {
+            list-style: none;
+            counter-reset: toc-counter;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.6rem 2rem;
+        }
+
+        .toc ol li {
+            counter-increment: toc-counter;
+        }
+
+        .toc ol li a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+        }
+
+        .toc ol li a::before {
+            content: counter(toc-counter) ".";
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 0.85rem;
+            min-width: 1.5rem;
+        }
+
+        .toc ol li a:hover {
+            color: var(--secondary);
+        }
+
+        /* Policy Sections */
+        .policy-section {
+            margin-bottom: 3rem;
+            scroll-margin-top: 100px;
+        }
+
+        .policy-section h2 {
+            font-size: 1.65rem;
+            font-weight: 800;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid rgba(99, 102, 241, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .policy-section h2 .section-number {
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 1.25rem;
+            font-weight: 900;
+        }
+
+        .policy-section h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin: 1.75rem 0 0.75rem;
+            color: var(--secondary);
+        }
+
+        .policy-section p {
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            font-size: 0.95rem;
+        }
+
+        .policy-section ul,
+        .policy-section ol {
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            line-height: 1.75;
+            font-size: 0.95rem;
+        }
+
+        .policy-section li {
+            margin-bottom: 0.4rem;
+        }
+
+        .policy-section strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .policy-section a {
+            color: var(--primary);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .policy-section a:hover {
+            color: var(--secondary);
+            text-decoration: underline;
+        }
+
+        /* Highlight Box */
+        .highlight-box {
+            background: var(--surface);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-left: 4px solid var(--primary);
+            border-radius: 0 12px 12px 0;
+            padding: 1.5rem 1.75rem;
+            margin: 1.5rem 0;
+        }
+
+        .highlight-box p {
+            margin-bottom: 0.5rem;
+        }
+
+        .highlight-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Warning Box */
+        .warning-box {
+            background: rgba(245, 158, 11, 0.08);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            border-left: 4px solid var(--accent);
+            border-radius: 0 12px 12px 0;
+            padding: 1.5rem 1.75rem;
+            margin: 1.5rem 0;
+        }
+
+        /* AI Box */
+        .ai-box {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(34, 211, 238, 0.08));
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 16px;
+            padding: 1.75rem 2rem;
+            margin: 1.5rem 0;
+        }
+
+        .ai-box h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+            color: var(--text);
+        }
+
+        .ai-box p, .ai-box ul {
+            font-size: 0.9rem;
+        }
+
+        /* Contact Card */
+        .contact-card {
+            background: var(--surface);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            padding: 2.5rem;
+            text-align: center;
+            margin-top: 3rem;
+        }
+
+        .contact-card h3 {
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        .contact-card p {
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .contact-card a.email-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 1.1rem;
+            text-decoration: none;
+            margin-top: 1rem;
+            transition: all 0.3s;
+        }
+
+        .contact-card a.email-link:hover {
+            color: var(--secondary);
+        }
+
+        /* Footer */
+        footer { padding: 4rem 2rem; text-align: center; border-top: 1px solid rgba(255,255,255,0.05); background: var(--surface); }
+        footer p { color: var(--text-muted); font-size: 0.9rem; }
+        footer a { color: var(--primary); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-top: 1.25rem;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--text);
+        }
+
+        /* Mobile - Tablets */
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .page-header { padding: 6rem 1.25rem 3rem; }
+            .page-header h1 { font-size: 2rem; }
+            .page-header .subtitle { font-size: 1rem; }
+            .policy-content { padding: 0 1.25rem 4rem; }
+            .toc ol { grid-template-columns: 1fr; }
+            .toc { padding: 1.5rem 1.75rem; }
+            .policy-section h2 { font-size: 1.35rem; }
+            .highlight-box, .warning-box, .ai-box { padding: 1.25rem; }
+            .contact-card { padding: 1.75rem; }
+            .footer-links { gap: 1rem; }
+        }
+
+        /* Mobile - Phones */
+        @media (max-width: 480px) {
+            nav { padding: 0.75rem 1rem; }
+            .logo { font-size: 1.3rem; }
+            .page-header { padding: 5.5rem 1rem 2.5rem; }
+            .page-header h1 { font-size: 1.75rem; }
+            .page-header .subtitle { font-size: 0.9rem; }
+            .page-header .last-updated { font-size: 0.75rem; padding: 0.4rem 1rem; }
+            .policy-content { padding: 0 1rem 3rem; }
+            .toc { padding: 1.25rem; }
+            .toc ol li a { font-size: 0.85rem; }
+            .policy-section { margin-bottom: 2.25rem; }
+            .policy-section h2 { font-size: 1.2rem; }
+            .policy-section h3 { font-size: 1.05rem; }
+            .policy-section p, .policy-section ul, .policy-section ol { font-size: 0.9rem; }
+            .ai-box { padding: 1.25rem 1rem; }
+            .contact-card { padding: 1.5rem 1.25rem; }
+            .contact-card h3 { font-size: 1.15rem; }
+            footer { padding: 2rem 1rem; }
+            .footer-links { flex-direction: column; gap: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+    <div class="particles">
+        <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+        <div class="particle" style="left: 20%; animation-delay: 2s;"></div>
+        <div class="particle" style="left: 30%; animation-delay: 4s;"></div>
+        <div class="particle" style="left: 50%; animation-delay: 1s;"></div>
+        <div class="particle" style="left: 70%; animation-delay: 3s;"></div>
+        <div class="particle" style="left: 80%; animation-delay: 5s;"></div>
+        <div class="particle" style="left: 90%; animation-delay: 2.5s;"></div>
+    </div>
+
+    <nav>
+        <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
+        <div class="nav-links">
+            <a href="landing.html">Accueil</a>
+            <a href="a-propos.html">A propos</a>
+            <a href="landing.html#modules">Services</a>
+            <a href="faq.html">FAQ</a>
+            <a href="contact.html">Contact</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem">
+            <a href="landing.html#pricing" class="btn btn-primary">Commencer</a>
+            <a href="landing-en.html" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;border:1px solid rgba(255,255,255,0.15);padding:0.4rem 0.7rem;border-radius:8px;transition:all 0.3s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">EN</a>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <h1>Politique de <span class="highlight">confidentialite</span></h1>
+        <p class="subtitle">Nous nous engageons a proteger vos renseignements personnels conformement aux lois canadiennes et quebecoises en vigueur.</p>
+        <div class="last-updated">Derniere mise a jour : 7 fevrier 2025</div>
+    </header>
+
+    <!-- Policy Content -->
+    <main class="policy-content">
+
+        <!-- Table of Contents -->
+        <div class="toc">
+            <h2>Table des matieres</h2>
+            <ol>
+                <li><a href="#introduction">Introduction et engagement</a></li>
+                <li><a href="#renseignements">Renseignements personnels collectes</a></li>
+                <li><a href="#utilisation">Utilisation des donnees</a></li>
+                <li><a href="#intelligence-artificielle">Intelligence artificielle et donnees</a></li>
+                <li><a href="#cookies">Cookies et technologies de suivi</a></li>
+                <li><a href="#partage">Partage avec des tiers</a></li>
+                <li><a href="#conservation">Conservation des donnees</a></li>
+                <li><a href="#droits">Droits des utilisateurs</a></li>
+                <li><a href="#responsable">Responsable de la protection des renseignements</a></li>
+                <li><a href="#securite">Securite des donnees</a></li>
+                <li><a href="#modifications">Modifications de la politique</a></li>
+                <li><a href="#contact">Nous joindre</a></li>
+            </ol>
+        </div>
+
+        <!-- 1. Introduction -->
+        <section id="introduction" class="policy-section">
+            <h2><span class="section-number">01</span> Introduction et engagement</h2>
+            <p><strong>SEO par AI</strong> (ci-apres « nous », « notre » ou « l'entreprise ») exploite la plateforme accessible a l'adresse <a href="https://seoparai.ca">seoparai.ca</a>. Nous offrons des services d'automatisation SEO et de gestion d'entreprise propulses par l'intelligence artificielle, principalement destines aux entreprises du Quebec et du Canada.</p>
+            <p>La presente politique de confidentialite decrit la maniere dont nous collectons, utilisons, communiquons et protegeons vos renseignements personnels. Elle s'applique a l'ensemble de nos services, y compris notre site web, nos outils d'intelligence artificielle et nos communications.</p>
+
+            <div class="highlight-box">
+                <p><strong>Notre engagement :</strong> Nous nous conformons a la <strong>Loi sur la protection des renseignements personnels dans le secteur prive</strong> du Quebec (communement appelee <strong>Loi 25</strong>), a la <strong>Loi sur la protection des renseignements personnels et les documents electroniques</strong> (LPRPDE / PIPEDA) du gouvernement federal canadien, ainsi qu'aux principes fondamentaux du <strong>Reglement general sur la protection des donnees</strong> (RGPD) de l'Union europeenne pour nos visiteurs internationaux.</p>
+            </div>
+
+            <p>En utilisant nos services ou en naviguant sur notre site web, vous reconnaissez avoir pris connaissance de la presente politique et consentez aux pratiques qui y sont decrites.</p>
+        </section>
+
+        <!-- 2. Renseignements personnels collectes -->
+        <section id="renseignements" class="policy-section">
+            <h2><span class="section-number">02</span> Renseignements personnels collectes</h2>
+            <p>Nous collectons differentes categories de renseignements personnels selon la nature de votre interaction avec nos services :</p>
+
+            <h3>Renseignements fournis directement par vous</h3>
+            <ul>
+                <li><strong>Renseignements d'identification :</strong> nom, prenom, nom d'entreprise</li>
+                <li><strong>Coordonnees :</strong> adresse courriel, numero de telephone, adresse postale</li>
+                <li><strong>Renseignements de compte :</strong> identifiants de connexion, preferences de service</li>
+                <li><strong>Renseignements de paiement :</strong> informations de facturation (traitees par des processeurs de paiement tiers securises; nous ne stockons pas vos numeros de carte de credit)</li>
+                <li><strong>Communications :</strong> contenu de vos courriels, messages de clavardage et demandes de soutien</li>
+            </ul>
+
+            <h3>Renseignements collectes automatiquement</h3>
+            <ul>
+                <li><strong>Donnees de navigation :</strong> adresse IP, type et version du navigateur, systeme d'exploitation, pages visitees, duree de la visite, pages de reference</li>
+                <li><strong>Donnees d'utilisation :</strong> fonctionnalites utilisees, frequence d'utilisation, interactions avec nos agents IA</li>
+                <li><strong>Donnees de localisation approximative :</strong> region geographique determinee a partir de l'adresse IP</li>
+                <li><strong>Donnees de temoins (cookies) :</strong> identifiants de session, preferences, donnees analytiques (voir la section <a href="#cookies">Cookies</a>)</li>
+            </ul>
+
+            <h3>Renseignements provenant de tiers</h3>
+            <ul>
+                <li><strong>Donnees analytiques :</strong> informations fournies par des services d'analyse web (ex. : Google Analytics)</li>
+                <li><strong>Donnees publiques :</strong> informations accessibles publiquement sur votre site web dans le cadre de nos audits SEO</li>
+            </ul>
+
+            <div class="warning-box">
+                <p><strong>Consentement explicite :</strong> Conformement a la Loi 25, nous obtenons votre consentement explicite avant de collecter, d'utiliser ou de communiquer vos renseignements personnels, sauf dans les cas prevus par la loi. Vous pouvez retirer votre consentement en tout temps en communiquant avec nous.</p>
+            </div>
+        </section>
+
+        <!-- 3. Utilisation des donnees -->
+        <section id="utilisation" class="policy-section">
+            <h2><span class="section-number">03</span> Utilisation des donnees</h2>
+            <p>Nous utilisons vos renseignements personnels aux fins suivantes :</p>
+
+            <h3>Prestation de services</h3>
+            <ul>
+                <li>Fournir, maintenir et ameliorer nos services d'automatisation SEO</li>
+                <li>Executer les audits SEO et generer des rapports de performance</li>
+                <li>Gerer votre compte client et vos abonnements</li>
+                <li>Traiter vos paiements et emettre les factures</li>
+                <li>Offrir un soutien technique et repondre a vos demandes</li>
+            </ul>
+
+            <h3>Amelioration de nos services</h3>
+            <ul>
+                <li>Analyser l'utilisation de notre plateforme pour en ameliorer les fonctionnalites</li>
+                <li>Developper de nouvelles fonctionnalites et de nouveaux agents IA</li>
+                <li>Realiser des recherches et des analyses statistiques anonymisees</li>
+            </ul>
+
+            <h3>Communications</h3>
+            <ul>
+                <li>Vous envoyer des informations relatives a votre compte et a nos services</li>
+                <li>Vous transmettre des mises a jour, des conseils SEO et des infolettres (avec votre consentement)</li>
+                <li>Repondre a vos questions et demandes de soutien</li>
+            </ul>
+
+            <h3>Obligations legales et securite</h3>
+            <ul>
+                <li>Respecter nos obligations legales et reglementaires</li>
+                <li>Prevenir les activites frauduleuses et proteger la securite de nos systemes</li>
+                <li>Faire valoir ou defendre nos droits legaux</li>
+            </ul>
+        </section>
+
+        <!-- 4. Intelligence artificielle et donnees -->
+        <section id="intelligence-artificielle" class="policy-section">
+            <h2><span class="section-number">04</span> Intelligence artificielle et donnees</h2>
+            <p>SEO par AI utilise plusieurs modeles d'intelligence artificielle pour fournir ses services. Il est important que vous compreniez comment vos donnees interagissent avec ces systemes.</p>
+
+            <div class="ai-box">
+                <h4>Modeles d'IA utilises</h4>
+                <p>Nos services integrent les technologies d'IA suivantes :</p>
+                <ul>
+                    <li><strong>Claude</strong> (Anthropic) : utilise pour la generation de contenu, l'analyse textuelle et le soutien par clavardage</li>
+                    <li><strong>DeepSeek R1</strong> : utilise pour le raisonnement avance et l'analyse technique SEO</li>
+                    <li><strong>ChatGPT</strong> (OpenAI) : utilise pour la creation de contenu et l'optimisation textuelle</li>
+                    <li><strong>Gemini</strong> (Google) : utilise pour l'analyse de donnees et le traitement de l'information</li>
+                    <li><strong>Qwen</strong> et modeles locaux (Ollama) : utilises pour le traitement en temps reel sur nos serveurs</li>
+                </ul>
+            </div>
+
+            <h3>Traitement des donnees par l'IA</h3>
+            <ul>
+                <li><strong>Donnees d'entree :</strong> les informations relatives a votre site web (URL, contenu public, structure) sont transmises a nos agents IA pour analyse et optimisation</li>
+                <li><strong>Minimisation des donnees :</strong> seules les donnees strictement necessaires a l'execution de la tache sont transmises a chaque modele d'IA</li>
+                <li><strong>Pas d'entrainement :</strong> vos donnees personnelles ne sont <strong>pas</strong> utilisees pour entrainer ou ameliorer les modeles d'IA tiers. Nous utilisons les API de ces services en mode production uniquement</li>
+                <li><strong>Traitement local :</strong> lorsque possible, nous privilegions le traitement local de vos donnees a l'aide de modeles heberges sur nos propres serveurs (via Ollama)</li>
+            </ul>
+
+            <h3>Decisions automatisees</h3>
+            <p>Nos agents IA prennent des decisions automatisees concernant l'optimisation de votre contenu SEO (choix de mots-cles, structure de contenu, recommandations techniques). Ces decisions sont de nature <strong>consultative</strong> et font l'objet d'une validation humaine pour les actions critiques. Conformement a la Loi 25, vous avez le droit d'etre informe lorsqu'une decision vous concernant est prise exclusivement par un traitement automatise, et vous pouvez demander une revision humaine de toute decision.</p>
+
+            <div class="highlight-box">
+                <p><strong>Transparence IA :</strong> Conformement a l'article 12.1 de la Loi 25, nous vous informons que des systemes de prise de decision automatisee sont utilises dans le cadre de nos services. Vous pouvez en tout temps nous contacter pour obtenir des precisions sur le fonctionnement de ces systemes et leur incidence sur vos donnees.</p>
+            </div>
+        </section>
+
+        <!-- 5. Cookies -->
+        <section id="cookies" class="policy-section">
+            <h2><span class="section-number">05</span> Cookies et technologies de suivi</h2>
+            <p>Notre site web utilise des temoins (cookies) et des technologies similaires pour ameliorer votre experience et analyser l'utilisation de nos services.</p>
+
+            <h3>Types de temoins utilises</h3>
+            <ul>
+                <li><strong>Temoins essentiels :</strong> necessaires au fonctionnement du site web (session, securite, preferences linguistiques). Ces temoins ne requierent pas votre consentement.</li>
+                <li><strong>Temoins analytiques :</strong> nous aident a comprendre comment les visiteurs utilisent notre site (Google Analytics). Ces temoins sont actives uniquement avec votre consentement.</li>
+                <li><strong>Temoins de performance :</strong> permettent d'optimiser la vitesse et les performances de nos pages.</li>
+            </ul>
+
+            <h3>Gestion de vos preferences</h3>
+            <p>Vous pouvez gerer vos preferences en matiere de temoins de plusieurs facons :</p>
+            <ul>
+                <li>Par l'intermediaire de la banniere de consentement affichee lors de votre premiere visite</li>
+                <li>En modifiant les parametres de votre navigateur pour bloquer ou supprimer les temoins</li>
+                <li>En nous contactant directement pour retirer votre consentement</li>
+            </ul>
+            <p>Veuillez noter que la desactivation de certains temoins peut affecter le fonctionnement de certaines fonctionnalites de notre site.</p>
+        </section>
+
+        <!-- 6. Partage avec des tiers -->
+        <section id="partage" class="policy-section">
+            <h2><span class="section-number">06</span> Partage avec des tiers</h2>
+            <p>Nous ne vendons pas vos renseignements personnels. Nous pouvons toutefois les communiquer dans les circonstances suivantes :</p>
+
+            <h3>Fournisseurs de services</h3>
+            <p>Nous faisons appel a des fournisseurs de services tiers qui traitent des donnees en notre nom :</p>
+            <ul>
+                <li><strong>Fournisseurs d'IA :</strong> Anthropic (Claude), OpenAI (ChatGPT), Google (Gemini), DeepSeek -- pour le traitement lie a nos services d'automatisation SEO</li>
+                <li><strong>Hebergement :</strong> nos serveurs sont heberges au Canada pour assurer la conformite avec les lois canadiennes sur la protection des donnees</li>
+                <li><strong>Analyse web :</strong> Google Analytics (avec anonymisation des adresses IP activee)</li>
+                <li><strong>Paiements :</strong> processeurs de paiement certifies PCI-DSS pour le traitement securise des transactions</li>
+                <li><strong>Communications :</strong> services d'envoi de courriels pour les notifications et les infolettres</li>
+            </ul>
+
+            <div class="warning-box">
+                <p><strong>Transfert hors du Quebec :</strong> Conformement a la Loi 25, nous vous informons que certaines donnees peuvent etre transferees en dehors du Quebec lorsque nous utilisons des services d'IA infonuagiques dont les serveurs sont situes aux Etats-Unis. Dans tous les cas, nous nous assurons que ces fournisseurs offrent un niveau de protection adequat et que des ententes contractuelles appropriees sont en place.</p>
+            </div>
+
+            <h3>Obligations legales</h3>
+            <p>Nous pouvons communiquer vos renseignements personnels si la loi l'exige, notamment :</p>
+            <ul>
+                <li>En reponse a une ordonnance d'un tribunal ou a une demande d'une autorite gouvernementale competente</li>
+                <li>Pour proteger nos droits, notre propriete ou notre securite, ainsi que ceux de nos utilisateurs</li>
+                <li>Dans le cadre d'une reorganisation d'entreprise, d'une fusion ou d'une acquisition (avec avis prealable)</li>
+            </ul>
+        </section>
+
+        <!-- 7. Conservation des donnees -->
+        <section id="conservation" class="policy-section">
+            <h2><span class="section-number">07</span> Conservation des donnees</h2>
+            <p>Nous conservons vos renseignements personnels uniquement aussi longtemps que necessaire pour atteindre les fins pour lesquelles ils ont ete collectes :</p>
+
+            <ul>
+                <li><strong>Donnees de compte client :</strong> conservees pendant toute la duree de votre abonnement et jusqu'a 24 mois apres la fin de celui-ci, a moins que la loi n'exige une conservation plus longue</li>
+                <li><strong>Donnees de facturation :</strong> conservees pendant 7 ans conformement aux obligations fiscales canadiennes et quebecoises</li>
+                <li><strong>Donnees de communication :</strong> conservees pendant 36 mois a compter du dernier echange</li>
+                <li><strong>Donnees analytiques :</strong> conservees de maniere anonymisee sans limite de duree; les donnees identifiables sont supprimees apres 14 mois</li>
+                <li><strong>Donnees traitees par l'IA :</strong> les donnees transmises aux fournisseurs d'IA tiers ne sont pas conservees au-dela du traitement immediat de la requete, conformement a leurs politiques d'utilisation des API</li>
+            </ul>
+
+            <p>A l'expiration de la periode de conservation, vos renseignements personnels sont detruits de maniere securisee ou anonymises de facon irreversible.</p>
+        </section>
+
+        <!-- 8. Droits des utilisateurs -->
+        <section id="droits" class="policy-section">
+            <h2><span class="section-number">08</span> Droits des utilisateurs</h2>
+            <p>Conformement a la Loi 25 du Quebec, a la LPRPDE et au RGPD (pour les residents de l'Union europeenne), vous disposez des droits suivants :</p>
+
+            <h3>Droit d'acces</h3>
+            <p>Vous avez le droit de demander l'acces aux renseignements personnels que nous detenons a votre sujet, ainsi que des informations sur leur utilisation et leur communication a des tiers.</p>
+
+            <h3>Droit de rectification</h3>
+            <p>Vous avez le droit de demander la correction de vos renseignements personnels s'ils sont inexacts, incomplets ou equivoques.</p>
+
+            <h3>Droit a l'effacement (desindexation)</h3>
+            <p>Vous pouvez demander la suppression de vos renseignements personnels lorsqu'ils ne sont plus necessaires aux fins pour lesquelles ils ont ete collectes, ou lorsque vous retirez votre consentement. Conformement a la Loi 25, vous pouvez egalement demander la desindexation de tout hyperlien rattache a votre nom donnant acces a des renseignements vous concernant.</p>
+
+            <h3>Droit a la portabilite</h3>
+            <p>Conformement a la Loi 25, vous avez le droit d'obtenir une copie de vos renseignements personnels dans un format technologique structure et couramment utilise, ou de demander leur transfert a un autre organisme.</p>
+
+            <h3>Droit de retirer votre consentement</h3>
+            <p>Vous pouvez retirer votre consentement a la collecte, a l'utilisation ou a la communication de vos renseignements personnels en tout temps, sous reserve des restrictions legales et contractuelles applicables.</p>
+
+            <h3>Droit a l'information sur les decisions automatisees</h3>
+            <p>Vous avez le droit d'etre informe de l'utilisation de systemes de decision automatisee et de demander une revision humaine de toute decision prise exclusivement par un tel systeme.</p>
+
+            <div class="highlight-box">
+                <p><strong>Comment exercer vos droits :</strong> Pour exercer l'un de ces droits, veuillez nous envoyer une demande ecrite a <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a>. Nous traiterons votre demande dans un delai de <strong>30 jours</strong> suivant sa reception, conformement a la Loi 25. Si nous ne pouvons donner suite a votre demande, nous vous en informerons par ecrit en precisant les motifs de notre refus.</p>
+            </div>
+
+            <h3>Droit de porter plainte</h3>
+            <p>Si vous estimez que vos droits n'ont pas ete respectes, vous pouvez deposer une plainte aupres de la <strong>Commission d'acces a l'information du Quebec (CAI)</strong> ou du <strong>Commissariat a la protection de la vie privee du Canada (CPVP)</strong>.</p>
+        </section>
+
+        <!-- 9. Responsable de la protection des renseignements -->
+        <section id="responsable" class="policy-section">
+            <h2><span class="section-number">09</span> Responsable de la protection des renseignements personnels</h2>
+            <p>Conformement a la Loi 25, nous avons designe un responsable de la protection des renseignements personnels au sein de notre organisation. Cette personne est chargee de veiller au respect de la presente politique et des lois applicables en matiere de protection des renseignements personnels.</p>
+
+            <div class="highlight-box">
+                <p><strong>Responsable de la protection des renseignements personnels</strong></p>
+                <p>SEO par AI</p>
+                <p>Courriel : <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a></p>
+                <p>Les coordonnees du responsable sont egalement publiees sur notre site web, conformement aux exigences de la Loi 25.</p>
+            </div>
+
+            <p>Le responsable de la protection des renseignements personnels a notamment pour fonctions :</p>
+            <ul>
+                <li>Veiller a la mise en oeuvre et au respect de la presente politique</li>
+                <li>Recevoir et traiter les demandes d'acces, de rectification et de suppression</li>
+                <li>Traiter les plaintes relatives a la protection des renseignements personnels</li>
+                <li>Effectuer les evaluations des facteurs relatifs a la vie privee (EFVP) pour les projets impliquant des renseignements personnels</li>
+                <li>Signaler tout incident de confidentialite a la Commission d'acces a l'information du Quebec et aux personnes concernees, conformement aux obligations de la Loi 25</li>
+            </ul>
+        </section>
+
+        <!-- 10. Securite des donnees -->
+        <section id="securite" class="policy-section">
+            <h2><span class="section-number">10</span> Securite des donnees</h2>
+            <p>Nous mettons en oeuvre des mesures de securite techniques et organisationnelles appropriees pour proteger vos renseignements personnels contre la perte, l'acces non autorise, la divulgation, l'alteration ou la destruction.</p>
+
+            <h3>Mesures techniques</h3>
+            <ul>
+                <li>Chiffrement des donnees en transit (TLS/SSL) et au repos</li>
+                <li>Pare-feu et systemes de detection d'intrusion</li>
+                <li>Authentification securisee et gestion des acces</li>
+                <li>Sauvegardes regulieres et chiffrees</li>
+                <li>Mises a jour de securite appliquees regulierement a nos systemes</li>
+            </ul>
+
+            <h3>Mesures organisationnelles</h3>
+            <ul>
+                <li>Acces aux donnees limite au personnel autorise selon le principe du moindre privilege</li>
+                <li>Formation du personnel sur les pratiques de protection des renseignements personnels</li>
+                <li>Politiques internes de gestion des incidents de confidentialite</li>
+                <li>Evaluations periodiques de nos pratiques de securite</li>
+            </ul>
+
+            <h3>Gestion des incidents</h3>
+            <p>En cas d'incident de confidentialite presentant un risque de prejudice serieux, nous nous engageons a :</p>
+            <ul>
+                <li>Aviser la Commission d'acces a l'information du Quebec dans les plus brefs delais</li>
+                <li>Informer les personnes concernees de la nature de l'incident et des mesures prises</li>
+                <li>Tenir un registre des incidents conformement a la Loi 25</li>
+                <li>Prendre les mesures necessaires pour attenuer les risques et prevenir la recurrence de l'incident</li>
+            </ul>
+        </section>
+
+        <!-- 11. Modifications de la politique -->
+        <section id="modifications" class="policy-section">
+            <h2><span class="section-number">11</span> Modifications de la politique</h2>
+            <p>Nous nous reservons le droit de modifier la presente politique de confidentialite en tout temps afin de refleter les changements apportes a nos pratiques ou aux exigences legales applicables.</p>
+            <p>En cas de modification substantielle, nous vous en informerons par l'un des moyens suivants :</p>
+            <ul>
+                <li>Publication d'un avis bien visible sur notre site web</li>
+                <li>Envoi d'un courriel a l'adresse associee a votre compte</li>
+                <li>Notification dans l'interface de nos services</li>
+            </ul>
+            <p>La date de la derniere mise a jour est indiquee en haut de cette page. Nous vous encourageons a consulter cette politique periodiquement pour rester informe de nos pratiques en matiere de protection des renseignements personnels.</p>
+            <p>Votre utilisation continue de nos services apres la publication des modifications constitue votre acceptation de la politique modifiee. Si les modifications requierent un nouveau consentement en vertu de la loi, nous vous le demanderons de maniere explicite.</p>
+        </section>
+
+        <!-- 12. Contact -->
+        <section id="contact" class="policy-section">
+            <h2><span class="section-number">12</span> Nous joindre</h2>
+            <p>Pour toute question, commentaire ou demande concernant la presente politique de confidentialite ou la protection de vos renseignements personnels, n'hesitez pas a communiquer avec nous :</p>
+
+            <div class="contact-card">
+                <h3>SEO par AI</h3>
+                <p>Responsable de la protection des renseignements personnels</p>
+                <p style="color: var(--text-muted); margin-top: 1rem;">Quebec, Canada</p>
+                <a href="mailto:contact@seoparai.ca" class="email-link">contact@seoparai.ca</a>
+                <p style="margin-top: 1.5rem; font-size: 0.85rem;">Nous nous engageons a repondre a toute demande dans un delai de 30 jours ouvrables.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <p>
+            <strong style="font-size: 1.25rem; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SEO par AI</strong><br><br>
+            La solution SEO automatisee #1 au Quebec<br>
+            <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a><br><br>
+            <a href="https://github.com/michaelperron12-maker/seo-ai-command-center">GitHub</a> |
+            Propulse par Claude, DeepSeek R1 et les meilleures IA
+        </p>
+        <div class="footer-links">
+            <a href="landing.html">Accueil</a>
+            <a href="a-propos.html">A propos</a>
+            <a href="landing.html#modules">Services</a>
+            <a href="faq.html">FAQ</a>
+            <a href="contact.html">Contact</a>
+            <a href="politique-confidentialite.html">Politique</a>
+            <a href="conditions-utilisation.html">Conditions</a>
+        </div>
+    </footer>
+
+</body>
+</html>

@@ -434,10 +434,10 @@ def get_briefs():
 
 import base64
 
-FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
-FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
-QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
-QWEN_VL_MODEL = 'accounts/fireworks/models/qwen3-vl-235b-a22b-instruct'
+DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY', '')
+DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions'
+DEEPSEEK_MODEL = 'deepseek-chat'
+DEEPSEEK_REASONER = 'deepseek-reasoner'
 
 @app.route('/api/ai/chat', methods=['POST'])
 def ai_chat():
@@ -453,19 +453,19 @@ def ai_chat():
         'general': 'Tu es un assistant AI polyvalent. Reponds en francais.'
     }
     try:
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
-        payload = {'model': QWEN_MODEL, 'messages': [{'role': 'system', 'content': prompts.get(context, prompts['general'])}, {'role': 'user', 'content': message}], 'max_tokens': 2048, 'temperature': 0.7}
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=60)
+        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {DEEPSEEK_API_KEY}'}
+        payload = {'model': DEEPSEEK_MODEL, 'messages': [{'role': 'system', 'content': prompts.get(context, prompts['general'])}, {'role': 'user', 'content': message}], 'max_tokens': 2048, 'temperature': 0.7}
+        response = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=60)
         if response.status_code != 200:
-            return jsonify({'error': f'Erreur Fireworks: {response.status_code}'}), 500
+            return jsonify({'error': f'Erreur DeepSeek: {response.status_code}'}), 500
         result = response.json()
         ai_response = result.get('choices', [{}])[0].get('message', {}).get('content', '')
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('INSERT INTO ai_chat_history (context, user_message, ai_response, model, created_at) VALUES (?, ?, ?, ?, datetime("now"))', (context, message, ai_response, QWEN_MODEL))
+        cursor.execute('INSERT INTO ai_chat_history (context, user_message, ai_response, model, created_at) VALUES (?, ?, ?, ?, datetime("now"))', (context, message, ai_response, DEEPSEEK_MODEL))
         conn.commit()
         conn.close()
-        return jsonify({'response': ai_response, 'model': QWEN_MODEL, 'context': context})
+        return jsonify({'response': ai_response, 'model': DEEPSEEK_MODEL, 'context': context})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -482,9 +482,9 @@ def ai_history():
 @app.route('/api/ai/status', methods=['GET'])
 def ai_status():
     try:
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
-        response = requests.post(FIREWORKS_URL, headers=headers, json={'model': QWEN_MODEL, 'messages': [{'role': 'user', 'content': 'OK'}], 'max_tokens': 5}, timeout=15)
-        return jsonify({'status': 'online' if response.status_code == 200 else 'error', 'model': QWEN_MODEL})
+        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {DEEPSEEK_API_KEY}'}
+        response = requests.post(DEEPSEEK_URL, headers=headers, json={'model': DEEPSEEK_MODEL, 'messages': [{'role': 'user', 'content': 'OK'}], 'max_tokens': 5}, timeout=15)
+        return jsonify({'status': 'online' if response.status_code == 200 else 'error', 'model': DEEPSEEK_MODEL})
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)})
 
@@ -505,9 +505,9 @@ def ai_analyze_document():
         ext = file.filename.lower().split('.')[-1]
         mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}.get(ext, 'image/jpeg')
         prompt = 'Extrais les informations de ce document concurrent. REPONDS en JSON: {"nom_client": "", "adresse": "", "ville": "", "telephone": "", "services": "", "prix_concurrent": 0}'
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
-        payload = {'model': QWEN_VL_MODEL, 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': prompt}, {'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,{file_data}'}}]}], 'max_tokens': 2048, 'temperature': 0.2}
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=120)
+        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {DEEPSEEK_API_KEY}'}
+        payload = {'model': DEEPSEEK_MODEL, 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': prompt}, {'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,{file_data}'}}]}], 'max_tokens': 2048, 'temperature': 0.2}
+        response = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=120)
         if response.status_code != 200:
             return jsonify({'error': f'Erreur: {response.status_code}'}), 500
         result = response.json()

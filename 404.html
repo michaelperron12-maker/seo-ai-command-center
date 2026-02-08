@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page non trouvee | SEO par AI</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --secondary: #22d3ee;
+            --bg: #0a0a12;
+            --surface: #12121f;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --gradient: linear-gradient(135deg, #6366f1 0%, #22d3ee 100%);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 2rem;
+        }
+        .error-code {
+            font-size: clamp(6rem, 20vw, 12rem);
+            font-weight: 900;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1;
+            margin-bottom: 1rem;
+        }
+        .error-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            max-width: 500px;
+            margin-bottom: 2.5rem;
+            line-height: 1.6;
+        }
+        .links {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 0.85rem 1.75rem;
+            border-radius: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            background: var(--gradient);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+        }
+        .btn-ghost {
+            border: 1px solid rgba(255,255,255,0.2);
+            color: var(--text);
+            background: transparent;
+        }
+        .btn-ghost:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .suggestions {
+            margin-top: 3rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        .suggestions a {
+            color: var(--secondary);
+            text-decoration: none;
+        }
+        .suggestions a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="error-icon">🤖</div>
+    <div class="error-code">404</div>
+    <h1>Oups! Cette page n'existe pas</h1>
+    <p>Nos 60 agents IA ont cherche partout, mais cette page est introuvable. Elle a peut-etre ete deplacee ou supprimee.</p>
+    <div class="links">
+        <a href="landing.html" class="btn btn-primary">Accueil</a>
+        <a href="landing.html#pricing" class="btn btn-ghost">Nos forfaits</a>
+        <a href="contact.html" class="btn btn-ghost">Contact</a>
+    </div>
+    <div class="suggestions">
+        <p>Pages populaires: <a href="a-propos.html">A propos</a> | <a href="faq.html">FAQ</a> | <a href="landing.html#modules">Modules</a> | <a href="landing-en.html">English</a></p>
+    </div>
+</body>
+</html>

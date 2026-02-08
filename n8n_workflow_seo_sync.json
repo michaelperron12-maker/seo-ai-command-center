@@ -1,0 +1,197 @@
+{
+  "name": "SEO AI - Auto Sync Nouveaux Sites",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "new-site",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-new-site",
+      "name": "Webhook Nouveau Site",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8891/api/site/add",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $json.body.domain }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.body.name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-activate-seo",
+      "name": "Activer SEO Complet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'SEO activé pour ' + $json.domain, results: $json }) }}"
+      },
+      "id": "response-node",
+      "name": "Réponse Succès",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "schedule-daily",
+      "name": "Sync Quotidien",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 500]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8891/api/sites/sync-all",
+        "options": {}
+      },
+      "id": "http-sync-all",
+      "name": "Sync Tous Sites",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [500, 500]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8891/api/sites/status",
+        "options": {}
+      },
+      "id": "http-get-status",
+      "name": "Obtenir Statut",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [750, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.some(site => !site.seo_activated) }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-incomplete",
+      "name": "Sites Incomplets?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1000, 500]
+    },
+    {
+      "parameters": {
+        "fromEmail": "seo@seoparai.ca",
+        "toEmail": "admin@seoparai.ca",
+        "subject": "⚠️ Sites avec SEO incomplet",
+        "text": "Les sites suivants nécessitent attention:\n\n{{ $json.filter(s => !s.seo_activated).map(s => s.domain).join('\\n') }}"
+      },
+      "id": "email-alert",
+      "name": "Alerte Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Nouveau Site": {
+      "main": [
+        [
+          {
+            "node": "Activer SEO Complet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Activer SEO Complet": {
+      "main": [
+        [
+          {
+            "node": "Réponse Succès",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Quotidien": {
+      "main": [
+        [
+          {
+            "node": "Sync Tous Sites",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Tous Sites": {
+      "main": [
+        [
+          {
+            "node": "Obtenir Statut",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtenir Statut": {
+      "main": [
+        [
+          {
+            "node": "Sites Incomplets?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sites Incomplets?": {
+      "main": [
+        [
+          {
+            "node": "Alerte Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["seo", "automation", "ai"],
+  "triggerCount": 2,
+  "active": true
+}
