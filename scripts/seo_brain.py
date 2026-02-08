@@ -1,456 +1,412 @@
 #!/usr/bin/env python3
 """
-SEO Brain - Cerveau principal du SEO Agent
-Gère la logique de décision et l'orchestration des tâches
+SEO Brain - Cerveau IA avec memoire long-terme SQLite
+Gere les 60 agents, le kill-switch, et l'orchestration.
+Pas de SaaS - 100% self-hosted.
 """
 
 import os
 import sys
+import json
 import sqlite3
+import hashlib
 import logging
-import yaml
+import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Any
 
-# Configuration du logging
+# ═══════════════════════════════════════
+# CONFIG
+# ═══════════════════════════════════════
+BASE_DIR = Path("/opt/seo-agent")
+DB_PATH = BASE_DIR / "db" / "seo_brain.db"
+CONFIG_PATH = BASE_DIR / "config" / "config.yaml"
+LOG_DIR = BASE_DIR / "logs"
+MIGRATIONS_DIR = BASE_DIR / "migrations"
+
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('/var/log/seo-agent/brain.log', mode='a')
+        logging.FileHandler(LOG_DIR / "seo_brain.log"),
+        logging.StreamHandler()
     ]
 )
-logger = logging.getLogger('SeoBrain')
-
-# Chemins par défaut
-DEFAULT_CONFIG_PATH = '/home/serinityvault/Desktop/projet web/seo-agent-stack/config/config.yaml'
-DEFAULT_DB_PATH = '/home/serinityvault/Desktop/projet web/seo-agent-stack/data/seo_agent.db'
+logger = logging.getLogger("seo_brain")
 
 
 class SeoBrain:
-    """
-    Cerveau principal du SEO Agent.
-    Orchestre toutes les décisions et actions.
-    """
+    """Cerveau central - memoire long-terme + kill-switch + orchestration."""
 
-    def __init__(self, config_path: str = None, db_path: str = None):
+    def __init__(self, db_path=None):
+        self.db_path = db_path or DB_PATH
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    # ═══════════════════════════════════
+    # DATABASE
+    # ═══════════════════════════════════
+    def _get_conn(self):
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
+
+    def _init_db(self):
+        """Applique les migrations SQL."""
+        migrations_dir = MIGRATIONS_DIR
+        if not migrations_dir.exists():
+            logger.warning(f"Migrations dir not found: {migrations_dir}")
+            return
+
+        conn = self._get_conn()
+        for sql_file in sorted(migrations_dir.glob("*.sql")):
+            logger.info(f"Applying migration: {sql_file.name}")
+            with open(sql_file) as f:
+                conn.executescript(f.read())
+        conn.close()
+        logger.info("Database initialized")
+
+    # ═══════════════════════════════════
+    # KILL SWITCH
+    # ═══════════════════════════════════
+    def check_kill_switch(self):
+        """Verifie si le kill-switch doit etre active.
+        Regles:
+        - Trop de publications en 24h
+        - Contenu trop similaire (moyenne > seuil)
+        - Trop d'erreurs 404/500
         """
-        Initialise le cerveau SEO.
+        conn = self._get_conn()
 
-        Args:
-            config_path: Chemin vers le fichier de configuration YAML
-            db_path: Chemin vers la base de données SQLite
-        """
-        self.config_path = config_path or DEFAULT_CONFIG_PATH
-        self.db_path = db_path or DEFAULT_DB_PATH
-        self.config = None
-        self.conn = None
+        # Verifier si deja actif
+        row = conn.execute(
+            "SELECT value FROM system_state WHERE key='kill_switch_active'"
+        ).fetchone()
+        if row and row['value'] == 'true':
+            # Verifier si la pause est terminee
+            ks = conn.execute(
+                "SELECT * FROM kill_switch WHERE active=1 ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            if ks and ks['pause_until']:
+                if datetime.now() > datetime.fromisoformat(ks['pause_until']):
+                    self._deactivate_kill_switch(conn, ks['id'])
+                    conn.close()
+                    return False
+            conn.close()
+            return True
 
-        # Charger la configuration
-        self._load_config()
+        # Regle 1: Max publications par jour
+        max_pub = int(self._get_state(conn, 'max_publications_per_day', '5'))
+        pub_count = conn.execute(
+            "SELECT COUNT(*) as c FROM publications WHERE published_at > datetime('now', '-24 hours')"
+        ).fetchone()['c']
+        if pub_count >= max_pub:
+            self._activate_kill_switch(conn, 'max_publications',
+                f"Limite atteinte: {pub_count}/{max_pub} publications en 24h")
+            conn.close()
+            return True
 
-        # Initialiser la connexion DB
-        self._init_database()
+        # Regle 2: Similarite contenu trop elevee
+        threshold = float(self._get_state(conn, 'max_similarity_threshold', '0.70'))
+        avg_sim = conn.execute(
+            "SELECT AVG(similarity_score) as avg FROM content_similarity WHERE checked_at > datetime('now', '-24 hours')"
+        ).fetchone()['avg']
+        if avg_sim and avg_sim > threshold:
+            self._activate_kill_switch(conn, 'similarity',
+                f"Similarite moyenne trop elevee: {avg_sim:.2f} > {threshold}")
+            conn.close()
+            return True
 
-        logger.info("SeoBrain initialisé avec succès")
+        # Regle 3: Trop d'erreurs
+        max_errors = int(self._get_state(conn, 'max_errors_before_pause', '10'))
+        error_count = conn.execute(
+            "SELECT COUNT(*) as c FROM mon_uptime WHERE is_up=0 AND checked_at > datetime('now', '-24 hours')"
+        ).fetchone()['c']
+        error_count += conn.execute(
+            "SELECT COUNT(*) as c FROM agent_runs WHERE status='failed' AND started_at > datetime('now', '-24 hours')"
+        ).fetchone()['c']
+        if error_count >= max_errors:
+            self._activate_kill_switch(conn, 'errors',
+                f"Trop d'erreurs: {error_count}/{max_errors} en 24h")
+            conn.close()
+            return True
 
-    def _load_config(self) -> None:
-        """Charge la configuration depuis le fichier YAML."""
-        try:
-            if os.path.exists(self.config_path):
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    self.config = yaml.safe_load(f)
-                logger.info(f"Configuration chargée depuis {self.config_path}")
-            else:
-                logger.warning(f"Fichier config non trouvé: {self.config_path}")
-                self.config = self._get_default_config()
-        except Exception as e:
-            logger.error(f"Erreur chargement config: {e}")
-            self.config = self._get_default_config()
+        conn.close()
+        return False
 
-    def _get_default_config(self) -> Dict:
-        """Retourne la configuration par défaut."""
-        return {
-            'agent': {
-                'name': 'SEO Agent',
-                'max_articles_per_day': 3,
-                'similarity_threshold': 0.70,
-                'working_hours': {'start': 8, 'end': 22}
-            },
-            'api': {
-                'claude_model': 'claude-3-sonnet-20240229',
-                'openai_model': 'gpt-4-turbo-preview'
-            },
-            'notifications': {
-                'telegram_enabled': True,
-                'email_enabled': True,
-                'sms_enabled': False
-            },
-            'kill_switch': {
-                'max_publications_per_day': 5,
-                'max_pending_drafts': 20,
-                'max_similarity_average': 0.60,
-                'max_site_errors': 10
-            }
-        }
+    def _activate_kill_switch(self, conn, rule, reason):
+        pause_hours = int(self._get_state(conn, 'pause_duration_hours', '48'))
+        pause_until = datetime.now() + timedelta(hours=pause_hours)
+        conn.execute(
+            "INSERT INTO kill_switch (active, reason, triggered_by, trigger_rule, pause_until) VALUES (1, ?, 'auto', ?, ?)",
+            (reason, rule, pause_until.isoformat())
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES ('kill_switch_active', 'true', datetime('now'))"
+        )
+        conn.execute(
+            "INSERT INTO mon_alerts (alert_type, severity, message) VALUES ('killswitch', 'critical', ?)",
+            (f"Kill-switch active: {reason}",)
+        )
+        conn.commit()
+        logger.critical(f"KILL SWITCH ACTIVE: {reason} - Pause {pause_hours}h")
 
-    def _init_database(self) -> None:
-        """Initialise la connexion à la base de données SQLite."""
-        try:
-            # Créer le répertoire si nécessaire
-            db_dir = os.path.dirname(self.db_path)
-            if db_dir:
-                os.makedirs(db_dir, exist_ok=True)
+    def _deactivate_kill_switch(self, conn, ks_id):
+        conn.execute("UPDATE kill_switch SET active=0, deactivated_at=datetime('now') WHERE id=?", (ks_id,))
+        conn.execute(
+            "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES ('kill_switch_active', 'false', datetime('now'))"
+        )
+        conn.commit()
+        logger.info("Kill-switch desactive (pause terminee)")
 
-            self.conn = sqlite3.connect(self.db_path)
-            self.conn.row_factory = sqlite3.Row
+    def force_kill_switch(self, reason="Manuel"):
+        """Activation manuelle du kill-switch."""
+        conn = self._get_conn()
+        self._activate_kill_switch(conn, 'manual', reason)
+        conn.close()
 
-            # Créer les tables si elles n'existent pas
-            self._create_tables()
+    def force_resume(self):
+        """Desactivation manuelle du kill-switch."""
+        conn = self._get_conn()
+        ks = conn.execute("SELECT id FROM kill_switch WHERE active=1 ORDER BY id DESC LIMIT 1").fetchone()
+        if ks:
+            self._deactivate_kill_switch(conn, ks['id'])
+        conn.close()
 
-            logger.info(f"Base de données connectée: {self.db_path}")
-        except Exception as e:
-            logger.error(f"Erreur connexion DB: {e}")
-            raise
+    # ═══════════════════════════════════
+    # CONTENT SIMILARITY
+    # ═══════════════════════════════════
+    def compute_content_hash(self, content):
+        """SHA256 du contenu normalise."""
+        normalized = ' '.join(content.lower().split())
+        return hashlib.sha256(normalized.encode()).hexdigest()
 
-    def _create_tables(self) -> None:
-        """Crée les tables nécessaires dans la base de données."""
-        cursor = self.conn.cursor()
+    def check_similarity(self, new_content, site_id):
+        """Verifie la similarite avec le contenu existant (Jaccard simple)."""
+        conn = self._get_conn()
+        new_words = set(new_content.lower().split())
 
-        # Table des contenus/drafts
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS contents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                slug TEXT UNIQUE,
-                content_html TEXT,
-                content_md TEXT,
-                meta_description TEXT,
-                status TEXT DEFAULT 'draft',
-                similarity_score REAL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                published_at TIMESTAMP,
-                url TEXT
+        publications = conn.execute(
+            "SELECT id, title FROM publications WHERE site_id=? ORDER BY published_at DESC LIMIT 20",
+            (site_id,)
+        ).fetchall()
+
+        max_similarity = 0.0
+        for pub in publications:
+            # Recuperer le contenu du draft ou publication
+            draft = conn.execute(
+                "SELECT content FROM drafts WHERE title=? AND site_id=? LIMIT 1",
+                (pub['title'], site_id)
+            ).fetchone()
+            if draft and draft['content']:
+                existing_words = set(draft['content'].lower().split())
+                if new_words and existing_words:
+                    intersection = new_words & existing_words
+                    union = new_words | existing_words
+                    similarity = len(intersection) / len(union) if union else 0
+                    max_similarity = max(max_similarity, similarity)
+
+        conn.close()
+        return max_similarity
+
+    # ═══════════════════════════════════
+    # DRAFT MANAGEMENT
+    # ═══════════════════════════════════
+    def create_draft(self, site_id, title, content, content_type, agent_name, keyword_id=None):
+        """Cree un brouillon en attente de validation humaine."""
+        conn = self._get_conn()
+        content_hash = self.compute_content_hash(content)
+        word_count = len(content.split())
+
+        conn.execute(
+            """INSERT INTO drafts (site_id, title, content, content_type, content_hash,
+               word_count, keyword_id, agent_name, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')""",
+            (site_id, title, content, content_type, content_hash, word_count, keyword_id, agent_name)
+        )
+        draft_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # Verifier similarite
+        similarity = self.check_similarity(content, site_id)
+        if similarity > 0:
+            conn.execute(
+                "INSERT INTO content_similarity (draft_id, similarity_score) VALUES (?, ?)",
+                (draft_id, similarity)
             )
-        ''')
 
-        # Table du kill switch
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS kill_switch (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                is_active INTEGER DEFAULT 0,
-                reason TEXT,
-                activated_at TIMESTAMP,
-                deactivate_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        conn.commit()
+        conn.close()
+        logger.info(f"Draft cree: '{title}' pour {site_id} (similarite: {similarity:.2f})")
+        return draft_id
 
-        # Table des logs d'actions
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS action_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                action_type TEXT NOT NULL,
-                params TEXT,
-                result TEXT,
-                status TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+    def approve_draft(self, draft_id):
+        """Approuve un brouillon pour publication."""
+        conn = self._get_conn()
+        conn.execute("UPDATE drafts SET status='approved', updated_at=datetime('now') WHERE id=?", (draft_id,))
+        conn.commit()
+        conn.close()
+        logger.info(f"Draft {draft_id} approuve")
 
-        # Table des erreurs du site
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS site_errors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                error_type TEXT,
-                url TEXT,
-                status_code INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+    def reject_draft(self, draft_id, reason=""):
+        """Rejette un brouillon."""
+        conn = self._get_conn()
+        conn.execute(
+            "UPDATE drafts SET status='rejected', rejection_reason=?, updated_at=datetime('now') WHERE id=?",
+            (reason, draft_id)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"Draft {draft_id} rejete: {reason}")
 
-        self.conn.commit()
+    def publish_draft(self, draft_id):
+        """Publie un brouillon approuve."""
+        conn = self._get_conn()
+        draft = conn.execute("SELECT * FROM drafts WHERE id=? AND status='approved'", (draft_id,)).fetchone()
+        if not draft:
+            conn.close()
+            return False
 
-    def get_config(self, key: str = None) -> Any:
-        """
-        Récupère la configuration ou une clé spécifique.
+        conn.execute(
+            """INSERT INTO publications (site_id, title, content_type, content_hash,
+               word_count, keyword_id, status) VALUES (?, ?, ?, ?, ?, ?, 'published')""",
+            (draft['site_id'], draft['title'], draft['content_type'],
+             draft['content_hash'], draft['word_count'], draft['keyword_id'])
+        )
+        conn.execute("UPDATE drafts SET status='published', updated_at=datetime('now') WHERE id=?", (draft_id,))
+        conn.commit()
+        conn.close()
+        logger.info(f"Draft {draft_id} publie: {draft['title']}")
+        return True
 
-        Args:
-            key: Clé de configuration (ex: 'agent.max_articles_per_day')
-
-        Returns:
-            Configuration complète ou valeur de la clé
-        """
-        if key is None:
-            return self.config
-
-        try:
-            value = self.config
-            for k in key.split('.'):
-                value = value[k]
-            return value
-        except (KeyError, TypeError):
-            logger.warning(f"Clé de configuration non trouvée: {key}")
+    # ═══════════════════════════════════
+    # AGENT RUNS
+    # ═══════════════════════════════════
+    def start_agent_run(self, agent_name, task_type, site_id=None):
+        """Enregistre le debut d'execution d'un agent."""
+        if self.check_kill_switch():
+            logger.warning(f"Kill-switch actif - agent {agent_name} bloque")
             return None
 
-    def check_kill_switch(self) -> Dict[str, Any]:
-        """
-        Vérifie si le kill switch est actif.
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO agent_runs (agent_name, task_type, site_id, status) VALUES (?, ?, ?, 'running')",
+            (agent_name, task_type, site_id)
+        )
+        run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.commit()
+        conn.close()
+        logger.info(f"Agent {agent_name} demarre (run #{run_id})")
+        return run_id
 
-        Returns:
-            Dict avec is_active, reason, deactivate_at
-        """
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT is_active, reason, deactivate_at
-            FROM kill_switch
-            ORDER BY created_at DESC
-            LIMIT 1
-        ''')
-        row = cursor.fetchone()
+    def complete_agent_run(self, run_id, status='success', result=None, error=None):
+        """Enregistre la fin d'execution d'un agent."""
+        conn = self._get_conn()
+        started = conn.execute("SELECT started_at FROM agent_runs WHERE id=?", (run_id,)).fetchone()
+        duration = 0
+        if started:
+            start_time = datetime.fromisoformat(started['started_at'])
+            duration = (datetime.now() - start_time).total_seconds()
 
-        if row and row['is_active']:
-            # Vérifier si la pause doit être désactivée
-            if row['deactivate_at']:
-                deactivate_at = datetime.fromisoformat(row['deactivate_at'])
-                if datetime.now() > deactivate_at:
-                    self._deactivate_kill_switch()
-                    return {'is_active': False, 'reason': None, 'deactivate_at': None}
+        conn.execute(
+            """UPDATE agent_runs SET status=?, result=?, error_message=?,
+               duration_seconds=?, completed_at=datetime('now') WHERE id=?""",
+            (status, json.dumps(result) if result else None, error, duration, run_id)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"Agent run #{run_id} termine: {status} ({duration:.1f}s)")
 
-            return {
-                'is_active': True,
-                'reason': row['reason'],
-                'deactivate_at': row['deactivate_at']
-            }
+    # ═══════════════════════════════════
+    # MONITORING
+    # ═══════════════════════════════════
+    def record_uptime(self, site_id, is_up, response_time_ms=0, status_code=200, error=None):
+        """Enregistre un check uptime."""
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT INTO mon_uptime (site_id, is_up, response_time_ms, status_code, error_message) VALUES (?, ?, ?, ?, ?)",
+            (site_id, 1 if is_up else 0, response_time_ms, status_code, error)
+        )
+        if not is_up:
+            conn.execute(
+                "INSERT INTO mon_alerts (site_id, alert_type, severity, message) VALUES (?, 'uptime', 'critical', ?)",
+                (site_id, f"Site DOWN: {error or 'HTTP ' + str(status_code)}")
+            )
+        conn.commit()
+        conn.close()
 
-        return {'is_active': False, 'reason': None, 'deactivate_at': None}
+    # ═══════════════════════════════════
+    # STATS
+    # ═══════════════════════════════════
+    def get_stats(self):
+        """Retourne les stats globales."""
+        conn = self._get_conn()
+        stats = {}
+        stats['total_publications'] = conn.execute("SELECT COUNT(*) FROM publications").fetchone()[0]
+        stats['publications_24h'] = conn.execute(
+            "SELECT COUNT(*) FROM publications WHERE published_at > datetime('now', '-24 hours')"
+        ).fetchone()[0]
+        stats['pending_drafts'] = conn.execute(
+            "SELECT COUNT(*) FROM drafts WHERE status='pending'"
+        ).fetchone()[0]
+        stats['active_alerts'] = conn.execute(
+            "SELECT COUNT(*) FROM mon_alerts WHERE resolved=0"
+        ).fetchone()[0]
+        stats['kill_switch'] = self._get_state(conn, 'kill_switch_active', 'false') == 'true'
+        stats['total_agents_runs'] = conn.execute("SELECT COUNT(*) FROM agent_runs").fetchone()[0]
+        stats['sites'] = [dict(r) for r in conn.execute("SELECT * FROM sites WHERE active=1").fetchall()]
+        conn.close()
+        return stats
 
-    def _deactivate_kill_switch(self) -> None:
-        """Désactive le kill switch."""
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            UPDATE kill_switch SET is_active = 0
-            WHERE is_active = 1
-        ''')
-        self.conn.commit()
-        logger.info("Kill switch désactivé automatiquement")
+    # ═══════════════════════════════════
+    # HELPERS
+    # ═══════════════════════════════════
+    def _get_state(self, conn, key, default=''):
+        row = conn.execute("SELECT value FROM system_state WHERE key=?", (key,)).fetchone()
+        return row['value'] if row else default
 
-    def get_pending_drafts(self) -> List[Dict]:
-        """
-        Récupère la liste des drafts en attente de validation.
-
-        Returns:
-            Liste des drafts avec leurs informations
-        """
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT id, title, slug, meta_description, similarity_score, created_at
-            FROM contents
-            WHERE status = 'draft'
-            ORDER BY created_at DESC
-        ''')
-
-        drafts = []
-        for row in cursor.fetchall():
-            drafts.append({
-                'id': row['id'],
-                'title': row['title'],
-                'slug': row['slug'],
-                'meta_description': row['meta_description'],
-                'similarity_score': row['similarity_score'],
-                'created_at': row['created_at']
-            })
-
-        logger.info(f"{len(drafts)} drafts en attente")
-        return drafts
-
-    def get_today_publications_count(self) -> int:
-        """Compte le nombre de publications aujourd'hui."""
-        cursor = self.conn.cursor()
-        today = datetime.now().strftime('%Y-%m-%d')
-        cursor.execute('''
-            SELECT COUNT(*) as count FROM contents
-            WHERE status = 'published'
-            AND date(published_at) = ?
-        ''', (today,))
-        return cursor.fetchone()['count']
-
-    def decide_daily_action(self) -> Dict[str, Any]:
-        """
-        Décide quelle action effectuer aujourd'hui.
-
-        Returns:
-            Dict avec action_type et params
-        """
-        logger.info("Analyse des actions possibles...")
-
-        # Vérifier le kill switch
-        ks_status = self.check_kill_switch()
-        if ks_status['is_active']:
-            logger.warning(f"Kill switch actif: {ks_status['reason']}")
-            return {
-                'action_type': 'pause',
-                'reason': ks_status['reason'],
-                'resume_at': ks_status['deactivate_at']
-            }
-
-        # Vérifier les heures de travail
-        current_hour = datetime.now().hour
-        working_hours = self.get_config('agent.working_hours')
-        if working_hours:
-            if current_hour < working_hours.get('start', 8) or current_hour > working_hours.get('end', 22):
-                return {
-                    'action_type': 'sleep',
-                    'reason': 'Hors des heures de travail',
-                    'resume_at': f"Demain à {working_hours.get('start', 8)}h"
-                }
-
-        # Vérifier le quota journalier
-        today_count = self.get_today_publications_count()
-        max_per_day = self.get_config('agent.max_articles_per_day') or 3
-
-        if today_count >= max_per_day:
-            return {
-                'action_type': 'quota_reached',
-                'reason': f'Quota atteint: {today_count}/{max_per_day} articles',
-                'resume_at': 'Demain'
-            }
-
-        # Vérifier les drafts en attente
-        pending_drafts = self.get_pending_drafts()
-        if pending_drafts:
-            return {
-                'action_type': 'review_drafts',
-                'params': {
-                    'drafts_count': len(pending_drafts),
-                    'drafts': pending_drafts[:5]  # Les 5 premiers
-                }
-            }
-
-        # Générer du nouveau contenu
-        return {
-            'action_type': 'generate_content',
-            'params': {
-                'remaining_quota': max_per_day - today_count
-            }
-        }
-
-    def run_task(self, task_type: str, params: Dict = None) -> Dict[str, Any]:
-        """
-        Exécute une tâche spécifique.
-
-        Args:
-            task_type: Type de tâche (generate, publish, check_similarity, etc.)
-            params: Paramètres de la tâche
-
-        Returns:
-            Résultat de l'exécution
-        """
-        params = params or {}
-        logger.info(f"Exécution tâche: {task_type} avec params: {params}")
-
-        try:
-            if task_type == 'generate':
-                from content_generator import ContentGenerator
-                generator = ContentGenerator()
-                result = generator.generate(params.get('brief', ''))
-
-            elif task_type == 'check_similarity':
-                from similarity_checker import SimilarityChecker
-                checker = SimilarityChecker(self.conn)
-                result = checker.check(params.get('content', ''))
-
-            elif task_type == 'publish':
-                from publisher import Publisher
-                publisher = Publisher()
-                result = publisher.publish(params.get('content_id'))
-
-            elif task_type == 'notify':
-                from notifier import Notifier
-                notifier = Notifier()
-                result = notifier.send_telegram(params.get('message', ''))
-
-            elif task_type == 'check_kill_switch':
-                from kill_switch import KillSwitchManager
-                ks_manager = KillSwitchManager(self.conn, self.config)
-                result = ks_manager.run_all_checks()
-
-            else:
-                result = {'success': False, 'error': f'Tâche inconnue: {task_type}'}
-
-            # Logger l'action
-            self._log_action(task_type, params, result)
-
-            return result
-
-        except Exception as e:
-            error_result = {'success': False, 'error': str(e)}
-            self._log_action(task_type, params, error_result, status='error')
-            logger.error(f"Erreur exécution tâche {task_type}: {e}")
-            return error_result
-
-    def _log_action(self, action_type: str, params: Dict, result: Dict, status: str = 'completed') -> None:
-        """Enregistre une action dans les logs."""
-        import json
-        cursor = self.conn.cursor()
-        cursor.execute('''
-            INSERT INTO action_logs (action_type, params, result, status)
-            VALUES (?, ?, ?, ?)
-        ''', (
-            action_type,
-            json.dumps(params) if params else None,
-            json.dumps(result) if result else None,
-            status
-        ))
-        self.conn.commit()
-
-    def close(self) -> None:
-        """Ferme les connexions."""
-        if self.conn:
-            self.conn.close()
-            logger.info("Connexion DB fermée")
+    def set_state(self, key, value):
+        conn = self._get_conn()
+        conn.execute(
+            "INSERT OR REPLACE INTO system_state (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+            (key, str(value))
+        )
+        conn.commit()
+        conn.close()
 
 
-def main():
-    """Point d'entrée pour les tests standalone."""
-    print("=== Test SeoBrain ===\n")
+# ═══════════════════════════════════════
+# CLI
+# ═══════════════════════════════════════
+if __name__ == "__main__":
+    brain = SeoBrain()
 
-    try:
-        brain = SeoBrain()
-
-        # Test get_config
-        print("1. Configuration:")
-        print(f"   - Nom: {brain.get_config('agent.name')}")
-        print(f"   - Max articles/jour: {brain.get_config('agent.max_articles_per_day')}")
-
-        # Test kill switch
-        print("\n2. Kill Switch:")
-        ks_status = brain.check_kill_switch()
-        print(f"   - Actif: {ks_status['is_active']}")
-        if ks_status['is_active']:
-            print(f"   - Raison: {ks_status['reason']}")
-
-        # Test pending drafts
-        print("\n3. Drafts en attente:")
-        drafts = brain.get_pending_drafts()
-        print(f"   - Nombre: {len(drafts)}")
-
-        # Test décision
-        print("\n4. Décision du jour:")
-        decision = brain.decide_daily_action()
-        print(f"   - Action: {decision['action_type']}")
-        if 'reason' in decision:
-            print(f"   - Raison: {decision['reason']}")
-
-        brain.close()
-        print("\n=== Tests terminés avec succès ===")
-
-    except Exception as e:
-        print(f"\nErreur: {e}")
+    if len(sys.argv) < 2:
+        print("Usage: seo_brain.py [status|kill|resume|check]")
         sys.exit(1)
 
+    cmd = sys.argv[1]
 
-if __name__ == '__main__':
-    main()
+    if cmd == "status":
+        stats = brain.get_stats()
+        print(json.dumps(stats, indent=2, default=str))
+
+    elif cmd == "kill":
+        reason = sys.argv[2] if len(sys.argv) > 2 else "Manuel via CLI"
+        brain.force_kill_switch(reason)
+        print("Kill-switch ACTIVE")
+
+    elif cmd == "resume":
+        brain.force_resume()
+        print("Kill-switch DESACTIVE")
+
+    elif cmd == "check":
+        is_killed = brain.check_kill_switch()
+        print(f"Kill-switch: {'ACTIF' if is_killed else 'inactif'}")
+
+    else:
+        print(f"Commande inconnue: {cmd}")
+        sys.exit(1)

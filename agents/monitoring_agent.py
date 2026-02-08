@@ -32,6 +32,12 @@ SITES = {
         "url": "https://jcpeintre.com",
         "path": "/var/www/jcpeintre.com",
         "critical_pages": ["/", "/services", "/contact", "/devis"]
+    },
+    "seoparai": {
+        "domain": "seoparai.ca",
+        "url": "https://seoparai.ca",
+        "path": "/var/www/seoparai",
+        "critical_pages": ["/", "/landing.html"]
     }
 }
 

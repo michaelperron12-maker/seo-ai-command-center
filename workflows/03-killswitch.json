@@ -1,0 +1,161 @@
+{
+  "name": "SEO Kill-Switch - Surveillance & Protection",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "hours", "hoursInterval": 1}]
+        }
+      },
+      "id": "hourly-check",
+      "name": "Chaque heure",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/seo_brain.py check"
+      },
+      "id": "brain-ks-check",
+      "name": "Brain Kill-Switch Check",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {"value1": "={{ $json.stdout }}", "operation": "contains", "value2": "ACTIF"}
+          ]
+        }
+      },
+      "id": "if-killed",
+      "name": "Si kill-switch actif",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "command": "echo '[KILLSWITCH] ACTIF - {{ $now.format(\"yyyy-MM-dd HH:mm\") }}' >> /opt/seo-agent/logs/killswitch.log"
+      },
+      "id": "log-active",
+      "name": "Log Kill Active",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [660, -100]
+    },
+    {
+      "parameters": {
+        "url": "http://seo-agent-api:8002/api/stats",
+        "options": {}
+      },
+      "id": "get-metrics",
+      "name": "Metriques",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [660, 100]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {"value1": "={{ $json.publications_24h }}", "operation": "largerEqual", "value2": 5}
+          ]
+        }
+      },
+      "id": "if-too-many",
+      "name": "Trop de publications?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [880, 100]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/seo_brain.py kill 'Automatique: trop de publications en 24h'"
+      },
+      "id": "auto-kill",
+      "name": "Auto Kill-Switch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1100, 0]
+    },
+    {
+      "parameters": {
+        "command": "echo '[KILLSWITCH] Metriques OK - {{ $now.format(\"yyyy-MM-dd HH:mm\") }} - Pubs 24h: {{ $json.publications_24h }}' >> /opt/seo-agent/logs/killswitch.log"
+      },
+      "id": "log-ok",
+      "name": "Log OK",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [1100, 200]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "killswitch-manual",
+        "options": {}
+      },
+      "id": "webhook-manual",
+      "name": "Webhook Manual Kill",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [0, 400]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/seo_brain.py kill 'Manuel via webhook'"
+      },
+      "id": "manual-kill",
+      "name": "Manuel Kill-Switch",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [220, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "killswitch-resume",
+        "options": {}
+      },
+      "id": "webhook-resume",
+      "name": "Webhook Resume",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [0, 600]
+    },
+    {
+      "parameters": {
+        "command": "python3 /opt/seo-agent/scripts/seo_brain.py resume"
+      },
+      "id": "manual-resume",
+      "name": "Manuel Resume",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [220, 600]
+    }
+  ],
+  "connections": {
+    "Chaque heure": {"main": [[{"node": "Brain Kill-Switch Check", "type": "main", "index": 0}]]},
+    "Brain Kill-Switch Check": {"main": [[{"node": "Si kill-switch actif", "type": "main", "index": 0}]]},
+    "Si kill-switch actif": {
+      "main": [
+        [{"node": "Log Kill Active", "type": "main", "index": 0}],
+        [{"node": "Metriques", "type": "main", "index": 0}]
+      ]
+    },
+    "Metriques": {"main": [[{"node": "Trop de publications?", "type": "main", "index": 0}]]},
+    "Trop de publications?": {
+      "main": [
+        [{"node": "Auto Kill-Switch", "type": "main", "index": 0}],
+        [{"node": "Log OK", "type": "main", "index": 0}]
+      ]
+    },
+    "Webhook Manual Kill": {"main": [[{"node": "Manuel Kill-Switch", "type": "main", "index": 0}]]},
+    "Webhook Resume": {"main": [[{"node": "Manuel Resume", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": [{"name": "seo-agent"}]
+}
