@@ -878,6 +878,120 @@ class MonitoringAgent:
                 results[site_id] = {'status': 'down', 'error': True}
         return results
 
+    def mark_corrected_by_agent(self, alert_id, agent_name):
+        """Un agent marque une alerte comme corrigee. L alerte reste visible."""
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN corrected_by TEXT')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN corrected_at DATETIME')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN revalidated_at DATETIME')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN revalidation_status TEXT')
+        except:
+            pass
+        conn.commit()
+        cursor.execute("""
+            UPDATE mon_alerts SET revalidation_status = 'corrected',
+            corrected_by = ?, corrected_at = datetime('now')
+            WHERE id = ? AND resolved = 0
+        """, (agent_name, alert_id))
+        conn.commit()
+        affected = cursor.rowcount
+        conn.close()
+        return {'alert_id': alert_id, 'corrected_by': agent_name, 'updated': affected > 0}
+
+    def find_alerts_for_site(self, site_id, alert_type=None):
+        """Trouve les alertes actives pour un site."""
+        conn = get_db()
+        cursor = conn.cursor()
+        if alert_type:
+            cursor.execute('SELECT id, alert_type, message FROM mon_alerts WHERE site_id = ? AND alert_type = ? AND resolved = 0', (site_id, alert_type))
+        else:
+            cursor.execute('SELECT id, alert_type, message FROM mon_alerts WHERE site_id = ? AND resolved = 0', (site_id,))
+        rows = [{'id': r[0], 'type': r[1], 'message': r[2]} for r in cursor.fetchall()]
+        conn.close()
+        return rows
+
+    def revalidate_old_alerts(self):
+        """Revalide les alertes de +24h. Corrige -> corrected_pending_human. Persiste -> double_alert."""
+        conn = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN revalidated_at DATETIME')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN revalidation_status TEXT')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN corrected_by TEXT')
+        except:
+            pass
+        try:
+            cursor.execute('ALTER TABLE mon_alerts ADD COLUMN corrected_at DATETIME')
+        except:
+            pass
+        conn.commit()
+        cursor.execute("""
+            SELECT id, site_id, alert_type, message, severity FROM mon_alerts
+            WHERE resolved = 0 AND created_at < datetime('now', '-24 hours')
+            AND (revalidated_at IS NULL OR revalidated_at < datetime('now', '-24 hours'))
+        """)
+        old_alerts = cursor.fetchall()
+        results = []
+        for alert_id, site_id, alert_type, message, severity in old_alerts:
+            still_broken = False
+            if alert_type == 'ssl':
+                try:
+                    import ssl, socket
+                    domain = SITES.get(int(site_id) if str(site_id).isdigit() else site_id, {}).get('domaine', '')
+                    if domain:
+                        ctx = ssl.create_default_context()
+                        with socket.create_connection((domain, 443), timeout=10) as s:
+                            with ctx.wrap_socket(s, server_hostname=domain) as ss:
+                                pass
+                except:
+                    still_broken = True
+            elif alert_type in ('downtime', 'response_time'):
+                try:
+                    domain = SITES.get(int(site_id) if str(site_id).isdigit() else site_id, {}).get('domaine', '')
+                    if domain:
+                        resp = requests.get(f'https://{domain}', timeout=10)
+                        if resp.status_code >= 400:
+                            still_broken = True
+                except:
+                    still_broken = True
+            elif 'nginx' in message.lower():
+                try:
+                    import subprocess
+                    r = subprocess.run(['systemctl', 'is-active', 'nginx'], capture_output=True, text=True)
+                    if r.stdout.strip() != 'active':
+                        still_broken = True
+                except:
+                    still_broken = True
+            if still_broken:
+                new_sev = 'double_alert' if severity != 'double_alert' else 'double_alert'
+                cursor.execute("""UPDATE mon_alerts SET severity = ?, revalidated_at = datetime('now'),
+                    revalidation_status = 'still_broken' WHERE id = ?""", (new_sev, alert_id))
+                results.append({'id': alert_id, 'status': 'still_broken', 'severity': new_sev})
+            else:
+                cursor.execute("""UPDATE mon_alerts SET revalidated_at = datetime('now'),
+                    revalidation_status = 'corrected_pending_human' WHERE id = ?""", (alert_id,))
+                results.append({'id': alert_id, 'status': 'corrected_pending_human'})
+        conn.commit()
+        conn.close()
+        return {'revalidated': len(results), 'details': results}
+
 class SSLAgent:
     """Agent 22: Verification SSL"""
     name = "SSL Agent"

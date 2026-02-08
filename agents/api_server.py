@@ -625,6 +625,33 @@ def agent_uptime():
     results = agent.check_uptime(SITES)
     return jsonify(results)
 
+
+@app.route("/api/alerts/revalidate", methods=["POST"])
+def revalidate_alerts():
+    if not AGENTS_LOADED:
+        return jsonify({"error": "Agents not loaded"}), 500
+    agent = MonitoringAgent()
+    results = agent.revalidate_old_alerts()
+    return jsonify(results)
+
+@app.route("/api/alerts/<int:alert_id>/corrected", methods=["POST"])
+def mark_alert_corrected(alert_id):
+    if not AGENTS_LOADED:
+        return jsonify({"error": "Agents not loaded"}), 500
+    data = request.json or {}
+    agent_name = data.get("agent_name", "unknown_agent")
+    agent = MonitoringAgent()
+    result = agent.mark_corrected_by_agent(alert_id, agent_name)
+    return jsonify(result)
+
+@app.route("/api/alerts/site/<site_id>", methods=["GET"])
+def get_site_alerts(site_id):
+    if not AGENTS_LOADED:
+        return jsonify({"error": "Agents not loaded"}), 500
+    alert_type = request.args.get("type")
+    agent = MonitoringAgent()
+    alerts = agent.find_alerts_for_site(site_id, alert_type)
+    return jsonify({"alerts": alerts})
 # NOTIFICATIONS WHATSAPP
 # ============================================
 import os
@@ -769,118 +796,4 @@ if __name__ == "__main__":
     print("Port: 8002")
     app.run(host="0.0.0.0", port=8002)
 
-
-
-# ============================================
-# NOUVEAUX ENDPOINTS - BACKLINKS & PRÉSENCE
-# ============================================
-
-@app.route('/api/agent/reddit/post', methods=['POST'])
-def agent_reddit_post():
-    data = request.get_json() or {}
-    try:
-        from agents_system import RedditAgent
-        agent = RedditAgent()
-        result = agent.generate_reddit_post(
-            int(data.get('site_id', 1)),
-            data.get('topic', '')
-        )
-        return jsonify({'success': True, 'post': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/agent/reddit/comment', methods=['POST'])
-def agent_reddit_comment():
-    data = request.get_json() or {}
-    try:
-        from agents_system import RedditAgent
-        agent = RedditAgent()
-        result = agent.generate_reddit_comment(
-            int(data.get('site_id', 1)),
-            data.get('context', '')
-        )
-        return jsonify({'success': True, 'comment': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/agent/forum/reply', methods=['POST'])
-def agent_forum_reply():
-    data = request.get_json() or {}
-    try:
-        from agents_system import ForumAgent
-        agent = ForumAgent()
-        result = agent.generate_forum_reply(
-            int(data.get('site_id', 1)),
-            data.get('question', '')
-        )
-        return jsonify({'success': True, 'reply': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/agent/directory/listing', methods=['POST'])
-def agent_directory_listing():
-    data = request.get_json() or {}
-    try:
-        from agents_system import DirectoryAgent
-        agent = DirectoryAgent()
-        result = agent.generate_business_listing(int(data.get('site_id', 1)))
-        return jsonify({'success': True, 'listing': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/agent/directory/checklist/<int:site_id>', methods=['GET'])
-def agent_directory_checklist(site_id):
-    try:
-        from agents_system import DirectoryAgent
-        agent = DirectoryAgent()
-        result = agent.get_submission_checklist(site_id)
-        return jsonify({'success': True, 'checklist': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/agent/guestpost/outreach', methods=['POST'])
-def agent_guestpost_outreach():
-    data = request.get_json() or {}
-    try:
-        from agents_system import GuestPostAgent
-        agent = GuestPostAgent()
-        result = agent.generate_outreach_email(
-            int(data.get('site_id', 1)),
-            data.get('target_blog', '')
-        )
-        return jsonify({'success': True, 'email': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/agent/scheduler/calendar', methods=['POST'])
-def agent_scheduler_calendar():
-    data = request.get_json() or {}
-    try:
-        from agents_system import ContentSchedulerAgent
-        agent = ContentSchedulerAgent()
-        result = agent.generate_content_calendar(
-            int(data.get('site_id', 1)),
-            int(data.get('weeks', 4))
-        )
-        return jsonify({'success': True, 'calendar': result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/seo/plan', methods=['GET'])
-def get_seo_plan():
-    """Retourne le statut du plan SEO"""
-    return jsonify({
-        'agents_total': 35,
-        'agents_active': 35,
-        'monitoring_interval': '3 heures',
-        'content_frequency': '1 article/jour (rotation sites)',
-        'backlink_strategy': {
-            'reddit': '1 post/semaine par niche',
-            'forums': 'Réponses expertes continues',
-            'directories': '15 annuaires prioritaires',
-            'guest_posts': '5 demandes/mois'
-        },
-        'validation': 'Humaine obligatoire avant publication',
-        'publication_delay': '24-48h après approbation'
-    })
 
