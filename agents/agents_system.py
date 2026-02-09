@@ -282,48 +282,224 @@ Format JSON:
 # AGENT 4: TECHNICAL SEO AUDIT AGENT
 # ============================================
 class TechnicalSEOAuditAgent:
+    """Agent 4: Audit technique SEO complet"""
     name = "Technical SEO Audit Agent"
 
     def audit_page(self, url):
-        """Audit technique d'une page"""
+        """Audit technique complet d'une page"""
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=15, headers={'User-Agent': 'SeoAI-TechAudit/1.0'})
             html = response.text
+            html_lower = html.lower()
 
             issues = []
             score = 100
+            checks_passed = []
 
             # Check title
-            if '<title>' not in html.lower():
-                issues.append({'type': 'critical', 'message': 'Pas de balise title'})
+            if '<title>' not in html_lower or '</title>' not in html_lower:
+                issues.append({'type': 'critical', 'message': 'Pas de balise title', 'fix': 'Ajouter <title>Titre Page</title> dans <head>'})
                 score -= 15
+            else:
+                import re
+                title_match = re.search(r'<title>(.*?)</title>', html, re.IGNORECASE | re.DOTALL)
+                if title_match:
+                    title = title_match.group(1).strip()
+                    if len(title) < 10:
+                        issues.append({'type': 'warning', 'message': f'Title trop court ({len(title)} chars)', 'fix': 'Title recommande: 50-60 caracteres'})
+                        score -= 5
+                    elif len(title) > 65:
+                        issues.append({'type': 'warning', 'message': f'Title trop long ({len(title)} chars)', 'fix': 'Title recommande: 50-60 caracteres'})
+                        score -= 3
+                    else:
+                        checks_passed.append('title_length_ok')
 
             # Check meta description
-            if 'meta name="description"' not in html.lower():
-                issues.append({'type': 'warning', 'message': 'Pas de meta description'})
+            if 'meta name="description"' not in html_lower and "meta name='description'" not in html_lower:
+                issues.append({'type': 'warning', 'message': 'Pas de meta description', 'fix': 'Ajouter <meta name="description" content="...">'})
                 score -= 10
+            else:
+                desc_match = re.search(r"meta name=.description.*?content=.([^>]*?).", html, re.IGNORECASE)
+                if desc_match:
+                    desc = desc_match.group(1)
+                    if len(desc) < 50:
+                        issues.append({'type': 'warning', 'message': f'Meta description trop courte ({len(desc)} chars)', 'fix': 'Recommande: 120-160 caracteres'})
+                        score -= 3
+                    elif len(desc) > 165:
+                        issues.append({'type': 'info', 'message': f'Meta description longue ({len(desc)} chars)', 'fix': 'Recommande: 120-160 caracteres'})
+                        score -= 2
+                    else:
+                        checks_passed.append('meta_desc_ok')
 
             # Check H1
-            if '<h1' not in html.lower():
-                issues.append({'type': 'warning', 'message': 'Pas de balise H1'})
+            h1_count = html_lower.count('<h1')
+            if h1_count == 0:
+                issues.append({'type': 'warning', 'message': 'Pas de balise H1', 'fix': 'Ajouter une balise H1 unique par page'})
                 score -= 10
+            elif h1_count > 1:
+                issues.append({'type': 'warning', 'message': f'{h1_count} balises H1 (devrait etre 1)', 'fix': 'Garder une seule H1 par page'})
+                score -= 5
+            else:
+                checks_passed.append('h1_ok')
+
+            # Check heading hierarchy
+            h2_count = html_lower.count('<h2')
+            h3_count = html_lower.count('<h3')
+            if h2_count == 0 and h3_count > 0:
+                issues.append({'type': 'info', 'message': 'H3 sans H2 (hierarchie brisee)', 'fix': 'Respecter H1 > H2 > H3'})
+                score -= 3
 
             # Check HTTPS
             if not url.startswith('https'):
-                issues.append({'type': 'critical', 'message': 'Site non HTTPS'})
+                issues.append({'type': 'critical', 'message': 'Site non HTTPS', 'fix': 'Installer certificat SSL'})
                 score -= 20
 
             # Check images alt
-            img_count = html.lower().count('<img')
-            alt_count = html.lower().count('alt=')
-            if img_count > 0 and alt_count < img_count:
-                issues.append({'type': 'warning', 'message': f'{img_count - alt_count} images sans alt'})
+            img_tags = re.findall(r'<img[^>]*>', html, re.IGNORECASE)
+            img_no_alt = [img for img in img_tags if 'alt=' not in img.lower()]
+            if img_no_alt:
+                issues.append({'type': 'warning', 'message': f'{len(img_no_alt)}/{len(img_tags)} images sans alt', 'fix': 'Ajouter alt="" descriptif sur chaque image'})
+                score -= min(10, len(img_no_alt) * 2)
+            elif img_tags:
+                checks_passed.append('images_alt_ok')
+
+            # Check canonical
+            if 'rel="canonical"' not in html_lower and "rel='canonical'" not in html_lower:
+                issues.append({'type': 'warning', 'message': 'Pas de canonical URL', 'fix': 'Ajouter <link rel="canonical" href="URL">'})
                 score -= 5
 
-            log_agent(self.name, f"Audit {url}: Score {score}")
-            return {'url': url, 'score': max(0, score), 'issues': issues, 'response_time': response.elapsed.total_seconds()}
+            # Check viewport
+            if 'name="viewport"' not in html_lower:
+                issues.append({'type': 'critical', 'message': 'Pas de meta viewport (mobile)', 'fix': 'Ajouter <meta name="viewport" content="width=device-width, initial-scale=1">'})
+                score -= 10
+
+            # Check charset
+            if 'charset=' not in html_lower:
+                issues.append({'type': 'warning', 'message': 'Pas de charset declare', 'fix': 'Ajouter <meta charset="UTF-8">'})
+                score -= 3
+
+            # Check lang attribute
+            if 'lang=' not in html[:200].lower():
+                issues.append({'type': 'info', 'message': 'Attribut lang manquant sur <html>', 'fix': 'Ajouter <html lang="fr">'})
+                score -= 2
+
+            # Check Open Graph
+            if 'og:title' not in html_lower:
+                issues.append({'type': 'info', 'message': 'Open Graph manquant', 'fix': 'Ajouter meta og:title, og:description, og:image'})
+                score -= 2
+
+            # Check schema markup
+            if 'application/ld+json' not in html_lower:
+                issues.append({'type': 'info', 'message': 'Schema markup (JSON-LD) absent', 'fix': 'Ajouter structured data JSON-LD'})
+                score -= 3
+
+            # Check response time
+            resp_time = response.elapsed.total_seconds()
+            if resp_time > 3:
+                issues.append({'type': 'warning', 'message': f'Page lente: {round(resp_time, 2)}s', 'fix': 'Optimiser cache, images, scripts'})
+                score -= 10
+            elif resp_time > 1.5:
+                issues.append({'type': 'info', 'message': f'Page moderement lente: {round(resp_time, 2)}s', 'fix': 'Optimiser pour < 1.5s'})
+                score -= 3
+
+            # Check page size
+            size_kb = len(response.content) / 1024
+            if size_kb > 2000:
+                issues.append({'type': 'warning', 'message': f'Page lourde: {round(size_kb)}KB', 'fix': 'Compresser images, minifier CSS/JS'})
+                score -= 5
+
+            # Check inline styles (SEO anti-pattern)
+            inline_styles = html_lower.count('style="')
+            if inline_styles > 20:
+                issues.append({'type': 'info', 'message': f'{inline_styles} styles inline detectes', 'fix': 'Deplacer styles dans fichier CSS externe'})
+                score -= 2
+
+            # Check broken internal links (basic)
+            internal_links = re.findall(r"href=[\x22\x27](/[^\x22\x27]*)[\x22\x27]", html)
+            if not internal_links:
+                issues.append({'type': 'info', 'message': 'Aucun lien interne detecte', 'fix': 'Ajouter des liens internes pour le maillage'})
+                score -= 2
+
+            log_agent(self.name, f"Audit {url}: Score {max(0, score)}, {len(issues)} issues, {len(checks_passed)} OK")
+
+            return {
+                'url': url,
+                'score': max(0, score),
+                'issues': issues,
+                'checks_passed': checks_passed,
+                'response_time': round(resp_time, 3),
+                'page_size_kb': round(size_kb, 1),
+                'images_total': len(img_tags),
+                'images_without_alt': len(img_no_alt),
+                'internal_links': len(internal_links),
+                'status_code': response.status_code,
+                'grade': 'A' if score >= 90 else 'B' if score >= 75 else 'C' if score >= 60 else 'D' if score >= 40 else 'F'
+            }
         except Exception as e:
-            return {'url': url, 'score': 0, 'issues': [{'type': 'critical', 'message': str(e)}]}
+            return {'url': url, 'score': 0, 'issues': [{'type': 'critical', 'message': str(e)}], 'grade': 'F'}
+
+    def full_audit(self, site_id):
+        """Audit technique complet d'un site avec toutes ses pages"""
+        site = SITES.get(site_id)
+        if not site:
+            return {'error': f'Site {site_id} inconnu'}
+
+        domain = site['domaine']
+        base_url = f"https://{domain}"
+
+        results = {
+            'site_id': site_id,
+            'domain': domain,
+            'timestamp': datetime.now().isoformat(),
+            'pages': {},
+            'robots': self.check_robots_txt(domain),
+            'sitemap': self.check_sitemap(domain),
+            'ssl': self.check_ssl_basic(domain),
+            'headers': self.check_security_headers(base_url),
+            'summary': {}
+        }
+
+        # Audit homepage
+        results['pages']['homepage'] = self.audit_page(base_url)
+
+        # Get pages from sitemap
+        if results['sitemap'].get('exists') and results['sitemap'].get('urls'):
+            for page_url in results['sitemap']['urls'][:10]:
+                page_key = urlparse(page_url).path or '/'
+                results['pages'][page_key] = self.audit_page(page_url)
+
+        # Summary
+        all_scores = [p.get('score', 0) for p in results['pages'].values()]
+        all_issues = []
+        for p in results['pages'].values():
+            all_issues.extend(p.get('issues', []))
+
+        results['summary'] = {
+            'pages_audited': len(results['pages']),
+            'avg_score': round(sum(all_scores) / len(all_scores), 1) if all_scores else 0,
+            'total_issues': len(all_issues),
+            'critical_issues': sum(1 for i in all_issues if i.get('type') == 'critical'),
+            'warning_issues': sum(1 for i in all_issues if i.get('type') == 'warning'),
+            'has_robots': results['robots'].get('exists', False),
+            'has_sitemap': results['sitemap'].get('exists', False),
+            'ssl_valid': results['ssl'].get('valid', False),
+            'overall_grade': 'A' if results.get('pages', {}).get('homepage', {}).get('score', 0) >= 90 else 'B' if results.get('pages', {}).get('homepage', {}).get('score', 0) >= 75 else 'C'
+        }
+
+        # Save to DB
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("""INSERT INTO agent_logs (agent, message, level, created_at)
+                VALUES (?, ?, 'INFO', datetime('now'))""",
+                (self.name, f"Full audit {domain}: Score {results['summary']['avg_score']}, {results['summary']['total_issues']} issues"))
+            conn.commit()
+            conn.close()
+        except:
+            pass
+
+        log_agent(self.name, f"Full audit {domain}: {results['summary']}")
+        return results
 
     def check_robots_txt(self, domain):
         """Verifie robots.txt"""
@@ -331,57 +507,188 @@ class TechnicalSEOAuditAgent:
             url = f"https://{domain}/robots.txt"
             response = requests.get(url, timeout=5)
             if response.status_code == 200:
-                return {'exists': True, 'content': response.text[:500]}
-            return {'exists': False}
-        except:
-            return {'exists': False}
+                content = response.text
+                has_sitemap = 'sitemap' in content.lower()
+                has_disallow = 'disallow' in content.lower()
+                return {'exists': True, 'content': content[:500], 'has_sitemap_ref': has_sitemap, 'has_disallow': has_disallow, 'size': len(content)}
+            return {'exists': False, 'status_code': response.status_code}
+        except Exception as e:
+            return {'exists': False, 'error': str(e)}
 
     def check_sitemap(self, domain):
-        """Verifie sitemap.xml"""
+        """Verifie sitemap.xml et extrait les URLs"""
         try:
             url = f"https://{domain}/sitemap.xml"
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, timeout=10)
             if response.status_code == 200:
-                urls_count = response.text.count('<loc>')
-                return {'exists': True, 'urls_count': urls_count}
-            return {'exists': False}
-        except:
-            return {'exists': False}
+                urls = re.findall(r'<loc>(.*?)</loc>', response.text)
+                return {'exists': True, 'urls_count': len(urls), 'urls': urls[:20], 'size': len(response.text)}
+            return {'exists': False, 'status_code': response.status_code}
+        except Exception as e:
+            return {'exists': False, 'error': str(e)}
+
+    def check_ssl_basic(self, domain):
+        """Verification SSL basique"""
+        try:
+            import ssl, socket
+            context = ssl.create_default_context()
+            with socket.create_connection((domain, 443), timeout=10) as sock:
+                with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                    cert = ssock.getpeercert()
+                    expires = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+                    days_left = (expires - datetime.now()).days
+                    return {'valid': True, 'days_left': days_left, 'issuer': dict(x[0] for x in cert.get('issuer', []))}
+        except Exception as e:
+            return {'valid': False, 'error': str(e)}
+
+    def check_security_headers(self, url):
+        """Verifie les headers de securite"""
+        try:
+            resp = requests.get(url, timeout=10)
+            headers = resp.headers
+            checks = {
+                'X-Content-Type-Options': headers.get('X-Content-Type-Options'),
+                'X-Frame-Options': headers.get('X-Frame-Options'),
+                'X-XSS-Protection': headers.get('X-XSS-Protection'),
+                'Strict-Transport-Security': headers.get('Strict-Transport-Security'),
+                'Content-Security-Policy': headers.get('Content-Security-Policy'),
+                'Referrer-Policy': headers.get('Referrer-Policy'),
+            }
+            present = sum(1 for v in checks.values() if v)
+            return {'headers': checks, 'present': present, 'total': len(checks), 'score': round(present / len(checks) * 100)}
+        except Exception as e:
+            return {'error': str(e)}
 
 # ============================================
 # AGENT 5: PERFORMANCE AGENT
 # ============================================
 class PerformanceAgent:
+    """Agent 5: Performance et vitesse des sites"""
     name = "Performance Agent"
 
     def check_speed(self, url):
-        """Check vitesse basique"""
+        """Check vitesse complet avec analyse des ressources"""
         try:
+            # Mesurer TTFB et load total
             start = datetime.now()
-            response = requests.get(url, timeout=30)
+            response = requests.get(url, timeout=30, headers={'User-Agent': 'SeoAI-Perf/1.0'})
             load_time = (datetime.now() - start).total_seconds()
+            ttfb = response.elapsed.total_seconds()
 
+            html = response.text
             size_kb = len(response.content) / 1024
 
+            # Analyser les ressources
+            import re
+            css_files = re.findall(r"<link[^>]*href=[^>]*?([^\s>]*\.css[^\s>]*)", html, re.IGNORECASE)
+            js_files = re.findall(r"<script[^>]*src=[^>]*?([^\s>]*\.js[^\s>]*)", html, re.IGNORECASE)
+            img_files = re.findall(r"<img[^>]*src=.([^\s>]+).", html, re.IGNORECASE)
+            fonts = re.findall(r"url\(.?([^)]*\.(woff2?|ttf|otf|eot)).?\)", html, re.IGNORECASE)
+
+            # Detecter les problemes de performance
+            issues = []
             score = 100
-            if load_time > 3:
+
+            # TTFB
+            if ttfb > 1.0:
+                issues.append({'type': 'critical', 'message': f'TTFB lent: {round(ttfb, 2)}s (max 1s)', 'impact': 'high'})
                 score -= 20
+            elif ttfb > 0.5:
+                issues.append({'type': 'warning', 'message': f'TTFB moyen: {round(ttfb, 2)}s (ideal < 0.5s)', 'impact': 'medium'})
+                score -= 10
+
+            # Load time
             if load_time > 5:
-                score -= 20
-            if size_kb > 500:
+                issues.append({'type': 'critical', 'message': f'Temps total: {round(load_time, 2)}s (max 3s)', 'impact': 'high'})
+                score -= 25
+            elif load_time > 3:
+                issues.append({'type': 'warning', 'message': f'Temps total: {round(load_time, 2)}s (ideal < 3s)', 'impact': 'medium'})
+                score -= 15
+
+            # Page size
+            if size_kb > 2000:
+                issues.append({'type': 'critical', 'message': f'Page trop lourde: {round(size_kb)}KB', 'impact': 'high'})
+                score -= 15
+            elif size_kb > 1000:
+                issues.append({'type': 'warning', 'message': f'Page lourde: {round(size_kb)}KB', 'impact': 'medium'})
+                score -= 8
+
+            # Too many CSS
+            if len(css_files) > 5:
+                issues.append({'type': 'warning', 'message': f'{len(css_files)} fichiers CSS (combiner)', 'impact': 'medium'})
+                score -= 5
+
+            # Too many JS
+            if len(js_files) > 8:
+                issues.append({'type': 'warning', 'message': f'{len(js_files)} fichiers JS (combiner/defer)', 'impact': 'medium'})
+                score -= 5
+
+            # Render-blocking scripts
+            blocking_scripts = re.findall(r"<script\s+(?![^>]*(defer|async|type=.module))[^>]*src=", html, re.IGNORECASE)
+            if blocking_scripts:
+                issues.append({'type': 'warning', 'message': f'{len(blocking_scripts)} scripts bloquants sans defer/async', 'impact': 'high'})
+                score -= 8
+
+            # Images without lazy loading
+            imgs_no_lazy = [img for img in re.findall(r"<img[^>]*>", html, re.IGNORECASE) if 'loading=' not in img.lower()]
+            if len(imgs_no_lazy) > 3:
+                issues.append({'type': 'info', 'message': f'{len(imgs_no_lazy)} images sans lazy loading', 'impact': 'medium'})
+                score -= 5
+
+            # Compression check
+            content_encoding = response.headers.get('Content-Encoding', '')
+            if 'gzip' not in content_encoding and 'br' not in content_encoding:
+                issues.append({'type': 'warning', 'message': 'Compression GZIP/Brotli absente', 'impact': 'high'})
                 score -= 10
-            if size_kb > 1000:
-                score -= 10
+
+            # Cache headers
+            cache_control = response.headers.get('Cache-Control', '')
+            if not cache_control or 'no-cache' in cache_control:
+                issues.append({'type': 'info', 'message': 'Cache-Control non configure', 'impact': 'medium'})
+                score -= 5
+
+            log_agent(self.name, f"Perf {url}: {round(load_time, 2)}s, {round(size_kb)}KB, score {max(0, score)}")
 
             return {
                 'url': url,
+                'ttfb_seconds': round(ttfb, 3),
                 'load_time_seconds': round(load_time, 2),
                 'size_kb': round(size_kb, 2),
                 'score': max(0, score),
-                'status_code': response.status_code
+                'grade': 'A' if score >= 90 else 'B' if score >= 75 else 'C' if score >= 60 else 'D' if score >= 40 else 'F',
+                'status_code': response.status_code,
+                'resources': {
+                    'css_files': len(css_files),
+                    'js_files': len(js_files),
+                    'images': len(img_files),
+                    'fonts': len(fonts),
+                    'blocking_scripts': len(blocking_scripts)
+                },
+                'compression': content_encoding or 'none',
+                'cache_control': cache_control or 'none',
+                'issues': issues
             }
         except Exception as e:
-            return {'url': url, 'error': str(e), 'score': 0}
+            return {'url': url, 'error': str(e), 'score': 0, 'grade': 'F'}
+
+    def check_all_sites(self):
+        """Check performance de tous les sites"""
+        results = {}
+        for site_id, site in SITES.items():
+            url = f"https://{site['domaine']}"
+            results[site_id] = self.check_speed(url)
+        return results
+
+    def compare_sites(self):
+        """Compare la performance entre tous les sites"""
+        all_results = self.check_all_sites()
+        ranking = sorted(all_results.items(), key=lambda x: x[1].get('score', 0), reverse=True)
+        return {
+            'ranking': [{'site_id': sid, 'domain': SITES[sid]['domaine'], 'score': r.get('score', 0), 'load_time': r.get('load_time_seconds', 0)} for sid, r in ranking],
+            'fastest': ranking[0][0] if ranking else None,
+            'slowest': ranking[-1][0] if ranking else None,
+            'details': all_results
+        }
 
 # ============================================
 # AGENT 6: BACKLINK ANALYSIS AGENT
@@ -993,10 +1300,11 @@ class MonitoringAgent:
         return {'revalidated': len(results), 'details': results}
 
 class SSLAgent:
-    """Agent 22: Verification SSL"""
+    """Agent 22: Verification SSL complete"""
     name = "SSL Agent"
 
     def check_ssl(self, domain):
+        """Verification SSL complete avec details certificat"""
         import ssl
         import socket
         try:
@@ -1004,45 +1312,389 @@ class SSLAgent:
             with socket.create_connection((domain, 443), timeout=10) as sock:
                 with context.wrap_socket(sock, server_hostname=domain) as ssock:
                     cert = ssock.getpeercert()
+                    protocol = ssock.version()
+                    cipher = ssock.cipher()
+
                     expires = datetime.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+                    issued = datetime.strptime(cert['notBefore'], '%b %d %H:%M:%S %Y %Z')
                     days_left = (expires - datetime.now()).days
-                    return {'valid': True, 'expires': cert['notAfter'], 'days_left': days_left}
+
+                    # Issuer info
+                    issuer_dict = {}
+                    for item in cert.get('issuer', []):
+                        for key, val in item:
+                            issuer_dict[key] = val
+
+                    # Subject info
+                    subject_dict = {}
+                    for item in cert.get('subject', []):
+                        for key, val in item:
+                            subject_dict[key] = val
+
+                    # SAN (Subject Alternative Names)
+                    san = [entry[1] for entry in cert.get('subjectAltName', [])]
+
+                    # Determine urgency
+                    if days_left <= 0:
+                        urgency = 'expired'
+                    elif days_left <= 7:
+                        urgency = 'critical'
+                    elif days_left <= 30:
+                        urgency = 'warning'
+                    else:
+                        urgency = 'ok'
+
+                    log_agent(self.name, f"SSL {domain}: {days_left} jours restants, {urgency}")
+
+                    return {
+                        'valid': True,
+                        'domain': domain,
+                        'expires': cert['notAfter'],
+                        'issued': cert['notBefore'],
+                        'days_left': days_left,
+                        'urgency': urgency,
+                        'issuer': issuer_dict.get('organizationName', issuer_dict.get('commonName', 'Unknown')),
+                        'subject': subject_dict.get('commonName', domain),
+                        'san': san,
+                        'protocol': protocol,
+                        'cipher': cipher[0] if cipher else 'Unknown',
+                        'serial_number': cert.get('serialNumber', ''),
+                    }
+        except ssl.SSLCertVerificationError as e:
+            log_agent(self.name, f"SSL ERREUR {domain}: {e}", 'ERROR')
+            return {'valid': False, 'domain': domain, 'error': str(e), 'urgency': 'critical', 'error_type': 'verification'}
+        except socket.timeout:
+            return {'valid': False, 'domain': domain, 'error': 'Connection timeout', 'urgency': 'critical', 'error_type': 'timeout'}
+        except ConnectionRefusedError:
+            return {'valid': False, 'domain': domain, 'error': 'Connection refused (port 443)', 'urgency': 'critical', 'error_type': 'refused'}
         except Exception as e:
-            return {'valid': False, 'error': str(e)}
+            return {'valid': False, 'domain': domain, 'error': str(e), 'urgency': 'critical', 'error_type': 'unknown'}
+
+    def check_all_sites(self):
+        """Verifie SSL de tous les sites"""
+        results = {}
+        alerts = []
+        for site_id, site in SITES.items():
+            result = self.check_ssl(site['domaine'])
+            results[site_id] = result
+            if result.get('urgency') in ('critical', 'expired'):
+                alerts.append({'site_id': site_id, 'domain': site['domaine'], 'days_left': result.get('days_left', -1), 'error': result.get('error')})
+        return {'results': results, 'alerts': alerts, 'all_valid': all(r.get('valid') for r in results.values())}
+
+    def check_https_redirect(self, domain):
+        """Verifie si HTTP redirige vers HTTPS"""
+        try:
+            resp = requests.get(f"http://{domain}", timeout=10, allow_redirects=False)
+            redirects_to_https = resp.status_code in (301, 302, 308) and 'https' in resp.headers.get('Location', '')
+            return {'domain': domain, 'redirects': redirects_to_https, 'status_code': resp.status_code, 'location': resp.headers.get('Location', '')}
+        except Exception as e:
+            return {'domain': domain, 'redirects': False, 'error': str(e)}
+
+    def check_mixed_content(self, url):
+        """Detecte le contenu mixte HTTP sur une page HTTPS"""
+        try:
+            resp = requests.get(url, timeout=15)
+            html = resp.text
+            http_resources = re.findall(r"(src|href)=.http://[^\s>]+.", html, re.IGNORECASE)
+            return {'url': url, 'mixed_content_count': len(http_resources), 'has_mixed_content': len(http_resources) > 0}
+        except Exception as e:
+            return {'url': url, 'error': str(e)}
 
 class BackupAgent:
-    """Agent 23: Sauvegarde automatique"""
+    """Agent 23: Sauvegarde automatique complete"""
     name = "Backup Agent"
 
+    BACKUP_DIR = "/opt/seo-agent/db/backup"
+    SITES_BACKUP_DIR = "/opt/seo-agent/backups/sites"
+    MAX_BACKUPS = 30  # Garder les 30 derniers
+
     def backup_database(self):
+        """Backup de la base de donnees SQLite"""
+        import shutil
+        os.makedirs(self.BACKUP_DIR, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_path = f"/opt/seo-agent/db/backup/seo_agent_{timestamp}.db"
+        backup_path = f"{self.BACKUP_DIR}/seo_agent_{timestamp}.db"
         try:
-            import shutil
-            shutil.copy2(DB_PATH, backup_path)
-            log_agent(self.name, f"Backup cree: {backup_path}")
-            return {'success': True, 'path': backup_path}
+            # Utiliser la methode SQLite backup pour consistance
+            source = sqlite3.connect(DB_PATH)
+            dest = sqlite3.connect(backup_path)
+            source.backup(dest)
+            source.close()
+            dest.close()
+
+            size_mb = round(os.path.getsize(backup_path) / (1024 * 1024), 2)
+            log_agent(self.name, f"DB backup: {backup_path} ({size_mb}MB)")
+            return {'success': True, 'path': backup_path, 'size_mb': size_mb, 'timestamp': timestamp}
+        except Exception as e:
+            # Fallback: copie fichier
+            try:
+                shutil.copy2(DB_PATH, backup_path)
+                size_mb = round(os.path.getsize(backup_path) / (1024 * 1024), 2)
+                log_agent(self.name, f"DB backup (copy): {backup_path} ({size_mb}MB)")
+                return {'success': True, 'path': backup_path, 'size_mb': size_mb, 'method': 'copy'}
+            except Exception as e2:
+                return {'success': False, 'error': str(e2)}
+
+    def backup_site_files(self, site_id):
+        """Backup des fichiers d'un site"""
+        import shutil
+        site = SITES.get(site_id)
+        if not site:
+            return {'success': False, 'error': f'Site {site_id} inconnu'}
+
+        site_path = site.get('path', '')
+        if not os.path.exists(site_path):
+            return {'success': False, 'error': f'Path {site_path} inexistant'}
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_dir = f"{self.SITES_BACKUP_DIR}/{site['domaine']}"
+        os.makedirs(backup_dir, exist_ok=True)
+        archive_path = f"{backup_dir}/{site['domaine']}_{timestamp}"
+
+        try:
+            result = shutil.make_archive(archive_path, 'gztar', site_path)
+            size_mb = round(os.path.getsize(result) / (1024 * 1024), 2)
+            log_agent(self.name, f"Site backup: {site['domaine']} -> {result} ({size_mb}MB)")
+            return {'success': True, 'path': result, 'size_mb': size_mb, 'site': site['domaine']}
         except Exception as e:
             return {'success': False, 'error': str(e)}
 
+    def backup_all(self):
+        """Backup complet: DB + tous les sites"""
+        results = {'database': self.backup_database(), 'sites': {}}
+        for site_id in SITES:
+            results['sites'][site_id] = self.backup_site_files(site_id)
+
+        total_size = results['database'].get('size_mb', 0)
+        for s in results['sites'].values():
+            total_size += s.get('size_mb', 0)
+
+        results['total_size_mb'] = round(total_size, 2)
+        results['timestamp'] = datetime.now().isoformat()
+        log_agent(self.name, f"Full backup: {results['total_size_mb']}MB total")
+        return results
+
+    def cleanup_old_backups(self):
+        """Supprime les anciens backups (garde les MAX_BACKUPS derniers)"""
+        cleaned = {'db': 0, 'sites': 0}
+
+        # DB backups
+        if os.path.exists(self.BACKUP_DIR):
+            db_files = sorted([f for f in os.listdir(self.BACKUP_DIR) if f.endswith('.db')], reverse=True)
+            for old_file in db_files[self.MAX_BACKUPS:]:
+                os.remove(os.path.join(self.BACKUP_DIR, old_file))
+                cleaned['db'] += 1
+
+        # Site backups
+        if os.path.exists(self.SITES_BACKUP_DIR):
+            for site_dir in os.listdir(self.SITES_BACKUP_DIR):
+                site_backup_path = os.path.join(self.SITES_BACKUP_DIR, site_dir)
+                if os.path.isdir(site_backup_path):
+                    archives = sorted(os.listdir(site_backup_path), reverse=True)
+                    for old_file in archives[self.MAX_BACKUPS:]:
+                        os.remove(os.path.join(site_backup_path, old_file))
+                        cleaned['sites'] += 1
+
+        log_agent(self.name, f"Cleanup: {cleaned['db']} DB + {cleaned['sites']} sites supprimes")
+        return cleaned
+
+    def list_backups(self):
+        """Liste tous les backups existants"""
+        backups = {'database': [], 'sites': {}}
+
+        if os.path.exists(self.BACKUP_DIR):
+            for f in sorted(os.listdir(self.BACKUP_DIR), reverse=True)[:10]:
+                fpath = os.path.join(self.BACKUP_DIR, f)
+                backups['database'].append({
+                    'file': f,
+                    'size_mb': round(os.path.getsize(fpath) / (1024 * 1024), 2),
+                    'date': datetime.fromtimestamp(os.path.getmtime(fpath)).isoformat()
+                })
+
+        if os.path.exists(self.SITES_BACKUP_DIR):
+            for site_dir in os.listdir(self.SITES_BACKUP_DIR):
+                site_backup_path = os.path.join(self.SITES_BACKUP_DIR, site_dir)
+                if os.path.isdir(site_backup_path):
+                    backups['sites'][site_dir] = []
+                    for f in sorted(os.listdir(site_backup_path), reverse=True)[:5]:
+                        fpath = os.path.join(site_backup_path, f)
+                        backups['sites'][site_dir].append({
+                            'file': f,
+                            'size_mb': round(os.path.getsize(fpath) / (1024 * 1024), 2),
+                            'date': datetime.fromtimestamp(os.path.getmtime(fpath)).isoformat()
+                        })
+
+        return backups
+
 class AnalyticsAgent:
-    """Agent 24: Analyse des donnees"""
+    """Agent 24: Analyse des donnees complete"""
     name = "Analytics Agent"
 
     def get_site_stats(self, site_id):
+        """Statistiques completes d'un site"""
         conn = get_db()
         cursor = conn.cursor()
 
-        # Keywords count
-        cursor.execute('SELECT COUNT(*) FROM keywords WHERE site_id = ?', (site_id,))
-        keywords = cursor.fetchone()[0]
+        stats = {'site_id': site_id, 'domain': SITES.get(site_id, {}).get('domaine', 'unknown')}
 
-        # Drafts count
+        # Keywords
+        cursor.execute('SELECT COUNT(*) FROM keywords WHERE site_id = ?', (site_id,))
+        stats['keywords_total'] = cursor.fetchone()[0]
+
+        cursor.execute('SELECT keyword, volume, difficulty FROM keywords WHERE site_id = ? ORDER BY volume DESC LIMIT 5', (site_id,))
+        stats['top_keywords'] = [{'keyword': r[0], 'volume': r[1], 'difficulty': r[2]} for r in cursor.fetchall()]
+
+        # Drafts
         cursor.execute('SELECT COUNT(*) FROM drafts WHERE site_id = ?', (site_id,))
-        drafts = cursor.fetchone()[0]
+        stats['drafts_total'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM drafts WHERE site_id = ? AND status = 'approved'", (site_id,))
+        stats['drafts_approved'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM drafts WHERE site_id = ? AND status = 'pending'", (site_id,))
+        stats['drafts_pending'] = cursor.fetchone()[0]
+
+        # Alerts
+        cursor.execute('SELECT COUNT(*) FROM mon_alerts WHERE (site_id = ? OR site_id = ?) AND resolved = 0', (site_id, str(site_id)))
+        stats['active_alerts'] = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM mon_alerts WHERE (site_id = ? OR site_id = ?) AND resolved = 1', (site_id, str(site_id)))
+        stats['resolved_alerts'] = cursor.fetchone()[0]
+
+        # Agent logs
+        cursor.execute("SELECT COUNT(*) FROM agent_logs WHERE created_at > datetime('now', '-7 days')")
+        stats['agent_actions_7d'] = cursor.fetchone()[0]
+
+        # Self-audit
+        try:
+            cursor.execute('SELECT COUNT(*), SUM(CASE WHEN auto_fixed = 1 THEN 1 ELSE 0 END) FROM self_audit_results WHERE site_id = ?',
+                (SITES.get(site_id, {}).get('domaine', '').split('.')[0],))
+            row = cursor.fetchone()
+            stats['self_audit_issues'] = row[0] if row else 0
+            stats['self_audit_auto_fixed'] = row[1] if row else 0
+        except:
+            stats['self_audit_issues'] = 0
+            stats['self_audit_auto_fixed'] = 0
 
         conn.close()
-        return {'site_id': site_id, 'keywords': keywords, 'drafts': drafts}
+        log_agent(self.name, f"Stats site {site_id}: {stats['keywords_total']} kw, {stats['drafts_total']} drafts, {stats['active_alerts']} alerts")
+        return stats
+
+    def get_global_stats(self):
+        """Statistiques globales de tout le systeme"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        stats = {'timestamp': datetime.now().isoformat(), 'sites': {}}
+
+        # Per-site stats
+        for site_id, site in SITES.items():
+            stats['sites'][site_id] = {'name': site['nom'], 'domain': site['domaine']}
+
+            cursor.execute('SELECT COUNT(*) FROM keywords WHERE site_id = ?', (site_id,))
+            stats['sites'][site_id]['keywords'] = cursor.fetchone()[0]
+
+            cursor.execute('SELECT COUNT(*) FROM drafts WHERE site_id = ?', (site_id,))
+            stats['sites'][site_id]['drafts'] = cursor.fetchone()[0]
+
+        # Global counts
+        cursor.execute('SELECT COUNT(*) FROM keywords')
+        stats['total_keywords'] = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM drafts')
+        stats['total_drafts'] = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM mon_alerts WHERE resolved = 0')
+        stats['active_alerts'] = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM mon_alerts WHERE resolved = 1')
+        stats['resolved_alerts'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM agent_logs WHERE created_at > datetime('now', '-24 hours')")
+        stats['agent_actions_24h'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM agent_logs WHERE created_at > datetime('now', '-7 days')")
+        stats['agent_actions_7d'] = cursor.fetchone()[0]
+
+        # Top agents by activity
+        cursor.execute("""SELECT agent, COUNT(*) as cnt FROM agent_logs
+            WHERE created_at > datetime('now', '-7 days')
+            GROUP BY agent ORDER BY cnt DESC LIMIT 10""")
+        stats['top_agents'] = [{'agent': r[0], 'actions': r[1]} for r in cursor.fetchall()]
+
+        conn.close()
+        return stats
+
+    def get_trends(self, days=7):
+        """Tendances sur les X derniers jours"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        trends = {'period_days': days, 'daily': []}
+
+        for i in range(days):
+            day_offset = days - 1 - i
+            cursor.execute(f"""SELECT
+                COUNT(*) as actions,
+                (SELECT COUNT(*) FROM mon_alerts WHERE date(created_at) = date('now', '-{day_offset} days')) as new_alerts,
+                (SELECT COUNT(*) FROM mon_alerts WHERE date(resolved_at) = date('now', '-{day_offset} days')) as resolved_alerts,
+                (SELECT COUNT(*) FROM drafts WHERE date(created_at) = date('now', '-{day_offset} days')) as new_drafts
+            FROM agent_logs WHERE date(created_at) = date('now', '-{day_offset} days')""")
+            row = cursor.fetchone()
+            target_date = (datetime.now() - timedelta(days=day_offset)).strftime('%Y-%m-%d')
+            trends['daily'].append({
+                'date': target_date,
+                'agent_actions': row[0] if row else 0,
+                'new_alerts': row[1] if row else 0,
+                'resolved_alerts': row[2] if row else 0,
+                'new_drafts': row[3] if row else 0
+            })
+
+        conn.close()
+        return trends
+
+    def get_health_score(self):
+        """Score de sante global du systeme"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        score = 100
+        issues = []
+
+        # Check active alerts
+        cursor.execute("SELECT COUNT(*) FROM mon_alerts WHERE resolved = 0 AND severity = 'critical'")
+        critical = cursor.fetchone()[0]
+        if critical > 0:
+            score -= min(30, critical * 10)
+            issues.append(f'{critical} alertes critiques actives')
+
+        cursor.execute('SELECT COUNT(*) FROM mon_alerts WHERE resolved = 0')
+        total_alerts = cursor.fetchone()[0]
+        if total_alerts > 10:
+            score -= 10
+            issues.append(f'{total_alerts} alertes non resolues')
+
+        # Check agent activity
+        cursor.execute("SELECT COUNT(*) FROM agent_logs WHERE created_at > datetime('now', '-24 hours')")
+        recent_actions = cursor.fetchone()[0]
+        if recent_actions == 0:
+            score -= 15
+            issues.append('Aucune activite agent dans les 24h')
+
+        # Check self-audit pending
+        try:
+            cursor.execute("SELECT COUNT(*) FROM self_audit_results WHERE fix_level = 'confirm' AND confirmed = 0")
+            pending = cursor.fetchone()[0]
+            if pending > 10:
+                score -= 10
+                issues.append(f'{pending} corrections en attente de confirmation')
+        except:
+            pass
+
+        conn.close()
+
+        grade = 'A' if score >= 90 else 'B' if score >= 75 else 'C' if score >= 60 else 'D' if score >= 40 else 'F'
+        return {'score': max(0, score), 'grade': grade, 'issues': issues}
 
 class ReportingAgent:
     """Agent 25: Generation de rapports"""
