@@ -38,8 +38,8 @@ SITES = {
         "label": "JC Peintre"
     },
     "seoparai": {
-        "domain": "seoparai.ca",
-        "url": "https://seoparai.ca",
+        "domain": "seoparai.com",
+        "url": "https://seoparai.com",
         "path": "/var/www/seoparai",
         "brand_color": "#0f3460",
         "icon_letter": "AI",

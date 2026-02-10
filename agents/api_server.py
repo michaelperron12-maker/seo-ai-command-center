@@ -126,10 +126,24 @@ def get_alerts():
     resolved = request.args.get('resolved', 'false') == 'true'
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, site_id, alert_type, severity, message, created_at FROM mon_alerts WHERE resolved = ? ORDER BY created_at DESC LIMIT 50", (1 if resolved else 0,))
+    cursor.execute("""SELECT id, site_id, alert_type, severity, message, created_at,
+        COALESCE(source_agent, 'unknown') as source_agent,
+        COALESCE(corrected_by, '') as corrected_by,
+        resolved, resolved_at,
+        CASE
+            WHEN resolved = 1 AND corrected_by = 'self_audit_agent' THEN 'auto_fixed'
+            WHEN resolved = 1 THEN 'resolved'
+            WHEN created_at > datetime('now', '-1 hour') THEN 'new'
+            ELSE 'active'
+        END as status
+    FROM mon_alerts WHERE resolved = ?
+    ORDER BY
+        CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+        created_at DESC
+    LIMIT 50""", (1 if resolved else 0,))
     rows = cursor.fetchall()
     conn.close()
-    return jsonify({"alerts": [{"id": r[0], "site_id": r[1], "type": r[2], "severity": r[3], "message": r[4], "created_at": r[5]} for r in rows]})
+    return jsonify({"alerts": [{"id": r[0], "site_id": r[1], "type": r[2], "severity": r[3], "message": r[4], "created_at": r[5], "source_agent": r[6], "corrected_by": r[7], "is_resolved": bool(r[8]), "resolved_at": r[9], "status": r[10]} for r in rows]})
 
 @app.route('/api/alerts/<int:alert_id>/resolve', methods=['POST'])
 def resolve_alert(alert_id):
@@ -376,7 +390,7 @@ def trigger_backup():
 def get_briefs():
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('SELECT id, site_id, keyword_id, titre, status, created_at FROM briefs ORDER BY created_at DESC LIMIT 50')
+    cursor.execute('SELECT id, site_id, mot_cle, sujet, status, created_at FROM briefs ORDER BY created_at DESC LIMIT 50')
     rows = cursor.fetchall()
     conn.close()
     return jsonify({'briefs': [{'id': r[0], 'site_id': r[1], 'keyword_id': r[2], 'titre': r[3], 'status': r[4], 'created_at': r[5]} for r in rows]})
@@ -389,13 +403,15 @@ import base64
 FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
 QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
+DEEPSEEK_R1 = 'accounts/fireworks/models/deepseek-r1-0528'
+ACTIVE_MODEL = DEEPSEEK_R1
 QWEN_VL_MODEL = 'accounts/fireworks/models/qwen3-vl-235b-a22b-instruct'
 
 @app.route('/api/ai/chat', methods=['POST'])
 def ai_chat():
     data = request.json or {}
     message = data.get('message', '')
-    context = data.get('context', 'seo')
+    context = str(data.get("context", "seo")) if not isinstance(data.get("context"), dict) else "general"
     if not message:
         return jsonify({'error': 'Message requis'}), 400
     prompts = {
@@ -406,18 +422,21 @@ def ai_chat():
     }
     try:
         headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
-        payload = {'model': QWEN_MODEL, 'messages': [{'role': 'system', 'content': prompts.get(context, prompts['general'])}, {'role': 'user', 'content': message}], 'max_tokens': 2048, 'temperature': 0.7}
+        payload = {'model': ACTIVE_MODEL, 'messages': [{'role': 'system', 'content': prompts.get(context, prompts['general'])}, {'role': 'user', 'content': message}], 'max_tokens': 2048, 'temperature': 0.7}
         response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=60)
         if response.status_code != 200:
             return jsonify({'error': f'Erreur Fireworks: {response.status_code}'}), 500
         result = response.json()
         ai_response = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+        # Strip DeepSeek R1 <think> reasoning tags
+        import re as _re
+        ai_response = _re.sub(r'<think>.*?</think>', '', ai_response, flags=_re.DOTALL).strip()
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute('INSERT INTO ai_chat_history (context, user_message, ai_response, model, created_at) VALUES (?, ?, ?, ?, datetime("now"))', (context, message, ai_response, QWEN_MODEL))
+        cursor.execute('INSERT INTO ai_chat_history (context, user_message, ai_response, model, created_at) VALUES (?, ?, ?, ?, datetime("now"))', (context, message, ai_response, ACTIVE_MODEL))
         conn.commit()
         conn.close()
-        return jsonify({'response': ai_response, 'model': QWEN_MODEL, 'context': context})
+        return jsonify({'response': ai_response, 'model': ACTIVE_MODEL, 'context': context})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -435,8 +454,8 @@ def ai_history():
 def ai_status():
     try:
         headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
-        response = requests.post(FIREWORKS_URL, headers=headers, json={'model': QWEN_MODEL, 'messages': [{'role': 'user', 'content': 'OK'}], 'max_tokens': 5}, timeout=15)
-        return jsonify({'status': 'online' if response.status_code == 200 else 'error', 'model': QWEN_MODEL})
+        response = requests.post(FIREWORKS_URL, headers=headers, json={'model': ACTIVE_MODEL, 'messages': [{'role': 'user', 'content': 'OK'}], 'max_tokens': 5}, timeout=15)
+        return jsonify({'status': 'online' if response.status_code == 200 else 'error', 'model': ACTIVE_MODEL})
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)})
 
@@ -791,9 +810,635 @@ def api_index():
 
 
 
+
+@app.route("/api/self-audit/dashboard", methods=["GET"])
+def self_audit_dashboard():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("""SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN auto_fixed = 1 THEN 1 ELSE 0 END) as auto_fixed,
+        SUM(CASE WHEN fix_level = 'confirm' AND confirmed = 0 THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN fix_level = 'manual' AND executed = 0 THEN 1 ELSE 0 END) as manual,
+        SUM(CASE WHEN severity = 'critical' AND auto_fixed = 0 AND confirmed = 0 THEN 1 ELSE 0 END) as critical_open
+    FROM self_audit_results""")
+    stats = cursor.fetchone()
+    cursor.execute("""SELECT id, site_id, check_type, severity, message, fix_level, auto_fixed, confirmed, created_at
+    FROM self_audit_results ORDER BY created_at DESC LIMIT 30""")
+    issues = cursor.fetchall()
+    cursor.execute("""SELECT site_id, issues_found, auto_fixed, pending_confirm, completed_at
+    FROM self_audit_runs WHERE site_id != '_email_skip' ORDER BY completed_at DESC LIMIT 1""")
+    last_run = cursor.fetchone()
+    conn.close()
+    return jsonify({
+        "stats": {"total": stats[0] if stats else 0, "auto_fixed": stats[1] if stats else 0,
+            "pending_confirm": stats[2] if stats else 0, "manual_required": stats[3] if stats else 0,
+            "critical_open": stats[4] if stats else 0},
+        "issues": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3],
+            "message": r[4], "fix_level": r[5], "auto_fixed": bool(r[6]), "confirmed": bool(r[7]),
+            "created_at": r[8],
+            "status": "auto_fixed" if r[6] else ("confirmed" if r[7] else "pending" if r[5]=="confirm" else "manual")
+        } for r in issues],
+        "last_run": {"site_id": last_run[0], "issues_found": last_run[1], "auto_fixed": last_run[2],
+            "pending_confirm": last_run[3], "completed_at": last_run[4]} if last_run else None
+    })
+
+# Self-audit routes
+from self_audit_routes import register_self_audit_routes
+register_self_audit_routes(app)
+
+@app.route("/api/agent/self-audit", methods=["POST"])
+def run_self_audit_agent():
+    try:
+        from self_audit_agent import SelfAuditAgent
+        agent = SelfAuditAgent()
+        results = {}
+        for site in ["deneigement-excellence.ca", "paysagiste-excellence.ca", "jcpeintre.com", "seoparai.com"]:
+            r = agent.check_live_site(site)
+            results[site] = r
+        return jsonify({"success": True, "results": results})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ============================================
+# COMMAND CENTER ENDPOINTS
+# ============================================
+
+@app.route("/api/command/git-sync", methods=["POST"])
+def command_git_sync():
+    try:
+        result = subprocess.run(
+            ["git", "-C", "/opt/seo-agent", "pull", "origin", "master"],
+            capture_output=True, text=True, timeout=30
+        )
+        output = result.stdout.strip() + result.stderr.strip()
+        return jsonify({"success": result.returncode == 0, "output": output, "message": "Git sync complete"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/command/deploy", methods=["POST"])
+def command_deploy():
+    try:
+        steps = []
+        # Pull latest code
+        r = subprocess.run(["git", "-C", "/opt/seo-agent", "pull", "origin", "master"],
+                          capture_output=True, text=True, timeout=30)
+        git_out = (r.stdout.strip() + ' ' + r.stderr.strip()).strip()
+        steps.append(f"git pull: {'OK' if r.returncode == 0 else 'FAIL'} - {git_out[:100]}")
+
+        # Restart scanner first (safe)
+        r2 = subprocess.run(["sudo", "systemctl", "restart", "seo-scanner"], capture_output=True, text=True, timeout=15)
+        steps.append(f"seo-scanner restart: {'OK' if r2.returncode == 0 else 'FAIL'}")
+
+        # Schedule API restart in background (so response is sent first)
+        import threading
+        def delayed_restart():
+            import time
+            time.sleep(2)
+            subprocess.run(["sudo", "systemctl", "restart", "seo-api"], capture_output=True, timeout=15)
+        threading.Thread(target=delayed_restart, daemon=True).start()
+        steps.append("seo-api: restart scheduled in 2s")
+
+        return jsonify({"success": True, "output": "\n".join(steps), "message": "Deploy complete"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/command/restart-services", methods=["POST"])
+def command_restart_services():
+    try:
+        # Don't restart seo-api itself (kills the response), restart it last in background
+        services_first = ["seo-scanner"]
+        results = []
+        for svc in services_first:
+            r = subprocess.run(["sudo", "systemctl", "restart", svc], capture_output=True, text=True, timeout=15)
+            status = "OK" if r.returncode == 0 else f"FAIL ({r.stderr.strip()[:60]})"
+            results.append(f"{svc}: {status}")
+
+        # Check other services status instead of restarting non-existent ones
+        for svc in ["seo-api"]:
+            r = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True, timeout=5)
+            results.append(f"{svc}: {r.stdout.strip()}")
+
+        # Schedule self-restart in background after response
+        import threading
+        def delayed_restart():
+            import time
+            time.sleep(2)
+            subprocess.run(["sudo", "systemctl", "restart", "seo-api"], capture_output=True, timeout=15)
+        threading.Thread(target=delayed_restart, daemon=True).start()
+        results.append("seo-api: scheduled restart in 2s")
+
+        return jsonify({"success": True, "output": "\n".join(results), "message": f"Services checked/restarted"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/command/status", methods=["GET"])
+def command_status():
+    try:
+        services = ["seo-api", "seo-scanner", "seo-scheduler", "seo-audit"]
+        statuses = {}
+        for svc in services:
+            r = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True, timeout=5)
+            statuses[svc] = r.stdout.strip()
+        return jsonify({"success": True, "services": statuses})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/db/backup", methods=["POST"])
+def command_backup_db():
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        src = DB_PATH
+        dst = f"/opt/seo-agent/backups/seo_agent_{ts}.db"
+        os.makedirs("/opt/seo-agent/backups", exist_ok=True)
+        import shutil
+        shutil.copy2(src, dst)
+        return jsonify({"success": True, "message": f"Backup saved: {dst}"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/ssl/check", methods=["POST"])
+def command_check_ssl():
+    try:
+        import ssl, socket
+        results = []
+        config = get_config()
+        sites = config.get('sites', [])
+        domains = [s.get('domain', '') for s in sites if s.get('domain')]
+        if not domains:
+            domains = ["deneigement-excellence.ca", "paysagiste-excellence.ca", "jcpeintre.com", "seoparai.com"]
+        for domain in domains:
+            try:
+                ctx = ssl.create_default_context()
+                with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
+                    s.settimeout(5)
+                    s.connect((domain, 443))
+                    cert = s.getpeercert()
+                    exp = cert.get('notAfter', '')
+                    results.append({"domain": domain, "valid": True, "expires": exp})
+            except Exception as e:
+                results.append({"domain": domain, "valid": False, "error": str(e)[:80]})
+        return jsonify({"success": True, "results": results, "message": f"Checked {len(results)} domains"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/alerts/resolve-all", methods=["POST"])
+def resolve_all_alerts():
+    try:
+        conn = get_db()
+        conn.execute("DELETE FROM mon_alerts")
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "message": "All alerts resolved"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+
+
+
+# ════════════════════════════════════════════════════════
+# MISSING AGENT COMMAND ENDPOINTS
+# ════════════════════════════════════════════════════════
+
+
+@app.route("/api/agent/fix-all", methods=["POST"])
+def agent_fix_all():
+    """Run self-audit and auto-fix common issues"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        fixes = []
+
+        # 1. Fix stale alerts older than 7 days
+        cursor.execute("DELETE FROM mon_alerts WHERE created_at < datetime('now', '-7 days')")
+        stale = cursor.rowcount
+        if stale:
+            fixes.append(f"Removed {stale} stale alerts (>7 days)")
+
+        # 2. Check sites uptime
+        import requests as _req
+        sites = {1: "deneigement-excellence.ca", 2: "paysagiste-excellence.ca", 3: "jcpeintre.com", 4: "seoparai.com"}
+        for sid, domain in sites.items():
+            try:
+                r = _req.get(f"https://{domain}", timeout=10)
+                if r.status_code == 200:
+                    fixes.append(f"{domain}: UP ({r.elapsed.total_seconds():.1f}s)")
+                else:
+                    fixes.append(f"{domain}: WARNING HTTP {r.status_code}")
+            except:
+                fixes.append(f"{domain}: DOWN - needs attention")
+
+        # 3. Clean old agent_runs >30 days
+        cursor.execute("DELETE FROM agent_runs WHERE started_at < datetime('now', '-30 days')")
+        old_runs = cursor.rowcount
+        if old_runs:
+            fixes.append(f"Cleaned {old_runs} old agent runs (>30 days)")
+
+        # 4. Check DB size
+        import os
+        db_path = '/opt/seo-agent/db/seo_agent.db'
+        if os.path.exists(db_path):
+            size_mb = os.path.getsize(db_path) / (1024*1024)
+            fixes.append(f"DB size: {size_mb:.1f} MB")
+            if size_mb > 500:
+                cursor.execute("VACUUM")
+                fixes.append("Ran VACUUM to optimize DB")
+
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True, "fixes": fixes, "message": f"Ran {len(fixes)} checks/fixes"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+
+@app.route("/api/agent/run", methods=["POST"])
+def agent_run_generic():
+    """Run any agent by name"""
+    try:
+        data = request.get_json() or {}
+        agent_name = data.get('agent', data.get('name', ''))
+        site_id = data.get('site_id', '1')
+        if not agent_name:
+            return jsonify({"success": False, "error": "Agent name required"}), 400
+
+        # Map common names to classes
+        agent_map = {
+            'technical-seo': ('TechnicalSEOAuditAgent', 'run_audit', [site_id]),
+            'schema-markup': ('SchemaMarkupAgent', 'generate_local_business', [site_id]),
+            'content-generation': ('ContentGenerationAgent', 'generate_article', [site_id, data.get('keyword', 'seo')]),
+            'keyword-research': ('KeywordResearchAgent', 'research_keywords', [site_id, data.get('keyword', 'seo'), 10]),
+            'backlink-analysis': ('BacklinkAnalysisAgent', 'analyze_opportunities', [site_id]),
+            'competitor-analysis': ('CompetitorAnalysisAgent', 'identify_competitors', [site_id]),
+            'social-media': ('SocialMediaAgent', 'generate_post', [site_id, data.get('platform', 'linkedin'), data.get('topic', 'seo')]),
+            'internal-linking': ('InternalLinkingAgent', 'suggest_links', [site_id, data.get('topic', '')]),
+            'faq': ('FAQGenerationAgent', 'generate_faqs', [site_id, data.get('topic', 'services'), data.get('count', 10)]),
+            'site-speed': ('SiteSpeedAgent', 'analyze_speed', [site_id]),
+            'image-optimization': ('ImageOptimizationAgent', 'audit_images', [site_id]),
+            'review-management': ('ReviewManagementAgent', 'generate_review_response', [data.get('text', 'Great service'), data.get('rating', 5), True]),
+        }
+
+        if agent_name in agent_map:
+            class_name, method_name, args = agent_map[agent_name]
+            import importlib
+            mod = importlib.import_module('agents_system')
+            cls = getattr(mod, class_name)
+            instance = cls()
+            method = getattr(instance, method_name)
+            result = method(*args)
+            return jsonify({"success": True, "result": result, "agent": agent_name})
+        else:
+            return jsonify({"success": False, "error": f"Unknown agent: {agent_name}. Available: {list(agent_map.keys())}"}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ════════════════════════════════════════════════════════
+# AUTO SCHEDULER STATUS
+# ════════════════════════════════════════════════════════
+
+@app.route("/api/scheduler/status", methods=["GET"])
+def get_scheduler_status():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cycles = {
+        "monitoring": {"cron": "*/5 * * * *", "desc": "Uptime & alerts"},
+        "seo-core": {"cron": "0 */4 * * *", "desc": "Technical SEO audits"},
+        "content": {"cron": "0 8,20 * * *", "desc": "Content generation"},
+        "marketing": {"cron": "0 10 * * *", "desc": "Social & backlinks"},
+        "business": {"cron": "0 6 * * *", "desc": "Analytics & reports"},
+        "maintenance": {"cron": "0 3 * * 0", "desc": "Backup & cleanup"},
+    }
+    result = []
+    for name, info in cycles.items():
+        row = conn.execute(
+            "SELECT status, result, duration_seconds, started_at FROM agent_runs WHERE task_type=? AND status != 'running' ORDER BY started_at DESC LIMIT 1",
+            (f"cycle_{name}" if name != "monitoring" else "monitoring",)
+        ).fetchone()
+        cycle_data = {
+            "name": name, "cron": info["cron"], "description": info["desc"],
+            "last_run": dict(row) if row else None,
+            "status": row["status"] if row else "never"
+        }
+        result.append(cycle_data)
+    count_24h = conn.execute("SELECT COUNT(*) FROM agent_runs WHERE started_at > datetime('now', '-1 day')").fetchone()[0]
+    success_24h = conn.execute("SELECT COUNT(*) FROM agent_runs WHERE started_at > datetime('now', '-1 day') AND status='success'").fetchone()[0]
+    unique_agents = conn.execute("SELECT COUNT(DISTINCT agent_name) FROM agent_runs WHERE started_at > datetime('now', '-1 day')").fetchone()[0]
+    conn.close()
+    return jsonify({
+        "cycles": result,
+        "stats_24h": {"total_runs": count_24h, "success_runs": success_24h,
+            "success_rate": round(success_24h / count_24h * 100, 1) if count_24h > 0 else 0,
+            "unique_agents": unique_agents},
+        "model": "deepseek-r1-0528",
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+@app.route("/api/scheduler/runs", methods=["GET"])
+def get_scheduler_runs():
+    limit = request.args.get("limit", 50, type=int)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM agent_runs ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
+
+# ════════════════════════════════════════════════════════
+# CHART DATA ENDPOINTS
+# ════════════════════════════════════════════════════════
+
+@app.route("/api/charts/agent-runs-daily", methods=["GET"])
+def chart_agent_runs_daily():
+    days = request.args.get("days", 7, type=int)
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT date(started_at) as day, COUNT(*) as total, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as success FROM agent_runs WHERE started_at > datetime('now', ?) GROUP BY date(started_at) ORDER BY day",
+        (f"-{days} days",)
+    ).fetchall()
+    conn.close()
+    return jsonify({"days": [r[0] for r in rows], "total": [r[1] for r in rows], "success": [r[2] for r in rows]})
+
+@app.route("/api/charts/uptime-daily", methods=["GET"])
+def chart_uptime_daily():
+    days = request.args.get("days", 7, type=int)
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT date(created_at) as day, site_id, COUNT(*) as total, SUM(CASE WHEN status='up' THEN 1 ELSE 0 END) as up_count FROM mon_uptime WHERE created_at > datetime('now', ?) GROUP BY date(created_at), site_id ORDER BY day",
+        (f"-{days} days",)
+    ).fetchall()
+    conn.close()
+    sites = {}
+    days_list = sorted(set(r[0] for r in rows))
+    for r in rows:
+        sid = r[1]
+        if sid not in sites:
+            sites[sid] = {}
+        sites[sid][r[0]] = round(r[3]/r[2]*100, 1) if r[2] > 0 else 100
+    result = {}
+    for sid, data in sites.items():
+        result[sid] = [data.get(d, 100) for d in days_list]
+    return jsonify({"days": days_list, "sites": result})
+
+@app.route("/api/charts/keyword-positions", methods=["GET"])
+def chart_keyword_positions():
+    site_id = request.args.get("site_id", "1")
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT keyword, position, checked_at FROM serp_history WHERE client_id=? ORDER BY checked_at DESC LIMIT 200",
+        (site_id,)
+    ).fetchall()
+    conn.close()
+    keywords = {}
+    for r in rows:
+        kw = r[0]
+        if kw not in keywords:
+            keywords[kw] = {"dates": [], "positions": []}
+        keywords[kw]["dates"].append(r[2])
+        keywords[kw]["positions"].append(r[1])
+    return jsonify(keywords)
+
+@app.route("/api/charts/content-pipeline", methods=["GET"])
+def chart_content_pipeline():
+    conn = sqlite3.connect(DB_PATH)
+    stats = {}
+    for table, status_col in [("drafts", "statut"), ("content", "statut"), ("publications", "statut")]:
+        try:
+            rows = conn.execute(f"SELECT {status_col}, COUNT(*) FROM {table} GROUP BY {status_col}").fetchall()
+            for r in rows:
+                key = r[0] or "unknown"
+                stats[key] = stats.get(key, 0) + r[1]
+        except:
+            pass
+    total_briefs = conn.execute("SELECT COUNT(*) FROM briefs").fetchone()[0]
+    stats["briefs"] = total_briefs
+    conn.close()
+    return jsonify(stats)
+
+@app.route("/api/charts/alert-severity", methods=["GET"])
+def chart_alert_severity():
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute("SELECT severity, COUNT(*) FROM mon_alerts WHERE resolved=0 GROUP BY severity").fetchall()
+    conn.close()
+    return jsonify({r[0]: r[1] for r in rows})
+
+@app.route("/api/charts/scheduler-daily", methods=["GET"])
+def chart_scheduler_daily():
+    days = request.args.get("days", 7, type=int)
+    conn = sqlite3.connect(DB_PATH)
+    rows = conn.execute(
+        "SELECT date(started_at) as day, task_type, COUNT(*) as total, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as ok FROM agent_runs WHERE task_type LIKE 'cycle_%%' AND started_at > datetime('now', ?) GROUP BY day, task_type ORDER BY day",
+        (f"-{days} days",)
+    ).fetchall()
+    conn.close()
+    days_list = sorted(set(r[0] for r in rows))
+    cycles = {}
+    for r in rows:
+        c = r[1].replace("cycle_", "")
+        if c not in cycles:
+            cycles[c] = {}
+        cycles[c][r[0]] = {"total": r[2], "ok": r[3]}
+    return jsonify({"days": days_list, "cycles": cycles})
+
+# ════════════════════════════════════════════════════════
+# KEYWORD CLUSTER & TOPICAL MAP ENDPOINTS
+# ════════════════════════════════════════════════════════
+
+@app.route("/api/keyword-cluster", methods=["POST"])
+def api_keyword_cluster():
+    data = request.json or {}
+    site_id = data.get("site_id", "1")
+    try:
+        from agents_system import KeywordClusterAgent
+        agent = KeywordClusterAgent()
+        result = agent.cluster_keywords(site_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/keyword-clusters", methods=["GET"])
+def api_keyword_clusters_list():
+    site_id = request.args.get("site_id", "1")
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM keyword_clusters WHERE site_id=? ORDER BY priority, created_at DESC", (site_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/topical-map/generate", methods=["POST"])
+def api_topical_map_generate():
+    data = request.json or {}
+    site_id = data.get("site_id", "1")
+    seed = data.get("seed", "")
+    try:
+        from agents_system import TopicalMapAgent
+        agent = TopicalMapAgent()
+        result = agent.generate_map(site_id, seed)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/topical-maps", methods=["GET"])
+def api_topical_maps_list():
+    site_id = request.args.get("site_id", "1")
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("SELECT * FROM topical_maps WHERE site_id=? ORDER BY created_at DESC", (site_id,)).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/content-score", methods=["POST"])
+def api_content_score():
+    data = request.json or {}
+    content = data.get("content", "")
+    keyword = data.get("keyword", "")
+    if not content:
+        return jsonify({"error": "content required"}), 400
+    try:
+        from agents_system import ContentScoringAgent
+        agent = ContentScoringAgent()
+        result = agent.score_content(content, keyword)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ════════════════════════════════════════════════════════
+# REPORT BUILDER ENDPOINTS
+# ════════════════════════════════════════════════════════
+
+@app.route("/api/report/generate", methods=["POST"])
+def api_report_generate():
+    data = request.json or {}
+    site_id = data.get("site_id", "1")
+    branding = data.get("branding", None)
+    try:
+        from agents_system import WhiteLabelReportAgent
+        agent = WhiteLabelReportAgent()
+        result = agent.generate_monthly_report(site_id, branding)
+        # Save to DB
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "INSERT INTO reports (site_id, report_type, period, html_content, metrics_json, created_at) VALUES (?,?,?,?,?,datetime('now'))",
+            (site_id, "monthly", datetime.now().strftime("%Y-%m"), str(result.get("html_report",""))[:50000], json.dumps(result.get("metrics",{})))
+        )
+        conn.commit()
+        conn.close()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/reports", methods=["GET"])
+def api_reports_list():
+    site_id = request.args.get("site_id")
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    q = "SELECT id, site_id, report_type, period, created_at FROM reports"
+    params = ()
+    if site_id:
+        q += " WHERE site_id=?"
+        params = (site_id,)
+    q += " ORDER BY created_at DESC LIMIT 20"
+    rows = conn.execute(q, params).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.route("/api/report/<int:report_id>", methods=["GET"])
+def api_report_view(report_id):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute("SELECT * FROM reports WHERE id=?", (report_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "Report not found"}), 404
+    return jsonify(dict(row))
+
+# ════════════════════════════════════════════════════════
+# BACKLINK ENRICHED ENDPOINTS
+# ════════════════════════════════════════════════════════
+
+@app.route("/api/backlinks/summary", methods=["GET"])
+def api_backlinks_summary():
+    site_id = request.args.get("site_id", "1")
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        total = conn.execute("SELECT COUNT(*) FROM backlinks WHERE client_id=?", (site_id,)).fetchone()[0]
+        new_30d = conn.execute("SELECT COUNT(*) FROM backlinks WHERE client_id=? AND discovered_at > datetime('now','-30 days')", (site_id,)).fetchone()[0]
+        domains = conn.execute("SELECT COUNT(DISTINCT source_domain) FROM backlinks WHERE client_id=?", (site_id,)).fetchone()[0]
+        anchors = conn.execute("SELECT anchor_text, COUNT(*) as cnt FROM backlinks WHERE client_id=? GROUP BY anchor_text ORDER BY cnt DESC LIMIT 10", (site_id,)).fetchall()
+    except:
+        total, new_30d, domains, anchors = 0, 0, 0, []
+    conn.close()
+    return jsonify({
+        "total": total, "new_30d": new_30d, "referring_domains": domains,
+        "top_anchors": [{"text": a[0], "count": a[1]} for a in anchors]
+    })
+
+
 if __name__ == "__main__":
     print("=== SEO Agent API Server v3.0 ===")
     print("Port: 8002")
     app.run(host="0.0.0.0", port=8002)
 
 
+
+# ============================================
+# SELF-AUDIT ENDPOINTS
+# ============================================
+
+@app.route("/api/self-audit/results", methods=["GET"])
+def get_self_audit_results():
+    site_id = request.args.get("site_id")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    query = "SELECT id, site_id, check_type, severity, message, fix_level, fix_command, auto_fixed, confirmed, executed, created_at FROM self_audit_results WHERE 1=1"
+    params = []
+    if site_id:
+        query += " AND site_id = ?"
+        params.append(site_id)
+    query += " ORDER BY created_at DESC LIMIT 100"
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify({"results": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3], "message": r[4], "fix_level": r[5], "fix_command": r[6], "auto_fixed": bool(r[7]), "confirmed": bool(r[8]), "executed": bool(r[9]), "created_at": r[10]} for r in rows]})
+
+@app.route("/api/self-audit/pending", methods=["GET"])
+def get_self_audit_pending():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, site_id, check_type, severity, message, fix_command FROM self_audit_results WHERE fix_level = 'confirm' AND confirmed = 0 AND executed = 0 ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 ELSE 3 END")
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify({"pending": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3], "message": r[4], "fix_command": r[5]} for r in rows]})
+
+@app.route("/api/self-audit/confirm/<int:fix_id>", methods=["POST"])
+def confirm_self_audit_fix(fix_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE self_audit_results SET confirmed = 1, confirmed_by = 'dashboard', fixed_at = datetime('now') WHERE id = ?", (fix_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "confirmed", "id": fix_id})
+
+@app.route("/api/self-audit/confirm-all", methods=["POST"])
+def confirm_all_self_audit():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE self_audit_results SET confirmed = 1, confirmed_by = 'dashboard', fixed_at = datetime('now') WHERE fix_level = 'confirm' AND confirmed = 0")
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "confirmed_all", "count": affected})
+
+@app.route("/api/self-audit/stats", methods=["GET"])
+def get_self_audit_stats():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*), SUM(CASE WHEN auto_fixed = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN fix_level = 'confirm' AND confirmed = 0 THEN 1 ELSE 0 END), SUM(CASE WHEN fix_level = 'manual' AND executed = 0 THEN 1 ELSE 0 END) FROM self_audit_results")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return jsonify({"total": row[0], "auto_fixed": row[1], "pending_confirm": row[2], "manual_required": row[3]})
+    return jsonify({"total": 0, "auto_fixed": 0, "pending_confirm": 0, "manual_required": 0})

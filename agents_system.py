@@ -14609,7 +14609,7 @@ class AffiliateAgent:
                 'success': True,
                 'affiliate_id': affiliate_id,
                 'referral_code': referral_code,
-                'referral_link': f"https://seoparai.ca/?ref={referral_code}",
+                'referral_link': f"https://seoparai.com/?ref={referral_code}",
                 'message': 'Inscription soumise, en attente d\'approbation'
             }
         except Exception as e:
@@ -14736,7 +14736,7 @@ class AffiliateAgent:
                 'balance': a[10], 'total_earned': a[11], 'total_paid': a[12],
                 'referrals_count': a[13], 'payment_method': a[14],
                 'approved_at': a[15], 'created_at': a[16],
-                'referral_link': f"https://seoparai.ca/?ref={a[6]}"
+                'referral_link': f"https://seoparai.com/?ref={a[6]}"
             }
         except Exception as e:
             return {'error': str(e)}
@@ -14999,7 +14999,7 @@ class AffiliateAgent:
             return {
                 'name': a[0],
                 'referral_code': a[1],
-                'referral_link': f"https://seoparai.ca/?ref={a[1]}",
+                'referral_link': f"https://seoparai.com/?ref={a[1]}",
                 'tier': a[2],
                 'commission_rate': a[3],
                 'balance': a[4],
