@@ -16,6 +16,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import concurrent.futures
 import time
+from scanner_helpers import save_lead, send_report_email, get_ai_analysis, generate_html_report
 
 app = Flask(__name__)
 CORS(app)
@@ -752,12 +753,14 @@ def health():
 
 @app.route('/api/scan', methods=['POST', 'GET'])
 def scan_domain():
-    """Lance un scan complet STRICT"""
+    """Lance un scan complet STRICT avec email et AI"""
     if request.method == 'POST':
         data = request.json or {}
         domain = data.get('domain')
+        email = data.get('email', '').strip()
     else:
         domain = request.args.get('domain')
+        email = request.args.get('email', '').strip()
 
     if not domain:
         return jsonify({'error': 'domain requis'}), 400
@@ -768,6 +771,31 @@ def scan_domain():
 
     scanner = SEOScanner(domain)
     results = scanner.run_full_scan()
+
+    # AI Analysis via DeepSeek
+    ai_analysis = None
+    if not results.get('error'):
+        try:
+            top_fails = [r for r in results.get('recommendations', []) if r.get('status') == 'fail'][:5]
+            ai_analysis = get_ai_analysis(domain, results.get('grade', 'F'), results.get('scores', {}), top_fails)
+            if ai_analysis:
+                results['ai_analysis'] = ai_analysis
+        except Exception as e:
+            print(f"[AI] Skipped: {e}")
+
+    # Generate HTML report
+    html_report = generate_html_report(results, ai_analysis)
+    results['html_report'] = html_report
+
+    # Email handling
+    email_sent = False
+    if email and '@' in email:
+        score = results.get('scores', {}).get('total', 0)
+        grade = results.get('grade', 'F')
+        email_sent = send_report_email(email, domain, grade, score, html_report)
+        save_lead(email, domain, grade, score, 1 if email_sent else 0)
+        results['email_sent'] = email_sent
+        results['email_to'] = email
 
     return jsonify(results)
 

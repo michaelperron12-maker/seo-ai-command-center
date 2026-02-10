@@ -20,7 +20,7 @@ FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
 
 # Modeles disponibles - DeepSeek R1 pour meilleur raisonnement
-DEEPSEEK_R1 = 'accounts/fireworks/models/deepseek-r1'
+DEEPSEEK_R1 = 'accounts/fireworks/models/deepseek-r1-0528'
 QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
 LLAMA_MODEL = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
 
@@ -1617,9 +1617,9 @@ class AnalyticsAgent:
         stats['agent_actions_7d'] = cursor.fetchone()[0]
 
         # Top agents by activity
-        cursor.execute("""SELECT agent, COUNT(*) as cnt FROM agent_logs
+        cursor.execute("""SELECT agent_name, COUNT(*) as cnt FROM agent_logs
             WHERE created_at > datetime('now', '-7 days')
-            GROUP BY agent ORDER BY cnt DESC LIMIT 10""")
+            GROUP BY agent_name ORDER BY cnt DESC LIMIT 10""")
         stats['top_agents'] = [{'agent': r[0], 'actions': r[1]} for r in cursor.fetchall()]
 
         conn.close()
@@ -16580,3 +16580,360 @@ class LoyaltyAgent:
             }
         except Exception as e:
             return {'error': str(e)}
+
+
+# ============================================================
+# 60. KeywordClusterAgent - Keyword Clustering & Topic Grouping
+# ============================================================
+class KeywordClusterAgent:
+    """Groups keywords into semantic clusters using AI for better content strategy"""
+
+    def cluster_keywords(self, site_id):
+        """Fetch existing keywords for a site and cluster them by topic"""
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+
+            # Get keywords from keyword_research table
+            cursor.execute('''
+                SELECT keyword, search_volume, difficulty, intent
+                FROM keyword_research
+                WHERE site_id = ? ORDER BY search_volume DESC LIMIT 200
+            ''', (str(site_id),))
+            keywords = [{'keyword': r[0], 'volume': r[1], 'difficulty': r[2], 'intent': r[3]} for r in cursor.fetchall()]
+
+            if not keywords:
+                conn.close()
+                return {'error': 'No keywords found for this site', 'clusters': []}
+
+            kw_list = ', '.join([k['keyword'] for k in keywords[:100]])
+
+            prompt = (
+                "You are an SEO keyword clustering expert.\n"
+                "Group these keywords into semantic topic clusters. Each cluster should represent a distinct topic/intent.\n\n"
+                f"Keywords: {kw_list}\n\n"
+                "Return ONLY valid JSON (no markdown, no explanation):\n"
+                '{"clusters": [{"name": "cluster topic name", "keywords": ["keyword1", "keyword2"], '
+                '"intent": "informational|transactional|navigational", "priority": 5, '
+                '"suggested_pillar": "suggested pillar page title"}]}'
+            )
+
+            result = call_ai(prompt, max_tokens=4000)
+            import json as _json
+            import re as _re
+
+            # Strip think tags from DeepSeek R1
+            result = _re.sub(r'<think>.*?</think>', '', result, flags=_re.DOTALL).strip()
+
+            # Extract JSON
+            json_match = _re.search(r'\{[\s\S]*\}', result)
+            if json_match:
+                data = _json.loads(json_match.group())
+            else:
+                conn.close()
+                return {'error': 'AI did not return valid JSON', 'raw': result[:500]}
+
+            # Enrich clusters with volume/difficulty data
+            kw_map = {k['keyword']: k for k in keywords}
+            for cluster in data.get('clusters', []):
+                enriched_kws = []
+                for kw_name in cluster.get('keywords', []):
+                    if kw_name in kw_map:
+                        enriched_kws.append(kw_map[kw_name])
+                    else:
+                        enriched_kws.append({'keyword': kw_name, 'volume': 0, 'difficulty': 0, 'intent': cluster.get('intent', '')})
+                cluster['keywords'] = enriched_kws
+                cluster['keyword_count'] = len(enriched_kws)
+
+            # Save to DB
+            for cluster in data.get('clusters', []):
+                cursor.execute('''
+                    INSERT INTO keyword_clusters (site_id, cluster_name, keywords_json, priority, article_count, created_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                ''', (str(site_id), cluster['name'], _json.dumps(cluster['keywords']),
+                      cluster.get('priority', 5), cluster.get('keyword_count', 0)))
+
+            conn.commit()
+            conn.close()
+
+            return {
+                'site_id': site_id,
+                'total_keywords': len(keywords),
+                'clusters': data.get('clusters', []),
+                'cluster_count': len(data.get('clusters', []))
+            }
+
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_clusters(self, site_id):
+        """Retrieve saved clusters for a site"""
+        try:
+            import json as _json
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, cluster_name, keywords_json, priority, article_count, created_at
+                FROM keyword_clusters WHERE site_id = ? ORDER BY priority DESC
+            ''', (str(site_id),))
+            clusters = []
+            for r in cursor.fetchall():
+                clusters.append({
+                    'id': r[0], 'name': r[1],
+                    'keywords': _json.loads(r[2]) if r[2] else [],
+                    'priority': r[3], 'article_count': r[4], 'created_at': r[5]
+                })
+            conn.close()
+            return {'clusters': clusters, 'count': len(clusters)}
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================================
+# 61. TopicalMapAgent - Topical Map / Content Architecture
+# ============================================================
+class TopicalMapAgent:
+    """Generates hierarchical topical maps: Pillar > Cluster > Support articles"""
+
+    def generate_map(self, site_id, seed_topic):
+        """Generate a complete topical map from a seed topic"""
+        try:
+            import json as _json
+            import re as _re
+
+            prompt = (
+                "You are an SEO content strategist. Generate a complete topical map for the topic: "
+                f'"{seed_topic}"\n\n'
+                "The topical map should follow a hub-and-spoke model:\n"
+                "- 1 Pillar page (comprehensive, 3000+ word guide)\n"
+                "- 4-6 Topic clusters (subtopics)\n"
+                "- 3-5 Supporting articles per cluster\n\n"
+                "Return ONLY valid JSON (no markdown):\n"
+                '{"pillar": {"title": "Ultimate Guide to X", "keyword": "main keyword", "word_count": 3000, "type": "pillar"}, '
+                '"clusters": [{"topic": "cluster topic", "keyword": "cluster keyword", '
+                '"articles": [{"title": "article title", "keyword": "target keyword", '
+                '"type": "how-to", "word_count": 1500, "priority": "high", '
+                '"internal_link_to": "pillar title"}]}]}'
+            )
+
+            result = call_ai(prompt, max_tokens=4000)
+            result = _re.sub(r'<think>.*?</think>', '', result, flags=_re.DOTALL).strip()
+
+            json_match = _re.search(r'\{[\s\S]*\}', result)
+            if json_match:
+                data = _json.loads(json_match.group())
+            else:
+                return {'error': 'AI did not return valid JSON', 'raw': result[:500]}
+
+            # Count totals
+            pillar_count = 1
+            article_count = sum(len(c.get('articles', [])) for c in data.get('clusters', []))
+
+            # Save to DB
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO topical_maps (site_id, seed_topic, map_json, pillar_count, article_count, created_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now'))
+            ''', (str(site_id), seed_topic, _json.dumps(data), pillar_count, article_count))
+            map_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            return {
+                'id': map_id,
+                'site_id': site_id,
+                'seed_topic': seed_topic,
+                'pillar': data.get('pillar', {}),
+                'clusters': data.get('clusters', []),
+                'pillar_count': pillar_count,
+                'total_articles': article_count
+            }
+
+        except Exception as e:
+            return {'error': str(e)}
+
+    def get_maps(self, site_id):
+        """Retrieve saved topical maps for a site"""
+        try:
+            import json as _json
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, seed_topic, map_json, pillar_count, article_count, created_at
+                FROM topical_maps WHERE site_id = ? ORDER BY created_at DESC
+            ''', (str(site_id),))
+            maps = []
+            for r in cursor.fetchall():
+                maps.append({
+                    'id': r[0], 'seed_topic': r[1],
+                    'map': _json.loads(r[2]) if r[2] else {},
+                    'pillar_count': r[3], 'article_count': r[4], 'created_at': r[5]
+                })
+            conn.close()
+            return {'maps': maps, 'count': len(maps)}
+        except Exception as e:
+            return {'error': str(e)}
+
+
+# ============================================================
+# 62. ContentScoringAgent - Real-time Content Quality Scoring
+# ============================================================
+class ContentScoringAgent:
+    """Scores content quality 0-100 with detailed breakdown and recommendations"""
+
+    def score_content(self, content, target_keyword, site_id=None):
+        """Analyze content and return a quality score with breakdown"""
+        try:
+            import json as _json
+            import re as _re
+
+            # Local analysis (no AI needed for speed)
+            word_count = len(content.split())
+            sentences = [s.strip() for s in _re.split(r'[.!?]+', content) if s.strip()]
+            avg_sentence_len = sum(len(s.split()) for s in sentences) / max(len(sentences), 1)
+
+            # Keyword density
+            kw_lower = target_keyword.lower()
+            content_lower = content.lower()
+            kw_count = content_lower.count(kw_lower)
+            kw_density = (kw_count / max(word_count, 1)) * 100
+
+            # Heading analysis (HTML + Markdown)
+            h1_count = len(_re.findall(r'<h1[^>]*>', content, _re.IGNORECASE)) + len(_re.findall(r'^# ', content, _re.MULTILINE))
+            h2_count = len(_re.findall(r'<h2[^>]*>', content, _re.IGNORECASE)) + len(_re.findall(r'^## ', content, _re.MULTILINE))
+            h3_count = len(_re.findall(r'<h3[^>]*>', content, _re.IGNORECASE)) + len(_re.findall(r'^### ', content, _re.MULTILINE))
+
+            # Structure checks
+            has_faq = bool(_re.search(r'(FAQ|question|Q&A|frequently asked)', content, _re.IGNORECASE))
+            has_list = bool(_re.search(r'(<[uo]l|^[\-\*\d]+\.?\s)', content, _re.MULTILINE))
+            has_images = bool(_re.search(r'(<img|!\[)', content))
+            has_internal_links = bool(_re.search(r'<a[^>]*href=', content, _re.IGNORECASE))
+            has_meta = bool(_re.search(r'<meta|meta description|title tag', content, _re.IGNORECASE))
+
+            # Calculate component scores
+            scores = {}
+
+            # Word count score (optimal 1500-3000)
+            if word_count >= 1500:
+                scores['word_count'] = min(100, 70 + (word_count - 1500) / 50)
+            elif word_count >= 800:
+                scores['word_count'] = 50 + (word_count - 800) / 14
+            elif word_count >= 300:
+                scores['word_count'] = 20 + (word_count - 300) / 16.7
+            else:
+                scores['word_count'] = max(5, word_count / 15)
+
+            # Keyword density (optimal 1-3%)
+            if 1.0 <= kw_density <= 3.0:
+                scores['keyword_density'] = 95
+            elif 0.5 <= kw_density < 1.0 or 3.0 < kw_density <= 4.0:
+                scores['keyword_density'] = 70
+            elif kw_density > 4.0:
+                scores['keyword_density'] = 30
+            else:
+                scores['keyword_density'] = max(10, kw_density * 60)
+
+            # Heading structure
+            heading_score = 0
+            if h1_count == 1:
+                heading_score += 30
+            elif h1_count > 1:
+                heading_score += 10
+            if h2_count >= 3:
+                heading_score += 40
+            elif h2_count >= 1:
+                heading_score += 20
+            if h3_count >= 2:
+                heading_score += 30
+            elif h3_count >= 1:
+                heading_score += 15
+            scores['headings'] = min(100, heading_score)
+
+            # Readability (avg sentence length optimal 15-20)
+            if 12 <= avg_sentence_len <= 22:
+                scores['readability'] = 90
+            elif 8 <= avg_sentence_len < 12 or 22 < avg_sentence_len <= 28:
+                scores['readability'] = 65
+            else:
+                scores['readability'] = 35
+
+            # Content features
+            feature_score = 0
+            if has_faq:
+                feature_score += 20
+            if has_list:
+                feature_score += 20
+            if has_images:
+                feature_score += 25
+            if has_internal_links:
+                feature_score += 20
+            if has_meta:
+                feature_score += 15
+            scores['content_features'] = min(100, feature_score)
+
+            # Overall score (weighted)
+            overall = int(
+                scores['word_count'] * 0.20 +
+                scores['keyword_density'] * 0.25 +
+                scores['headings'] * 0.20 +
+                scores['readability'] * 0.15 +
+                scores['content_features'] * 0.20
+            )
+
+            # Generate recommendations
+            recommendations = []
+            if scores['word_count'] < 70:
+                recommendations.append(f'Increase content length. Currently {word_count} words, aim for 1500+.')
+            if kw_density < 1.0:
+                recommendations.append(f'Add more mentions of "{target_keyword}". Current density: {kw_density:.1f}%.')
+            if kw_density > 3.0:
+                recommendations.append(f'Reduce keyword stuffing. Density is {kw_density:.1f}%, aim for 1-3%.')
+            if h1_count == 0:
+                recommendations.append('Add an H1 heading with your target keyword.')
+            if h2_count < 3:
+                recommendations.append(f'Add more H2 subheadings. Currently {h2_count}, aim for 3+.')
+            if not has_faq:
+                recommendations.append('Add a FAQ section to capture featured snippets.')
+            if not has_list:
+                recommendations.append('Add bullet points or numbered lists for scannability.')
+            if not has_images:
+                recommendations.append('Add images with descriptive alt text.')
+            if not has_internal_links:
+                recommendations.append('Add internal links to related content.')
+            if scores['readability'] < 60:
+                recommendations.append(f'Simplify sentences. Average length is {avg_sentence_len:.0f} words.')
+
+            result = {
+                'score': overall,
+                'grade': 'A' if overall >= 85 else 'B' if overall >= 70 else 'C' if overall >= 55 else 'D' if overall >= 40 else 'F',
+                'word_count': word_count,
+                'keyword': target_keyword,
+                'keyword_density': round(kw_density, 2),
+                'breakdown': {k: int(v) for k, v in scores.items()},
+                'recommendations': recommendations,
+                'details': {
+                    'h1_count': h1_count, 'h2_count': h2_count, 'h3_count': h3_count,
+                    'has_faq': has_faq, 'has_lists': has_list,
+                    'has_images': has_images, 'has_internal_links': has_internal_links,
+                    'sentence_count': len(sentences), 'avg_sentence_length': round(avg_sentence_len, 1)
+                }
+            }
+
+            # Save to DB if site_id provided
+            if site_id:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(
+                    'INSERT INTO content_scores (site_id, content_id, keyword, score, breakdown_json, recommendations_json, created_at) '
+                    'VALUES (?, ?, ?, ?, ?, ?, datetime(\'now\'))',
+                    (str(site_id), '', target_keyword, overall,
+                     _json.dumps(result['breakdown']), _json.dumps(recommendations))
+                )
+                conn.commit()
+                conn.close()
+
+            return result
+
+        except Exception as e:
+            return {'error': str(e), 'score': 0}
