@@ -249,6 +249,29 @@
             flex-shrink: 0;
         }
 
+        .lang-switch {
+            display: flex;
+            align-items: center;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .lang-switch a {
+            padding: 0.35rem 0.6rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-decoration: none;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+        .lang-switch a.active {
+            background: var(--primary);
+            color: white;
+        }
+        .lang-switch a:hover:not(.active) { color: var(--text); }
+
         /* Hamburger */
         .hamburger {
             display: none;
@@ -5509,6 +5532,10 @@ h1, h2, h3, .hero-title {
             <div class="nav-cta">
                 <a href="#pricing" class="btn btn-primary">Commencer</a>
             </div>
+            <div class="lang-switch">
+                <a href="landing.html" class="active">FR</a>
+                <a href="landing-en.html">EN</a>
+            </div>
             <button class="hamburger" onclick="document.querySelector('.hamburger').classList.toggle('active');document.querySelector('.mobile-menu').classList.toggle('active');document.body.style.overflow=document.querySelector('.mobile-menu').classList.contains('active')?'hidden':'';" aria-label="Menu">
                 <span></span><span></span><span></span>
             </button>
@@ -5520,6 +5547,10 @@ h1, h2, h3, .hero-title {
         <a href="#ai-power" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Intelligence IA</a>
         <a href="#pricing" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Forfaits</a>
         <a href="#pricing" class="btn btn-primary" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Commencer</a>
+        <div class="lang-switch" style="margin-top:1rem">
+            <a href="landing.html" class="active">FR</a>
+            <a href="landing-en.html">EN</a>
+        </div>
     </div>
 
     <!-- Hero -->
@@ -7846,6 +7877,31 @@ document.getElementById('domain-check-input')?.addEventListener('keypress', func
     if (e.key === 'Enter') checkDomain();
 });
 
+</script>
+<script>
+// Real data from API
+(function(){
+    fetch('/api/agents/status').then(r=>r.json()).then(data=>{
+        if(!data.success) return;
+        const count = data.count || 62;
+        const active = data.agents ? data.agents.filter(a=>a.status==='active').length : count;
+        // Update all agent count displays
+        document.querySelectorAll('#live-count, #stat-agents, .agent-count-live').forEach(el=>{
+            el.textContent = count;
+        });
+        // Update agents online in dashboard
+        const online = document.getElementById('agents-online');
+        if(online) online.textContent = active;
+        console.log('[SEO parAI] Live data: ' + active + '/' + count + ' agents active');
+    }).catch(()=>{});
+
+    fetch('/api/stats').then(r=>r.json()).then(data=>{
+        const pub = document.getElementById('stat-publications');
+        if(pub && data.total_publications !== undefined) pub.textContent = data.total_publications;
+        const alerts = document.getElementById('stat-alerts');
+        if(alerts && data.active_alerts !== undefined) alerts.textContent = data.active_alerts;
+    }).catch(()=>{});
+})();
 </script>
 </body>
 </html>
