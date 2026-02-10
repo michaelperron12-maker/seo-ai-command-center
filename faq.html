@@ -150,7 +150,7 @@
                 "name": "Comment puis-je vous contacter pour du support?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Vous pouvez nous contacter par courriel a contact@seoparai.ca. Nous offrons un support reactif et personnalise en francais. Etant bases au Quebec, nous comprenons les realites du marche local et sommes disponibles pour repondre a toutes vos questions."
+                    "text": "Vous pouvez nous contacter par courriel a contact@seoparai.com. Nous offrons un support reactif et personnalise en francais. Etant bases au Quebec, nous comprenons les realites du marche local et sommes disponibles pour repondre a toutes vos questions."
                 }
             },
             {
@@ -202,7 +202,7 @@
         "@type": "Organization",
         "name": "SEO par AI",
         "url": "https://seoparai.ca",
-        "email": "contact@seoparai.ca",
+        "email": "contact@seoparai.com",
         "areaServed": {
             "@type": "AdministrativeArea",
             "name": "Quebec"
@@ -307,20 +307,29 @@
             0%, 100% { transform: scale(1); opacity: 1; }
             50% { transform: scale(1.5); opacity: 0.5; }
         }
-
         /* Navbar */
         nav {
             position: fixed;
             top: 0;
-            width: 100%;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(10, 10, 18, 0.9);
+            left: 0;
+            right: 0;
+            padding: 0 2rem;
+            height: 64px;
+            background: rgba(10, 10, 18, 0.92);
             backdrop-filter: blur(20px);
-            z-index: 100;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
         }
 
         .logo {
@@ -329,34 +338,107 @@
             display: flex;
             align-items: center;
             gap: 0.25rem;
+            flex-shrink: 0;
+            white-space: nowrap;
             text-decoration: none;
         }
 
         .logo span:first-child { color: var(--text); }
         .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-        .nav-links { display: flex; gap: 1.5rem; align-items: center; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: all 0.3s; position: relative; font-size: 0.95rem; }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.75rem;
+            flex: 1;
+            justify-content: center;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
         .nav-links a:hover { color: var(--text); }
-        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--gradient); transition: width 0.3s; }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient);
+            transition: width 0.3s;
+        }
         .nav-links a:hover::after { width: 100%; }
-        .nav-links a.active { color: var(--secondary); }
+        .nav-links a.active { color: var(--secondary, #22d3ee); }
         .nav-links a.active::after { width: 100%; }
 
-        .menu-toggle {
+        .nav-cta { flex-shrink: 0; }
+
+        /* Hamburger */
+        .hamburger {
             display: none;
             flex-direction: column;
+            justify-content: center;
             gap: 5px;
+            width: 28px;
+            height: 28px;
             cursor: pointer;
-            padding: 5px;
+            background: none;
+            border: none;
+            padding: 0;
+            z-index: 1001;
         }
-
-        .menu-toggle span {
-            width: 25px;
+        .hamburger span {
+            display: block;
+            width: 100%;
             height: 2px;
             background: var(--text);
-            transition: all 0.3s;
+            border-radius: 2px;
+            transition: all 0.3s ease;
         }
+        .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .hamburger.active span:nth-child(2) { opacity: 0; }
+        .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+        /* Mobile menu overlay */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 18, 0.97);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .mobile-menu a:hover { color: #818cf8; }
+
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .nav-links { gap: 1.25rem; }
+            .nav-links a { font-size: 0.875rem; }
+        }
+
+
 
         /* Buttons */
         .btn {
@@ -841,7 +923,12 @@
 
         /* Responsive */
         @media (max-width: 768px) {
+            nav { padding: 0 1rem; height: 56px; }
             .nav-links { display: none; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
             .menu-toggle { display: flex; }
 
             .hero { padding: 8rem 1.5rem 3rem; min-height: auto; }
@@ -890,23 +977,33 @@
         <div class="particle" style="left: 90%; animation-delay: 2.5s;"></div>
     </div>
 
-    <!-- Navigation -->
     <nav>
-        <a href="landing.html" class="logo"><span>SEO&nbsp;</span><span>parAI</span></a>
-        <div class="nav-links">
-            <a href="landing.html">Accueil</a>
-            <a href="a-propos.html">A propos</a>
-            <a href="landing.html#modules">Services</a>
-            <a href="faq.html" class="active">FAQ</a>
-            <a href="contact.html">Contact</a>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.75rem">
-            <a href="mailto:contact@seoparai.ca" class="btn btn-primary">Nous contacter</a>
-        </div>
-        <div class="menu-toggle" onclick="document.querySelector('.nav-links').style.display=document.querySelector('.nav-links').style.display==='flex'?'none':'flex'">
-            <span></span><span></span><span></span>
+        <div class="nav-container">
+            <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
+            <div class="nav-links">
+                <a href="landing.html">Accueil</a>
+                <a href="a-propos.html">A propos</a>
+                <a href="landing.html#modules">Services</a>
+                <a href="faq.html" class="active">FAQ</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="nav-cta">
+                <a href="mailto:contact@seoparai.com" class="btn btn-primary">Nous contacter</a>
+            </div>
+            <button class="hamburger" onclick="document.querySelector('.hamburger').classList.toggle('active');document.querySelector('.mobile-menu').classList.toggle('active');document.body.style.overflow=document.querySelector('.mobile-menu').classList.contains('active')?'hidden':'';" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
         </div>
     </nav>
+    <div class="mobile-menu">
+        <a href="landing.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Accueil</a>
+        <a href="a-propos.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">A propos</a>
+        <a href="landing.html#modules" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Services</a>
+        <a href="faq.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">FAQ</a>
+        <a href="contact.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Contact</a>
+        <a href="mailto:contact@seoparai.com" class="btn btn-primary" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Nous contacter</a>
+    </div>
+
 
     <!-- Hero Section -->
     <section class="hero">
@@ -1248,7 +1345,7 @@
         <details class="faq-item">
             <summary>Comment puis-je vous contacter pour du support?</summary>
             <div class="faq-answer">
-                <p>Vous pouvez nous contacter par courriel a <strong><a href="mailto:contact@seoparai.ca" style="color:var(--primary);text-decoration:none;">contact@seoparai.ca</a></strong>.</p>
+                <p>Vous pouvez nous contacter par courriel a <strong><a href="mailto:contact@seoparai.com" style="color:var(--primary);text-decoration:none;">contact@seoparai.com</a></strong>.</p>
                 <p>Notre support est :</p>
                 <ul>
                     <li><strong>En francais</strong> - Communication naturelle, sans barriere linguistique</li>
@@ -1268,7 +1365,7 @@
             <h2>Vous avez encore des <span class="text-gradient">questions</span>?</h2>
             <p>Notre equipe est la pour y repondre. Contactez-nous et decouvrez comment SEO par AI peut transformer votre presence en ligne.</p>
             <div class="cta-buttons">
-                <a href="mailto:contact@seoparai.ca?subject=Question depuis la FAQ" class="btn btn-gold btn-lg">Nous ecrire</a>
+                <a href="mailto:contact@seoparai.com?subject=Question depuis la FAQ" class="btn btn-gold btn-lg">Nous ecrire</a>
                 <a href="a-propos.html" class="btn btn-ghost btn-lg">En savoir plus sur nous</a>
             </div>
         </div>
@@ -1288,7 +1385,7 @@
                 <a href="conditions-utilisation.html">Conditions</a>
             </div>
             <div class="footer-contact">
-                <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a>
+                <a href="mailto:contact@seoparai.com">contact@seoparai.com</a>
             </div>
             <p class="footer-copy">
                 &copy; 2024-2026 SEO par AI. Tous droits reserves. Quebec, Canada.<br>

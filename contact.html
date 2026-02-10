@@ -36,7 +36,7 @@
             "@type": "LocalBusiness",
             "name": "SEO par AI",
             "url": "https://seoparai.ca",
-            "email": "contact@seoparai.ca",
+            "email": "contact@seoparai.com",
             "description": "Service SEO automatise par intelligence artificielle au Quebec. 61 agents IA pour gerer votre presence web.",
             "address": {
                 "@type": "PostalAddress",
@@ -57,7 +57,7 @@
             "contactPoint": {
                 "@type": "ContactPoint",
                 "contactType": "customer service",
-                "email": "contact@seoparai.ca",
+                "email": "contact@seoparai.com",
                 "availableLanguage": ["French", "English"],
                 "areaServed": "CA"
             },
@@ -172,20 +172,29 @@
             90% { opacity: 0.3; }
             100% { transform: translateY(-100vh) scale(1); opacity: 0; }
         }
-
         /* Navbar */
         nav {
             position: fixed;
             top: 0;
-            width: 100%;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(10, 10, 18, 0.9);
+            left: 0;
+            right: 0;
+            padding: 0 2rem;
+            height: 64px;
+            background: rgba(10, 10, 18, 0.92);
             backdrop-filter: blur(20px);
-            z-index: 100;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
         }
 
         .logo {
@@ -194,41 +203,107 @@
             display: flex;
             align-items: center;
             gap: 0.25rem;
+            flex-shrink: 0;
+            white-space: nowrap;
             text-decoration: none;
         }
 
         .logo span:first-child { color: var(--text); }
-        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-        .nav-links { display: flex; gap: 2rem; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: all 0.3s; position: relative; }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.75rem;
+            flex: 1;
+            justify-content: center;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
         .nav-links a:hover { color: var(--text); }
-        .nav-links a.active { color: var(--text); }
-        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--gradient); transition: width 0.3s; }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient);
+            transition: width 0.3s;
+        }
         .nav-links a:hover::after { width: 100%; }
+        .nav-links a.active { color: var(--secondary, #22d3ee); }
         .nav-links a.active::after { width: 100%; }
 
-        /* Hamburger menu */
-        .nav-hamburger {
+        .nav-cta { flex-shrink: 0; }
+
+        /* Hamburger */
+        .hamburger {
             display: none;
             flex-direction: column;
+            justify-content: center;
             gap: 5px;
+            width: 28px;
+            height: 28px;
             cursor: pointer;
-            padding: 4px;
-            z-index: 110;
+            background: none;
+            border: none;
+            padding: 0;
+            z-index: 1001;
         }
-
-        .nav-hamburger span {
-            width: 26px;
+        .hamburger span {
+            display: block;
+            width: 100%;
             height: 2px;
             background: var(--text);
             border-radius: 2px;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .hamburger.active span:nth-child(2) { opacity: 0; }
+        .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+        /* Mobile menu overlay */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 18, 0.97);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .mobile-menu a:hover { color: #818cf8; }
+
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .nav-links { gap: 1.25rem; }
+            .nav-links a { font-size: 0.875rem; }
         }
 
-        .nav-hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
-        .nav-hamburger.open span:nth-child(2) { opacity: 0; }
-        .nav-hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
 
         .btn {
             padding: 0.75rem 1.5rem;
@@ -888,25 +963,33 @@
         <div class="particle" style="left:92%;animation-delay:2.5s;animation-duration:15s;background:var(--accent)"></div>
     </div>
 
-    <!-- Navigation -->
     <nav>
-        <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
-        <div class="nav-links" id="navLinks">
-            <a href="landing.html">Accueil</a>
-            <a href="a-propos.html">A propos</a>
-            <a href="landing.html#modules">Services</a>
-            <a href="faq.html">FAQ</a>
-            <a href="contact.html" class="active">Contact</a>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.75rem">
-            <a href="landing.html#pricing" class="btn btn-primary btn-sm">Commencer</a>
-            <div class="nav-hamburger" id="navHamburger" onclick="toggleNav()">
-                <span></span>
-                <span></span>
-                <span></span>
+        <div class="nav-container">
+            <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
+            <div class="nav-links">
+                <a href="landing.html">Accueil</a>
+                <a href="a-propos.html">A propos</a>
+                <a href="landing.html#modules">Services</a>
+                <a href="faq.html">FAQ</a>
+                <a href="contact.html" class="active">Contact</a>
             </div>
+            <div class="nav-cta">
+                <a href="landing.html#pricing" class="btn btn-primary">Commencer</a>
+            </div>
+            <button class="hamburger" onclick="document.querySelector('.hamburger').classList.toggle('active');document.querySelector('.mobile-menu').classList.toggle('active');document.body.style.overflow=document.querySelector('.mobile-menu').classList.contains('active')?'hidden':'';" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
         </div>
     </nav>
+    <div class="mobile-menu">
+        <a href="landing.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Accueil</a>
+        <a href="a-propos.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">A propos</a>
+        <a href="landing.html#modules" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Services</a>
+        <a href="faq.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">FAQ</a>
+        <a href="contact.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Contact</a>
+        <a href="landing.html#pricing" class="btn btn-primary" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Commencer</a>
+    </div>
+
 
     <!-- Hero -->
     <section class="hero-contact">
@@ -927,7 +1010,7 @@
                 <h2>Envoyez-nous un message</h2>
                 <p class="form-desc">Remplissez le formulaire ci-dessous et nous vous repondrons dans les plus brefs delais.</p>
 
-                <form action="mailto:contact@seoparai.ca" method="POST" enctype="text/plain" id="contactForm">
+                <form action="mailto:contact@seoparai.com" method="POST" enctype="text/plain" id="contactForm">
                     <div class="form-row">
                         <div class="form-group">
                             <label for="name">Nom complet <span class="required">*</span></label>
@@ -997,7 +1080,7 @@
                         </div>
                         <div class="info-item-content">
                             <h4>Courriel</h4>
-                            <p><a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a></p>
+                            <p><a href="mailto:contact@seoparai.com">contact@seoparai.com</a></p>
                         </div>
                     </div>
 
@@ -1114,7 +1197,7 @@
             <div class="footer-brand">
                 <div class="logo"><span>SEO</span><span>parAI</span></div>
                 <p>La solution SEO automatisee #1 au Quebec. 61 agents IA qui travaillent 24/7 pour propulser votre business.</p>
-                <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a>
+                <a href="mailto:contact@seoparai.com">contact@seoparai.com</a>
             </div>
             <div class="footer-col">
                 <h4>Navigation</h4>
@@ -1169,7 +1252,7 @@
             var name = document.getElementById('name').value;
             var service = document.getElementById('service').value;
             var subject = 'Contact SEO par AI - ' + service + ' - ' + name;
-            this.action = 'mailto:contact@seoparai.ca?subject=' + encodeURIComponent(subject);
+            this.action = 'mailto:contact@seoparai.com?subject=' + encodeURIComponent(subject);
         });
 
         /* Scroll reveal animation */

@@ -47,7 +47,7 @@
             "logo": "https://seoparai.ca/logo.png",
             "contactPoint": {
                 "@type": "ContactPoint",
-                "email": "contact@seoparai.ca",
+                "email": "contact@seoparai.com",
                 "contactType": "customer service",
                 "areaServed": "CA",
                 "availableLanguage": ["French", "English"]
@@ -160,20 +160,29 @@
             90% { opacity: 0.3; }
             100% { transform: translateY(-100vh) scale(1); opacity: 0; }
         }
-
         /* Navbar */
         nav {
             position: fixed;
             top: 0;
-            width: 100%;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(10, 10, 18, 0.9);
+            left: 0;
+            right: 0;
+            padding: 0 2rem;
+            height: 64px;
+            background: rgba(10, 10, 18, 0.92);
             backdrop-filter: blur(20px);
-            z-index: 100;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
         }
 
         .logo {
@@ -182,19 +191,107 @@
             display: flex;
             align-items: center;
             gap: 0.25rem;
+            flex-shrink: 0;
+            white-space: nowrap;
             text-decoration: none;
         }
 
         .logo span:first-child { color: var(--text); }
-        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-        .nav-links { display: flex; gap: 2rem; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: all 0.3s; position: relative; }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.75rem;
+            flex: 1;
+            justify-content: center;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
         .nav-links a:hover { color: var(--text); }
-        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--gradient); transition: width 0.3s; }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient);
+            transition: width 0.3s;
+        }
         .nav-links a:hover::after { width: 100%; }
-        .nav-links a.active { color: var(--text); }
+        .nav-links a.active { color: var(--secondary, #22d3ee); }
         .nav-links a.active::after { width: 100%; }
+
+        .nav-cta { flex-shrink: 0; }
+
+        /* Hamburger */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            z-index: 1001;
+        }
+        .hamburger span {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background: var(--text);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .hamburger.active span:nth-child(2) { opacity: 0; }
+        .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+        /* Mobile menu overlay */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 18, 0.97);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .mobile-menu a:hover { color: #818cf8; }
+
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .nav-links { gap: 1.25rem; }
+            .nav-links a { font-size: 0.875rem; }
+        }
+
+
 
         .btn {
             padding: 0.75rem 1.5rem;
@@ -505,7 +602,12 @@
 
         /* Mobile - Tablets */
         @media (max-width: 768px) {
+            nav { padding: 0 1rem; height: 56px; }
             .nav-links { display: none; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
             .page-header { padding: 6rem 1.25rem 3rem; }
             .page-header h1 { font-size: 2rem; }
             .page-header .subtitle { font-size: 1rem; }
@@ -554,19 +656,32 @@
     </div>
 
     <nav>
-        <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
-        <div class="nav-links">
-            <a href="landing.html">Accueil</a>
-            <a href="a-propos.html">A propos</a>
-            <a href="landing.html#modules">Services</a>
-            <a href="faq.html">FAQ</a>
-            <a href="contact.html">Contact</a>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.75rem">
-            <a href="landing.html#pricing" class="btn btn-primary">Commencer</a>
-            <a href="landing-en.html" style="color:var(--text-muted);font-size:0.8rem;text-decoration:none;border:1px solid rgba(255,255,255,0.15);padding:0.4rem 0.7rem;border-radius:8px;transition:all 0.3s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">EN</a>
+        <div class="nav-container">
+            <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
+            <div class="nav-links">
+                <a href="landing.html">Accueil</a>
+                <a href="a-propos.html">A propos</a>
+                <a href="landing.html#modules">Services</a>
+                <a href="faq.html">FAQ</a>
+                <a href="contact.html">Contact</a>
+            </div>
+            <div class="nav-cta">
+                <a href="landing.html#pricing" class="btn btn-primary">Commencer</a>
+            </div>
+            <button class="hamburger" onclick="document.querySelector('.hamburger').classList.toggle('active');document.querySelector('.mobile-menu').classList.toggle('active');document.body.style.overflow=document.querySelector('.mobile-menu').classList.contains('active')?'hidden':'';" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
         </div>
     </nav>
+    <div class="mobile-menu">
+        <a href="landing.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Accueil</a>
+        <a href="a-propos.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">A propos</a>
+        <a href="landing.html#modules" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Services</a>
+        <a href="faq.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">FAQ</a>
+        <a href="contact.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Contact</a>
+        <a href="landing.html#pricing" class="btn btn-primary" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Commencer</a>
+    </div>
+
 
     <!-- Page Header -->
     <header class="page-header">
@@ -802,7 +917,7 @@
             <p>Vous avez le droit d'etre informe de l'utilisation de systemes de decision automatisee et de demander une revision humaine de toute decision prise exclusivement par un tel systeme.</p>
 
             <div class="highlight-box">
-                <p><strong>Comment exercer vos droits :</strong> Pour exercer l'un de ces droits, veuillez nous envoyer une demande ecrite a <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a>. Nous traiterons votre demande dans un delai de <strong>30 jours</strong> suivant sa reception, conformement a la Loi 25. Si nous ne pouvons donner suite a votre demande, nous vous en informerons par ecrit en precisant les motifs de notre refus.</p>
+                <p><strong>Comment exercer vos droits :</strong> Pour exercer l'un de ces droits, veuillez nous envoyer une demande ecrite a <a href="mailto:contact@seoparai.com">contact@seoparai.com</a>. Nous traiterons votre demande dans un delai de <strong>30 jours</strong> suivant sa reception, conformement a la Loi 25. Si nous ne pouvons donner suite a votre demande, nous vous en informerons par ecrit en precisant les motifs de notre refus.</p>
             </div>
 
             <h3>Droit de porter plainte</h3>
@@ -817,7 +932,7 @@
             <div class="highlight-box">
                 <p><strong>Responsable de la protection des renseignements personnels</strong></p>
                 <p>SEO par AI</p>
-                <p>Courriel : <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a></p>
+                <p>Courriel : <a href="mailto:contact@seoparai.com">contact@seoparai.com</a></p>
                 <p>Les coordonnees du responsable sont egalement publiees sur notre site web, conformement aux exigences de la Loi 25.</p>
             </div>
 
@@ -886,7 +1001,7 @@
                 <h3>SEO par AI</h3>
                 <p>Responsable de la protection des renseignements personnels</p>
                 <p style="color: var(--text-muted); margin-top: 1rem;">Quebec, Canada</p>
-                <a href="mailto:contact@seoparai.ca" class="email-link">contact@seoparai.ca</a>
+                <a href="mailto:contact@seoparai.com" class="email-link">contact@seoparai.com</a>
                 <p style="margin-top: 1.5rem; font-size: 0.85rem;">Nous nous engageons a repondre a toute demande dans un delai de 30 jours ouvrables.</p>
             </div>
         </section>
@@ -898,7 +1013,7 @@
         <p>
             <strong style="font-size: 1.25rem; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SEO par AI</strong><br><br>
             La solution SEO automatisee #1 au Quebec<br>
-            <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a><br><br>
+            <a href="mailto:contact@seoparai.com">contact@seoparai.com</a><br><br>
             <a href="https://github.com/michaelperron12-maker/seo-ai-command-center">GitHub</a> |
             Propulse par Claude, DeepSeek R1 et les meilleures IA
         </p>

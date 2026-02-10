@@ -177,20 +177,29 @@
             90% { opacity: 0.3; }
             100% { transform: translateY(-100vh) scale(1); opacity: 0; }
         }
-
         /* Navbar */
         nav {
             position: fixed;
             top: 0;
-            width: 100%;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(10, 10, 18, 0.9);
+            left: 0;
+            right: 0;
+            padding: 0 2rem;
+            height: 64px;
+            background: rgba(10, 10, 18, 0.92);
             backdrop-filter: blur(20px);
-            z-index: 100;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
         }
 
         .logo {
@@ -199,16 +208,107 @@
             display: flex;
             align-items: center;
             gap: 0.25rem;
+            flex-shrink: 0;
+            white-space: nowrap;
+            text-decoration: none;
         }
 
         .logo span:first-child { color: var(--text); }
-        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-        .nav-links { display: flex; gap: 2rem; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: all 0.3s; position: relative; }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.75rem;
+            flex: 1;
+            justify-content: center;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
         .nav-links a:hover { color: var(--text); }
-        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--gradient); transition: width 0.3s; }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient);
+            transition: width 0.3s;
+        }
         .nav-links a:hover::after { width: 100%; }
+        .nav-links a.active { color: var(--secondary, #22d3ee); }
+        .nav-links a.active::after { width: 100%; }
+
+        .nav-cta { flex-shrink: 0; }
+
+        /* Hamburger */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            z-index: 1001;
+        }
+        .hamburger span {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background: var(--text);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .hamburger.active span:nth-child(2) { opacity: 0; }
+        .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+        /* Mobile menu overlay */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 18, 0.97);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .mobile-menu a:hover { color: #818cf8; }
+
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .nav-links { gap: 1.25rem; }
+            .nav-links a { font-size: 0.875rem; }
+        }
+
+
 
         .btn {
             padding: 0.75rem 1.5rem;
@@ -1137,6 +1237,10 @@
         }
 
         @media (max-width: 768px) {
+            nav { padding: 0 1rem; height: 56px; }
+            .nav-links { display: none; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
             .agents-categories { grid-template-columns: 1fr; }
         }
 
@@ -3366,15 +3470,30 @@
     </div>
 
     <nav>
-        <div class="logo"><span>SEO</span><span>parAI</span></div>
-        <div class="nav-links">
-            <a href="#modules">Modules</a>
-            <a href="#integrations">Integrations</a>
-            <a href="#ai-power">Intelligence IA</a>
-            <a href="#pricing">Forfaits</a>
+        <div class="nav-container">
+            <div class="logo"><span>SEO</span><span>parAI</span></div>
+            <div class="nav-links">
+                <a href="#modules">Modules</a>
+                <a href="#integrations">Integrations</a>
+                <a href="#ai-power">AI Power</a>
+                <a href="#pricing">Pricing</a>
+            </div>
+            <div class="nav-cta">
+                <a href="#pricing" class="btn btn-primary">Get Started</a>
+            </div>
+            <button class="hamburger" onclick="document.querySelector('.hamburger').classList.toggle('active');document.querySelector('.mobile-menu').classList.toggle('active');document.body.style.overflow=document.querySelector('.mobile-menu').classList.contains('active')?'hidden':'';" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
         </div>
-        <a href="#pricing" class="btn btn-primary">Commencer</a>
     </nav>
+    <div class="mobile-menu">
+        <a href="#modules" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Modules</a>
+        <a href="#integrations" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Integrations</a>
+        <a href="#ai-power" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">AI Power</a>
+        <a href="#pricing" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Pricing</a>
+        <a href="#pricing" class="btn btn-primary" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Get Started</a>
+    </div>
+
 
     <!-- Hero -->
     <!-- HERO PREMIUM - 2 colonnes -->
@@ -4191,7 +4310,7 @@
         <div class="webdev-cta">
             <h3>Besoin d'un site web ultra-performant?</h3>
             <p>Nos developpeurs creent des sites 100% SEO-ready qui dominent Google des le premier jour.</p>
-            <a href="mailto:contact@seoparai.ca?subject=Demande site web SEO" class="btn btn-gold btn-lg">Demander une soumission</a>
+            <a href="mailto:contact@seoparai.com?subject=Demande site web SEO" class="btn btn-gold btn-lg">Demander une soumission</a>
         </div>
     </section>
 
@@ -4330,7 +4449,7 @@
                         <span class="saving" id="calcSaving"></span>
                     </div>
                 </div>
-                <a id="calcCta" href="mailto:contact@seoparai.ca?subject=Forfait 500$/mois - Base" class="btn btn-gold btn-lg">Commencer maintenant</a>
+                <a id="calcCta" href="mailto:contact@seoparai.com?subject=Forfait 500$/mois - Base" class="btn btn-gold btn-lg">Commencer maintenant</a>
             </div>
         </div>
     </section>
@@ -4340,7 +4459,7 @@
         <p>
             <strong style="font-size: 1.25rem; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SEO by AI</strong><br><br>
             La solution SEO automatisee #1 au Quebec<br>
-            <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a><br><br>
+            <a href="mailto:contact@seoparai.com">contact@seoparai.com</a><br><br>
             <a href="https://github.com/michaelperron12-maker/seo-ai-command-center">GitHub</a> |
             Powered by Claude, DeepSeek R1 et les meilleures IA
         </p>
@@ -4415,7 +4534,7 @@
             const subject = activeModules === TOTAL_MODULES
                 ? 'Pack Complet ' + PACK_PRICE + '$/mois'
                 : 'Forfait ' + total + '$/mois - Base' + (names ? ' + ' + names : '');
-            document.getElementById('calcCta').href = 'mailto:contact@seoparai.ca?subject=' + encodeURIComponent(subject);
+            document.getElementById('calcCta').href = 'mailto:contact@seoparai.com?subject=' + encodeURIComponent(subject);
         }
 
         /* Chat Widget */
@@ -4451,7 +4570,7 @@
             } else if (q.includes('code') || q.includes('technique') || q.includes('performance')) {
                 response = "⚡ <b>Notre code est optimisé à 100% pour le SEO!</b><br><br>• Structure HTML5 sémantique<br>• Balises meta optimisées<br>• Schema.org pour rich snippets<br>• Performance LCP < 2.5s<br>• Lazy loading natif<br>• CSS/JS minifiés<br><br>Chaque site atteint 90+ sur PageSpeed!";
             } else {
-                response = "Merci pour votre question! 🙏 Pour une réponse personnalisée, contactez-nous à <b>contact@seoparai.ca</b> ou utilisez notre calculateur de forfait!";
+                response = "Merci pour votre question! 🙏 Pour une réponse personnalisée, contactez-nous à <b>contact@seoparai.com</b> ou utilisez notre calculateur de forfait!";
             }
 
             setTimeout(() => {

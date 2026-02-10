@@ -45,7 +45,7 @@
             "url": "https://seoparai.ca",
             "contactPoint": {
                 "@type": "ContactPoint",
-                "email": "contact@seoparai.ca",
+                "email": "contact@seoparai.com",
                 "contactType": "customer service",
                 "areaServed": "CA",
                 "availableLanguage": ["French", "English"]
@@ -148,20 +148,29 @@
             90% { opacity: 0.3; }
             100% { transform: translateY(-100vh) scale(1); opacity: 0; }
         }
-
         /* Navbar */
         nav {
             position: fixed;
             top: 0;
-            width: 100%;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(10, 10, 18, 0.9);
+            left: 0;
+            right: 0;
+            padding: 0 2rem;
+            height: 64px;
+            background: rgba(10, 10, 18, 0.92);
             backdrop-filter: blur(20px);
-            z-index: 100;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
         }
 
         .logo {
@@ -170,19 +179,107 @@
             display: flex;
             align-items: center;
             gap: 0.25rem;
+            flex-shrink: 0;
+            white-space: nowrap;
             text-decoration: none;
         }
 
         .logo span:first-child { color: var(--text); }
-        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo span:last-child { background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-        .nav-links { display: flex; gap: 2rem; }
-        .nav-links a { color: var(--text-muted); text-decoration: none; font-weight: 500; transition: all 0.3s; position: relative; }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.75rem;
+            flex: 1;
+            justify-content: center;
+        }
+        .nav-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
         .nav-links a:hover { color: var(--text); }
-        .nav-links a::after { content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px; background: var(--gradient); transition: width 0.3s; }
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gradient);
+            transition: width 0.3s;
+        }
         .nav-links a:hover::after { width: 100%; }
-        .nav-links a.active { color: var(--text); }
+        .nav-links a.active { color: var(--secondary, #22d3ee); }
         .nav-links a.active::after { width: 100%; }
+
+        .nav-cta { flex-shrink: 0; }
+
+        /* Hamburger */
+        .hamburger {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+            z-index: 1001;
+        }
+        .hamburger span {
+            display: block;
+            width: 100%;
+            height: 2px;
+            background: var(--text);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        .hamburger.active span:nth-child(1) { transform: rotate(45deg) translate(5px, 5px); }
+        .hamburger.active span:nth-child(2) { opacity: 0; }
+        .hamburger.active span:nth-child(3) { transform: rotate(-45deg) translate(5px, -5px); }
+
+        /* Mobile menu overlay */
+        .mobile-menu {
+            display: none;
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 10, 18, 0.97);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2rem;
+        }
+        .mobile-menu.active { display: flex; }
+        .mobile-menu a {
+            color: var(--text);
+            text-decoration: none;
+            font-size: 1.25rem;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .mobile-menu a:hover { color: #818cf8; }
+
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .nav-links { gap: 1.25rem; }
+            .nav-links a { font-size: 0.875rem; }
+        }
+
+
 
         .btn {
             padding: 0.75rem 1.5rem;
@@ -533,7 +630,12 @@
 
         /* Mobile - Tablets */
         @media (max-width: 768px) {
+            nav { padding: 0 1rem; height: 56px; }
             .nav-links { display: none; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
+            .nav-cta { display: none; }
+            .hamburger { display: flex; }
 
             .page-header {
                 padding: 6rem 1.25rem 3rem;
@@ -657,23 +759,33 @@
         <div class="particle" style="left: 85%; animation-delay: 5s;"></div>
     </div>
 
-    <!-- Navigation -->
     <nav>
-        <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
-        <div class="nav-links" id="navLinks">
-            <a href="landing.html">Accueil</a>
-            <a href="a-propos.html">A propos</a>
-            <a href="landing.html#modules">Services</a>
-            <a href="faq.html">FAQ</a>
-            <a href="contact.html">Contact</a>
-        </div>
-        <div style="display:flex;align-items:center;gap:0.75rem">
-            <a href="landing.html#pricing" class="btn btn-primary">Commencer</a>
-            <div class="hamburger" onclick="document.getElementById('navLinks').classList.toggle('open')">
-                <span></span><span></span><span></span>
+        <div class="nav-container">
+            <a href="landing.html" class="logo"><span>SEO</span><span>parAI</span></a>
+            <div class="nav-links">
+                <a href="landing.html">Accueil</a>
+                <a href="a-propos.html">A propos</a>
+                <a href="landing.html#modules">Services</a>
+                <a href="faq.html">FAQ</a>
+                <a href="contact.html">Contact</a>
             </div>
+            <div class="nav-cta">
+                <a href="landing.html#pricing" class="btn btn-primary">Commencer</a>
+            </div>
+            <button class="hamburger" onclick="document.querySelector('.hamburger').classList.toggle('active');document.querySelector('.mobile-menu').classList.toggle('active');document.body.style.overflow=document.querySelector('.mobile-menu').classList.contains('active')?'hidden':'';" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
         </div>
     </nav>
+    <div class="mobile-menu">
+        <a href="landing.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Accueil</a>
+        <a href="a-propos.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">A propos</a>
+        <a href="landing.html#modules" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Services</a>
+        <a href="faq.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">FAQ</a>
+        <a href="contact.html" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Contact</a>
+        <a href="landing.html#pricing" class="btn btn-primary" onclick="document.querySelector('.hamburger').classList.remove('active');document.querySelector('.mobile-menu').classList.remove('active');document.body.style.overflow='';">Commencer</a>
+    </div>
+
 
     <!-- Breadcrumb -->
     <div class="breadcrumb">
@@ -885,7 +997,7 @@
             </div>
             <p>Les conditions de resiliation du contrat de service sont les suivantes :</p>
             <ul>
-                <li><strong>Resiliation par le Client</strong> — Le Client peut resilier les services a tout moment en transmettant un avis ecrit au Fournisseur par courriel a l'adresse <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a>. La resiliation prend effet a la fin de la periode de facturation en cours. Aucune penalite de resiliation ne sera imposee.</li>
+                <li><strong>Resiliation par le Client</strong> — Le Client peut resilier les services a tout moment en transmettant un avis ecrit au Fournisseur par courriel a l'adresse <a href="mailto:contact@seoparai.com">contact@seoparai.com</a>. La resiliation prend effet a la fin de la periode de facturation en cours. Aucune penalite de resiliation ne sera imposee.</li>
                 <li><strong>Resiliation par le Fournisseur</strong> — Le Fournisseur se reserve le droit de resilier les services dans les cas suivants : non-paiement excedant trente (30) jours, violation des presentes Conditions, utilisation du service a des fins illegales ou contraires a l'ethique, ou tout comportement susceptible de porter atteinte a la reputation ou a l'infrastructure du Fournisseur. Un avis ecrit sera transmis au Client prealablement a toute resiliation.</li>
                 <li><strong>Remboursement</strong> — Les services etant factures mensuellement, aucun remboursement au prorata ne sera accorde pour la periode de facturation en cours au moment de la resiliation, sauf dans les cas prevus par la Loi sur la protection du consommateur du Quebec. Si le Client n'a pas encore beneficie de la prestation pour la periode payee, un remboursement pourra etre evalue au cas par cas.</li>
                 <li><strong>Effet de la resiliation</strong> — A compter de la date effective de resiliation : (i) l'acces aux services sera desactive; (ii) le Client conserve la propriete du contenu genere pour lequel le paiement a ete recu; (iii) le Fournisseur conservera les donnees du Client pendant une periode de <strong>trente (30) jours</strong> afin de permettre au Client de recuperer ses contenus, apres quoi les donnees seront supprimees de facon securisee.</li>
@@ -994,7 +1106,7 @@
             <p>Pour toute question relative aux presentes Conditions, a nos services ou pour toute autre demande, veuillez communiquer avec nous :</p>
             <ul>
                 <li><strong>Entreprise :</strong> SEO par AI</li>
-                <li><strong>Courriel :</strong> <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a></li>
+                <li><strong>Courriel :</strong> <a href="mailto:contact@seoparai.com">contact@seoparai.com</a></li>
                 <li><strong>Site Web :</strong> <a href="https://seoparai.ca">seoparai.ca</a></li>
                 <li><strong>Territoire d'exploitation :</strong> Province de Quebec, Canada</li>
             </ul>
@@ -1005,7 +1117,7 @@
         <div class="contact-bar">
             <h3>Des questions sur nos conditions?</h3>
             <p>Notre equipe est disponible pour repondre a toutes vos interrogations concernant nos conditions d'utilisation et nos services.</p>
-            <a href="mailto:contact@seoparai.ca" class="btn btn-primary">Nous contacter</a>
+            <a href="mailto:contact@seoparai.com" class="btn btn-primary">Nous contacter</a>
         </div>
 
     </main>
@@ -1024,7 +1136,7 @@
         <p>
             <strong style="font-size: 1.25rem; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SEO par AI</strong><br><br>
             La solution SEO automatisee #1 au Quebec<br>
-            <a href="mailto:contact@seoparai.ca">contact@seoparai.ca</a><br><br>
+            <a href="mailto:contact@seoparai.com">contact@seoparai.com</a><br><br>
             <a href="https://github.com/michaelperron12-maker/seo-ai-command-center">GitHub</a> |
             Propulse par Claude, DeepSeek R1 et les meilleures IA<br><br>
             &copy; 2026 SEO par AI. Tous droits reserves.
