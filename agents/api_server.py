@@ -1377,6 +1377,253 @@ def api_backlinks_summary():
     })
 
 
+# ============================================
+# AUTO-FIX SEO API ENDPOINTS
+# ============================================
+
+@app.route("/api/autofix/sites", methods=["GET"])
+def autofix_list_sites():
+    """Return list of sites available for auto-fix"""
+    try:
+        from agents_system import SITES as _SITES
+    except ImportError:
+        return jsonify({"error": "agents_system not available"}), 500
+    sites_list = []
+    for sid, info in _SITES.items():
+        sites_list.append({
+            "id": sid,
+            "nom": info.get("nom", ""),
+            "domaine": info.get("domaine", ""),
+            "niche": info.get("niche", ""),
+            "path": info.get("path", "")
+        })
+    return jsonify({"sites": sites_list})
+
+
+@app.route("/api/autofix/diagnostic/<int:site_id>", methods=["GET"])
+def autofix_diagnostic(site_id):
+    """Scan a site and return what each agent found + what can be fixed"""
+    try:
+        from agents_system import (
+            SITES as _SITES, TitleTagAgent, SchemaMarkupAgent,
+            OpenGraphAgent, SocialMediaAgent, TechnicalSEOAuditAgent
+        )
+    except ImportError:
+        return jsonify({"error": "agents_system not available"}), 500
+
+    if site_id not in _SITES:
+        return jsonify({"error": "Site {} not found".format(site_id)}), 404
+
+    site = _SITES[site_id]
+    domain = site.get("domaine", "")
+    results = {"site_id": site_id, "domain": domain, "nom": site.get("nom", ""), "agents": {}}
+
+    # --- title_tag agent ---
+    try:
+        tech = TechnicalSEOAuditAgent()
+        url = "https://" + domain
+        audit = tech.audit_page(url)
+        title_issues = [i for i in audit.get("issues", []) if "title" in i.get("message", "").lower()]
+        results["agents"]["title_tag"] = {
+            "status": "issues_found" if title_issues else "ok",
+            "issues": title_issues,
+            "can_fix": bool(title_issues),
+            "score": audit.get("score", 0)
+        }
+    except Exception as e:
+        results["agents"]["title_tag"] = {"status": "error", "error": str(e), "can_fix": False}
+
+    # --- schema agent ---
+    try:
+        schema_agent = SchemaMarkupAgent()
+        schema_data = schema_agent.generate_complete_schema(site_id)
+        import requests as _req
+        resp = _req.get("https://" + domain, timeout=10, headers={"User-Agent": "SeoparAI-Agent/1.0"})
+        has_schema = "application/ld+json" in resp.text.lower()
+        results["agents"]["schema"] = {
+            "status": "ok" if has_schema else "missing",
+            "has_existing_schema": has_schema,
+            "generated_schema": schema_data,
+            "can_fix": not has_schema
+        }
+    except Exception as e:
+        results["agents"]["schema"] = {"status": "error", "error": str(e), "can_fix": False}
+
+    # --- opengraph agent ---
+    try:
+        og_agent = OpenGraphAgent()
+        og_data = og_agent.generate_og_tags(site_id)
+        missing_count = len(og_data.get("missing_og", [])) + len(og_data.get("missing_tw", []))
+        results["agents"]["opengraph"] = {
+            "status": og_data.get("status", "unknown"),
+            "missing_og": og_data.get("missing_og", []),
+            "missing_tw": og_data.get("missing_tw", []),
+            "og_tags": og_data.get("og_tags", {}),
+            "twitter_tags": og_data.get("twitter_tags", {}),
+            "html_tags": og_data.get("html_tags", ""),
+            "can_fix": missing_count > 0
+        }
+    except Exception as e:
+        results["agents"]["opengraph"] = {"status": "error", "error": str(e), "can_fix": False}
+
+    # --- social agent ---
+    try:
+        social_agent = SocialMediaAgent()
+        sample = social_agent.generate_social_posts(site.get("nom", domain), "https://" + domain)
+        has_posts = bool(sample)
+        results["agents"]["social"] = {
+            "status": "ok" if has_posts else "no_content",
+            "sample_posts": sample,
+            "can_fix": False
+        }
+    except Exception as e:
+        results["agents"]["social"] = {"status": "error", "error": str(e), "can_fix": False}
+
+    # Summary
+    fixable = [k for k, v in results["agents"].items() if v.get("can_fix")]
+    results["summary"] = {
+        "total_agents": len(results["agents"]),
+        "fixable_count": len(fixable),
+        "fixable_agents": fixable
+    }
+
+    return jsonify(results)
+
+
+@app.route("/api/autofix/run/<int:site_id>", methods=["POST"])
+def autofix_run(site_id):
+    """Run auto-fix agents to correct issues on a site"""
+    try:
+        from agents_system import (
+            SITES as _SITES, TitleTagAgent, SchemaMarkupAgent,
+            OpenGraphAgent, TechnicalSEOAuditAgent
+        )
+    except ImportError:
+        return jsonify({"error": "agents_system not available"}), 500
+
+    if site_id not in _SITES:
+        return jsonify({"error": "Site {} not found".format(site_id)}), 404
+
+    site = _SITES[site_id]
+    domain = site.get("domaine", "")
+    site_path = site.get("path", "")
+    data = request.get_json(force=True, silent=True) or {}
+    requested_agents = data.get("agents", [])
+
+    if not requested_agents:
+        return jsonify({"error": "No agents specified. Send {\"agents\": [\"schema\", \"opengraph\"]}"}), 400
+
+    fix_results = {"site_id": site_id, "domain": domain, "fixes": {}}
+
+    for agent_name in requested_agents:
+
+        # --- Fix schema ---
+        if agent_name == "schema":
+            try:
+                schema_agent = SchemaMarkupAgent()
+                schema_data = schema_agent.generate_local_business_schema(site_id)
+                schema_json = json.dumps(schema_data, indent=2, ensure_ascii=False)
+                snippet = '<script type="application/ld+json">\n' + schema_json + '\n</script>'
+                homepage = site.get("homepage", "index.html")
+                index_path = os.path.join(site_path, homepage)
+                if not os.path.exists(index_path):
+                    index_path = os.path.join(site_path, "index.html")
+                if not os.path.exists(index_path):
+                    index_path = os.path.join(site_path, "landing.html")
+                if os.path.exists(index_path):
+                    with open(index_path, "r", encoding="utf-8") as f:
+                        html = f.read()
+                    if "application/ld+json" not in html:
+                        html = html.replace("</head>", snippet + "\n</head>", 1)
+                        with open(index_path, "w", encoding="utf-8") as f:
+                            f.write(html)
+                        fix_results["fixes"]["schema"] = {"status": "injected", "file": index_path}
+                    else:
+                        fix_results["fixes"]["schema"] = {"status": "already_present", "file": index_path}
+                else:
+                    fix_results["fixes"]["schema"] = {"status": "file_not_found", "path": index_path}
+            except Exception as e:
+                fix_results["fixes"]["schema"] = {"status": "error", "error": str(e)}
+
+        # --- Fix opengraph ---
+        elif agent_name == "opengraph":
+            try:
+                og_agent = OpenGraphAgent()
+                og_data = og_agent.generate_og_tags(site_id)
+                homepage = site.get("homepage", "index.html")
+                index_path = os.path.join(site_path, homepage)
+                if not os.path.exists(index_path):
+                    index_path = os.path.join(site_path, "index.html")
+                if not os.path.exists(index_path):
+                    index_path = os.path.join(site_path, "landing.html")
+                if os.path.exists(index_path):
+                    with open(index_path, "r", encoding="utf-8") as f:
+                        html = f.read()
+                    missing_tags = []
+                    for k, v in og_data.get("og_tags", {}).items():
+                        if k not in html:
+                            missing_tags.append('<meta property="' + k + '" content="' + str(v) + '">')
+                    for k, v in og_data.get("twitter_tags", {}).items():
+                        if k not in html:
+                            missing_tags.append('<meta name="' + k + '" content="' + str(v) + '">')
+                    if missing_tags:
+                        inject = chr(10).join(["    " + t for t in missing_tags])
+                        html = html.replace("</head>", inject + chr(10) + "</head>", 1)
+                        with open(index_path, "w", encoding="utf-8") as f:
+                            f.write(html)
+                        fix_results["fixes"]["opengraph"] = {"status": "injected", "file": index_path, "tags_added": len(missing_tags), "tags": missing_tags}
+                    else:
+                        fix_results["fixes"]["opengraph"] = {"status": "complete", "file": index_path, "message": "All OG and Twitter tags present"}
+                else:
+                    fix_results["fixes"]["opengraph"] = {"status": "file_not_found", "path": index_path}
+            except Exception as e:
+                fix_results["fixes"]["opengraph"] = {"status": "error", "error": str(e)}
+
+        # --- Fix title_tag ---
+        elif agent_name == "title_tag":
+            try:
+                title_agent = TitleTagAgent()
+                optimized = title_agent.optimize_title(
+                    site.get("nom", ""), site.get("niche", ""), site.get("nom", "")
+                )
+                new_title = optimized.get("optimized_title", "")
+                if new_title:
+                    homepage = site.get("homepage", "index.html")
+                index_path = os.path.join(site_path, homepage)
+                if not os.path.exists(index_path):
+                    index_path = os.path.join(site_path, "index.html")
+                if not os.path.exists(index_path):
+                    index_path = os.path.join(site_path, "landing.html")
+                    if os.path.exists(index_path):
+                        import re as _re
+                        with open(index_path, "r", encoding="utf-8") as f:
+                            html = f.read()
+                        old_title = _re.search(r"<title>(.*?)</title>", html, _re.IGNORECASE | _re.DOTALL)
+                        if old_title:
+                            html = html.replace(old_title.group(0), "<title>" + new_title + "</title>", 1)
+                            with open(index_path, "w", encoding="utf-8") as f:
+                                f.write(html)
+                            fix_results["fixes"]["title_tag"] = {"status": "updated", "old": old_title.group(1).strip(), "new": new_title, "file": index_path}
+                        else:
+                            fix_results["fixes"]["title_tag"] = {"status": "no_title_found", "file": index_path}
+                    else:
+                        fix_results["fixes"]["title_tag"] = {"status": "file_not_found", "path": index_path}
+                else:
+                    fix_results["fixes"]["title_tag"] = {"status": "ai_no_result", "detail": "AI did not return an optimized title"}
+            except Exception as e:
+                fix_results["fixes"]["title_tag"] = {"status": "error", "error": str(e)}
+
+        else:
+            fix_results["fixes"][agent_name] = {"status": "unknown_agent", "detail": "Agent '{}' not supported for auto-fix".format(agent_name)}
+
+    fix_results["summary"] = {
+        "requested": len(requested_agents),
+        "completed": len([v for v in fix_results["fixes"].values() if v.get("status") in ("injected", "updated", "already_present")])
+    }
+
+    return jsonify(fix_results)
+
+
 if __name__ == "__main__":
     print("=== SEO Agent API Server v3.0 ===")
     print("Port: 8002")
