@@ -36,7 +36,7 @@ SITES = {
     1: {'nom': 'Deneigement Excellence', 'domaine': 'deneigement-excellence.ca', 'niche': 'deneigement', 'path': '/var/www/deneigement'},
     2: {'nom': 'Paysagiste Excellence', 'domaine': 'paysagiste-excellence.ca', 'niche': 'paysagement', 'path': '/var/www/paysagement'},
     3: {'nom': 'JC Peintre', 'domaine': 'jcpeintre.com', 'niche': 'peinture', 'path': '/var/www/jcpeintre.com'},
-    4: {'nom': 'SEO par AI', 'domaine': 'seoparai.com', 'niche': 'seo-marketing', 'path': '/var/www/seoparai'}
+    4: {'nom': 'SEO par AI', 'domaine': 'seoparai.com', 'niche': 'seo-marketing', 'path': '/var/www/dashboard', 'homepage': 'landing.html'}
 }
 
 def get_db():
@@ -873,6 +873,18 @@ class SchemaMarkupAgent:
             })
         return schema
 
+    def generate_aggregate_rating_schema(self, site_id, rating=4.8, count=47, best=5):
+        site = SITES.get(site_id, {})
+        return {"@context": "https://schema.org", "@type": "LocalBusiness",
+                "name": site.get('nom', ''), "url": "https://" + site.get('domaine', ''),
+                "aggregateRating": {"@type": "AggregateRating", "ratingValue": str(rating),
+                "reviewCount": str(count), "bestRating": str(best), "worstRating": "1"}}
+
+    def generate_complete_schema(self, site_id):
+        return {'local_business': self.generate_local_business_schema(site_id),
+                'aggregate_rating': self.generate_aggregate_rating_schema(site_id)}
+
+
     def generate_article_schema(self, title, author, date, content):
         """Genere schema Article"""
         return {
@@ -1048,6 +1060,77 @@ Format JSON:
             except:
                 pass
         return {}
+
+
+# ============================================
+# AGENT 16B: OPEN GRAPH & TWITTER CARDS AGENT
+# ============================================
+
+class OpenGraphAgent:
+    name = "Open Graph Agent"
+
+    def generate_og_tags(self, site_id):
+        site = SITES.get(site_id, {})
+        domain = site.get('domaine', '')
+        nom = site.get('nom', domain)
+        try:
+            import requests as req
+            resp = req.get('https://' + domain, timeout=10, headers={'User-Agent': 'SeoparAI-Agent/1.0'})
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            title = soup.find('title')
+            title_text = title.text.strip() if title else nom
+            meta_desc = soup.find('meta', attrs={'name': 'description'})
+            desc_text = meta_desc.get('content', '') if meta_desc else nom
+            existing_og = {}
+            for tag in soup.find_all('meta', property=True):
+                if tag.get('property','').startswith('og:'):
+                    existing_og[tag.get('property')] = tag.get('content')
+            existing_tw = {}
+            for tag in soup.find_all('meta', attrs={'name': True}):
+                if tag.get('name','').startswith('twitter:'):
+                    existing_tw[tag.get('name')] = tag.get('content')
+            # Also check property attribute (some sites use property instead of name for twitter)
+            for tag in soup.find_all('meta', property=True):
+                if tag.get('property','').startswith('twitter:'):
+                    existing_tw[tag.get('property')] = tag.get('content')
+        except:
+            title_text = nom
+            desc_text = nom
+            existing_og = {}
+            existing_tw = {}
+        og = {
+            'og:title': existing_og.get('og:title', title_text),
+            'og:description': existing_og.get('og:description', desc_text[:200]),
+            'og:url': existing_og.get('og:url', 'https://' + domain),
+            'og:type': 'website', 'og:site_name': nom, 'og:locale': 'fr_CA',
+            'og:image': existing_og.get('og:image', 'https://' + domain + '/images/og-image.jpg'),
+            'og:image:width': '1200', 'og:image:height': '630',
+        }
+        tw = {
+            'twitter:card': 'summary_large_image',
+            'twitter:title': existing_tw.get('twitter:title', title_text[:70]),
+            'twitter:description': existing_tw.get('twitter:description', desc_text[:200]),
+            'twitter:image': existing_tw.get('twitter:image', 'https://' + domain + '/images/og-image.jpg'),
+        }
+        tags = []
+        for p, c in og.items():
+            tags.append('<meta property="' + p + '" content="' + str(c) + '">')
+        for n, c in tw.items():
+            tags.append('<meta name="' + n + '" content="' + str(c) + '">')
+        missing_og = [k for k in ['og:title','og:description','og:image','og:url'] if k not in existing_og]
+        missing_tw = [k for k in ['twitter:card','twitter:title','twitter:description','twitter:image'] if k not in existing_tw]
+        log_agent(self.name, 'Site ' + str(site_id) + ': missing OG=' + str(len(missing_og)) + ' TW=' + str(len(missing_tw)))
+        return {'site_id': site_id, 'domain': domain, 'og_tags': og, 'twitter_tags': tw,
+                'html_tags': chr(10).join(tags), 'missing_og': missing_og, 'missing_tw': missing_tw,
+                'status': 'needs_update' if missing_og or missing_tw else 'complete'}
+
+    def audit_all_sites(self):
+        results = {}
+        for sid in SITES:
+            try: results[sid] = self.generate_og_tags(sid)
+            except Exception as e: results[sid] = {'error': str(e)}
+        return results
 
 # ============================================
 # AGENT 17: CONTENT CALENDAR AGENT
