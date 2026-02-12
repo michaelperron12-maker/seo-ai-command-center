@@ -1377,6 +1377,90 @@ def api_backlinks_summary():
     })
 
 
+@app.route("/api/review-response", methods=["POST"])
+def generate_review_response_api():
+    try:
+        data = request.get_json() or {}
+        review_text = data.get("text", "")
+        rating = data.get("rating", 5)
+        is_positive = data.get("is_positive", True)
+        if not review_text:
+            return jsonify({"error": "Review text required"}), 400
+        from agents_system import ReviewManagementAgent
+        agent = ReviewManagementAgent()
+        result = agent.generate_review_response(review_text, rating, is_positive)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+if __name__ == "__main__":
+    print("=== SEO Agent API Server v3.0 ===")
+    print("Port: 8002")
+    app.run(host="0.0.0.0", port=8002)
+
+
+
+# ============================================
+# SELF-AUDIT ENDPOINTS
+# ============================================
+
+@app.route("/api/self-audit/results", methods=["GET"])
+def get_self_audit_results():
+    site_id = request.args.get("site_id")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    query = "SELECT id, site_id, check_type, severity, message, fix_level, fix_command, auto_fixed, confirmed, executed, created_at FROM self_audit_results WHERE 1=1"
+    params = []
+    if site_id:
+        query += " AND site_id = ?"
+        params.append(site_id)
+    query += " ORDER BY created_at DESC LIMIT 100"
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify({"results": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3], "message": r[4], "fix_level": r[5], "fix_command": r[6], "auto_fixed": bool(r[7]), "confirmed": bool(r[8]), "executed": bool(r[9]), "created_at": r[10]} for r in rows]})
+
+@app.route("/api/self-audit/pending", methods=["GET"])
+def get_self_audit_pending():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, site_id, check_type, severity, message, fix_command FROM self_audit_results WHERE fix_level = 'confirm' AND confirmed = 0 AND executed = 0 ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 ELSE 3 END")
+    rows = cursor.fetchall()
+    conn.close()
+    return jsonify({"pending": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3], "message": r[4], "fix_command": r[5]} for r in rows]})
+
+@app.route("/api/self-audit/confirm/<int:fix_id>", methods=["POST"])
+def confirm_self_audit_fix(fix_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE self_audit_results SET confirmed = 1, confirmed_by = 'dashboard', fixed_at = datetime('now') WHERE id = ?", (fix_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "confirmed", "id": fix_id})
+
+@app.route("/api/self-audit/confirm-all", methods=["POST"])
+def confirm_all_self_audit():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE self_audit_results SET confirmed = 1, confirmed_by = 'dashboard', fixed_at = datetime('now') WHERE fix_level = 'confirm' AND confirmed = 0")
+    affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "confirmed_all", "count": affected})
+
+@app.route("/api/self-audit/stats", methods=["GET"])
+def get_self_audit_stats():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*), SUM(CASE WHEN auto_fixed = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN fix_level = 'confirm' AND confirmed = 0 THEN 1 ELSE 0 END), SUM(CASE WHEN fix_level = 'manual' AND executed = 0 THEN 1 ELSE 0 END) FROM self_audit_results")
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return jsonify({"total": row[0], "auto_fixed": row[1], "pending_confirm": row[2], "manual_required": row[3]})
+    return jsonify({"total": 0, "auto_fixed": 0, "pending_confirm": 0, "manual_required": 0})
+
+
 # ============================================
 # AUTO-FIX SEO API ENDPOINTS
 # ============================================
@@ -1524,12 +1608,7 @@ def autofix_run(site_id):
                 schema_data = schema_agent.generate_local_business_schema(site_id)
                 schema_json = json.dumps(schema_data, indent=2, ensure_ascii=False)
                 snippet = '<script type="application/ld+json">\n' + schema_json + '\n</script>'
-                homepage = site.get("homepage", "index.html")
-                index_path = os.path.join(site_path, homepage)
-                if not os.path.exists(index_path):
-                    index_path = os.path.join(site_path, "index.html")
-                if not os.path.exists(index_path):
-                    index_path = os.path.join(site_path, "landing.html")
+                index_path = os.path.join(site_path, "index.html")
                 if os.path.exists(index_path):
                     with open(index_path, "r", encoding="utf-8") as f:
                         html = f.read()
@@ -1550,30 +1629,18 @@ def autofix_run(site_id):
             try:
                 og_agent = OpenGraphAgent()
                 og_data = og_agent.generate_og_tags(site_id)
-                homepage = site.get("homepage", "index.html")
-                index_path = os.path.join(site_path, homepage)
-                if not os.path.exists(index_path):
-                    index_path = os.path.join(site_path, "index.html")
-                if not os.path.exists(index_path):
-                    index_path = os.path.join(site_path, "landing.html")
+                og_html = og_data.get("html_tags", "")
+                index_path = os.path.join(site_path, "index.html")
                 if os.path.exists(index_path):
                     with open(index_path, "r", encoding="utf-8") as f:
                         html = f.read()
-                    missing_tags = []
-                    for k, v in og_data.get("og_tags", {}).items():
-                        if k not in html:
-                            missing_tags.append('<meta property="' + k + '" content="' + str(v) + '">')
-                    for k, v in og_data.get("twitter_tags", {}).items():
-                        if k not in html:
-                            missing_tags.append('<meta name="' + k + '" content="' + str(v) + '">')
-                    if missing_tags:
-                        inject = chr(10).join(["    " + t for t in missing_tags])
-                        html = html.replace("</head>", inject + chr(10) + "</head>", 1)
+                    if "og:title" not in html:
+                        html = html.replace("</head>", og_html + "\n</head>", 1)
                         with open(index_path, "w", encoding="utf-8") as f:
                             f.write(html)
-                        fix_results["fixes"]["opengraph"] = {"status": "injected", "file": index_path, "tags_added": len(missing_tags), "tags": missing_tags}
+                        fix_results["fixes"]["opengraph"] = {"status": "injected", "file": index_path, "tags_added": len(og_data.get("missing_og", [])) + len(og_data.get("missing_tw", []))}
                     else:
-                        fix_results["fixes"]["opengraph"] = {"status": "complete", "file": index_path, "message": "All OG and Twitter tags present"}
+                        fix_results["fixes"]["opengraph"] = {"status": "already_present", "file": index_path}
                 else:
                     fix_results["fixes"]["opengraph"] = {"status": "file_not_found", "path": index_path}
             except Exception as e:
@@ -1588,12 +1655,7 @@ def autofix_run(site_id):
                 )
                 new_title = optimized.get("optimized_title", "")
                 if new_title:
-                    homepage = site.get("homepage", "index.html")
-                index_path = os.path.join(site_path, homepage)
-                if not os.path.exists(index_path):
                     index_path = os.path.join(site_path, "index.html")
-                if not os.path.exists(index_path):
-                    index_path = os.path.join(site_path, "landing.html")
                     if os.path.exists(index_path):
                         import re as _re
                         with open(index_path, "r", encoding="utf-8") as f:
@@ -1622,70 +1684,3 @@ def autofix_run(site_id):
     }
 
     return jsonify(fix_results)
-
-
-if __name__ == "__main__":
-    print("=== SEO Agent API Server v3.0 ===")
-    print("Port: 8002")
-    app.run(host="0.0.0.0", port=8002)
-
-
-
-# ============================================
-# SELF-AUDIT ENDPOINTS
-# ============================================
-
-@app.route("/api/self-audit/results", methods=["GET"])
-def get_self_audit_results():
-    site_id = request.args.get("site_id")
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    query = "SELECT id, site_id, check_type, severity, message, fix_level, fix_command, auto_fixed, confirmed, executed, created_at FROM self_audit_results WHERE 1=1"
-    params = []
-    if site_id:
-        query += " AND site_id = ?"
-        params.append(site_id)
-    query += " ORDER BY created_at DESC LIMIT 100"
-    cursor.execute(query, params)
-    rows = cursor.fetchall()
-    conn.close()
-    return jsonify({"results": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3], "message": r[4], "fix_level": r[5], "fix_command": r[6], "auto_fixed": bool(r[7]), "confirmed": bool(r[8]), "executed": bool(r[9]), "created_at": r[10]} for r in rows]})
-
-@app.route("/api/self-audit/pending", methods=["GET"])
-def get_self_audit_pending():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, site_id, check_type, severity, message, fix_command FROM self_audit_results WHERE fix_level = 'confirm' AND confirmed = 0 AND executed = 0 ORDER BY CASE severity WHEN 'critical' THEN 1 WHEN 'high' THEN 2 ELSE 3 END")
-    rows = cursor.fetchall()
-    conn.close()
-    return jsonify({"pending": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3], "message": r[4], "fix_command": r[5]} for r in rows]})
-
-@app.route("/api/self-audit/confirm/<int:fix_id>", methods=["POST"])
-def confirm_self_audit_fix(fix_id):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE self_audit_results SET confirmed = 1, confirmed_by = 'dashboard', fixed_at = datetime('now') WHERE id = ?", (fix_id,))
-    conn.commit()
-    conn.close()
-    return jsonify({"status": "confirmed", "id": fix_id})
-
-@app.route("/api/self-audit/confirm-all", methods=["POST"])
-def confirm_all_self_audit():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE self_audit_results SET confirmed = 1, confirmed_by = 'dashboard', fixed_at = datetime('now') WHERE fix_level = 'confirm' AND confirmed = 0")
-    affected = cursor.rowcount
-    conn.commit()
-    conn.close()
-    return jsonify({"status": "confirmed_all", "count": affected})
-
-@app.route("/api/self-audit/stats", methods=["GET"])
-def get_self_audit_stats():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*), SUM(CASE WHEN auto_fixed = 1 THEN 1 ELSE 0 END), SUM(CASE WHEN fix_level = 'confirm' AND confirmed = 0 THEN 1 ELSE 0 END), SUM(CASE WHEN fix_level = 'manual' AND executed = 0 THEN 1 ELSE 0 END) FROM self_audit_results")
-    row = cursor.fetchone()
-    conn.close()
-    if row:
-        return jsonify({"total": row[0], "auto_fixed": row[1], "pending_confirm": row[2], "manual_required": row[3]})
-    return jsonify({"total": 0, "auto_fixed": 0, "pending_confirm": 0, "manual_required": 0})
