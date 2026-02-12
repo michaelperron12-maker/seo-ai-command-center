@@ -64,6 +64,68 @@ FIX_LEVELS = {
     "manual": "Intervention manuelle requise (structurel)"
 }
 
+# Donnees business par site pour Schema LocalBusiness auto-generation
+SITE_BUSINESS_DATA = {
+    "jcpeintre": {
+        "name": "Groupe Peinture JM Inc.",
+        "alternateName": "JC Peintre",
+        "types": ["LocalBusiness", "HousePainter", "HomeAndConstructionBusiness"],
+        "description": "Peinture residentielle et commerciale, calfeutrage et plancher epoxy sur la Rive-Sud de Montreal depuis 15 ans.",
+        "telephone": "+1-514-240-2986",
+        "email": "entrepreneurpeintre@outlook.com",
+        "address": {"addressLocality": "Longueuil", "addressRegion": "QC", "addressCountry": "CA"},
+        "priceRange": "$$",
+        "openingHours": [("Mo-Fr", "07:00", "18:00"), ("Sa", "08:00", "16:00")],
+        "areaServed": ["Longueuil", "Brossard", "Boucherville", "Saint-Hubert", "Saint-Lambert", "La Prairie", "Candiac", "Chambly", "Montreal", "Laval"],
+        "services": ["Peinture residentielle", "Peinture commerciale", "Calfeutrage", "Plancher epoxy"],
+        "credential": "Licence RBQ 5829-2673-01",
+        "rating": {"ratingValue": "5.0", "reviewCount": "3", "bestRating": "5"},
+        "sameAs": ["https://www.facebook.com/PeintureJacobCouture"]
+    },
+    "paysagement": {
+        "name": "Paysagiste Excellence",
+        "types": ["LocalBusiness", "LandscapingBusiness"],
+        "description": "Amenagement paysager, entretien de pelouse et travaux exterieurs sur la Rive-Sud de Montreal.",
+        "telephone": "+1-438-383-7283",
+        "email": "info@paysagiste-excellence.ca",
+        "address": {"addressLocality": "Brossard", "addressRegion": "QC", "addressCountry": "CA"},
+        "priceRange": "$$",
+        "openingHours": [("Mo-Fr", "07:00", "18:00"), ("Sa", "08:00", "16:00")],
+        "areaServed": ["Brossard", "Saint-Hubert", "Longueuil", "Boucherville", "La Prairie"],
+        "services": ["Amenagement paysager", "Entretien pelouse", "Pave uni", "Terrassement"],
+        "rating": {"ratingValue": "4.9", "reviewCount": "5", "bestRating": "5"},
+        "sameAs": []
+    },
+    "deneigement": {
+        "name": "Deneigement Excellence",
+        "types": ["LocalBusiness", "HomeAndConstructionBusiness"],
+        "description": "Deneigement residentiel et commercial sur la Rive-Sud de Montreal.",
+        "telephone": "+1-438-383-7283",
+        "email": "info@deneigement-excellence.ca",
+        "address": {"addressLocality": "Brossard", "addressRegion": "QC", "addressCountry": "CA"},
+        "priceRange": "$$",
+        "openingHours": [("Mo-Su", "00:00", "23:59")],
+        "areaServed": ["Brossard", "Saint-Hubert", "Longueuil", "Boucherville", "La Prairie", "Candiac"],
+        "services": ["Deneigement residentiel", "Deneigement commercial", "Epandage abrasifs", "Deglacage"],
+        "rating": {"ratingValue": "4.8", "reviewCount": "10", "bestRating": "5"},
+        "sameAs": []
+    },
+    "seoparai": {
+        "name": "SeoAI - SEO par Intelligence Artificielle",
+        "types": ["LocalBusiness", "ProfessionalService"],
+        "description": "Plateforme de referencement SEO automatise par intelligence artificielle au Quebec.",
+        "telephone": "+1-514-609-2882",
+        "email": "michaelperron12@gmail.com",
+        "address": {"addressLocality": "Montreal", "addressRegion": "QC", "addressCountry": "CA"},
+        "priceRange": "$$$",
+        "openingHours": [("Mo-Fr", "09:00", "17:00")],
+        "areaServed": ["Montreal", "Quebec", "Canada"],
+        "services": ["SEO automatise", "Optimisation par IA", "Gestion de sites web"],
+        "rating": None,
+        "sameAs": []
+    }
+}
+
 
 class SelfAuditAgent:
     # IPs admin connues — pas d'alerte email si connecte depuis ces IPs
@@ -381,8 +443,103 @@ class SelfAuditAgent:
                     auto_fixed=True
                 ))
 
-        # ---- CONFIRM: Schema markup manquant ----
-        if 'application/ld+json' not in content:
+        # ---- AUTO-FIX: Schema LocalBusiness (page principale seulement) ----
+        is_main_page = os.path.basename(file_path) in ('index.html', 'landing.html')
+
+        if is_main_page and site_id in SITE_BUSINESS_DATA:
+            biz = SITE_BUSINESS_DATA[site_id]
+
+            # Verifier si LocalBusiness existe deja dans le JSON-LD
+            has_local_business = False
+            existing_schemas = re.finditer(
+                r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+                new_content, re.DOTALL
+            )
+            for match in existing_schemas:
+                try:
+                    schema_data = json.loads(match.group(1).strip())
+                    schema_type = schema_data.get('@type', '')
+                    if isinstance(schema_type, list):
+                        if 'LocalBusiness' in schema_type:
+                            has_local_business = True
+                    elif schema_type == 'LocalBusiness':
+                        has_local_business = True
+                except (json.JSONDecodeError, AttributeError):
+                    pass
+
+            if not has_local_business and '</head>' in new_content:
+                # Generer schema LocalBusiness complet
+                local_schema = {
+                    "@context": "https://schema.org",
+                    "@type": biz["types"],
+                    "@id": f"{SITES[site_id]['url']}/#localbusiness",
+                    "name": biz["name"],
+                    "url": SITES[site_id]["url"],
+                    "description": biz["description"],
+                    "telephone": biz["telephone"],
+                    "email": biz.get("email", ""),
+                    "address": {
+                        "@type": "PostalAddress",
+                        **biz["address"]
+                    },
+                    "priceRange": biz.get("priceRange", "$$"),
+                    "areaServed": [
+                        {"@type": "City", "name": city}
+                        for city in biz.get("areaServed", [])
+                    ],
+                    "hasOfferCatalog": {
+                        "@type": "OfferCatalog",
+                        "name": "Services",
+                        "itemListElement": [
+                            {"@type": "Offer", "itemOffered": {"@type": "Service", "name": svc}}
+                            for svc in biz.get("services", [])
+                        ]
+                    }
+                }
+                # Horaires d'ouverture
+                if biz.get("openingHours"):
+                    local_schema["openingHoursSpecification"] = []
+                    for days, opens, closes in biz["openingHours"]:
+                        local_schema["openingHoursSpecification"].append({
+                            "@type": "OpeningHoursSpecification",
+                            "dayOfWeek": days,
+                            "opens": opens,
+                            "closes": closes
+                        })
+                # Licence/credential
+                if biz.get("credential"):
+                    local_schema["hasCredential"] = {
+                        "@type": "EducationalOccupationalCredential",
+                        "credentialCategory": "license",
+                        "name": biz["credential"]
+                    }
+                # AggregateRating
+                if biz.get("rating"):
+                    local_schema["aggregateRating"] = {
+                        "@type": "AggregateRating",
+                        **biz["rating"]
+                    }
+                # Reseaux sociaux
+                if biz.get("sameAs"):
+                    local_schema["sameAs"] = biz["sameAs"]
+                if biz.get("alternateName"):
+                    local_schema["alternateName"] = biz["alternateName"]
+
+                schema_json = json.dumps(local_schema, indent=2, ensure_ascii=False)
+                schema_tag = f'\n    <script type="application/ld+json">\n{schema_json}\n    </script>'
+                new_content = new_content.replace('</head>', f'{schema_tag}\n</head>')
+                modified = True
+                issues.append(self._record_and_return(
+                    site_id, "schema_local_business", "critical",
+                    f"Schema LocalBusiness+AggregateRating AUTO-INJECTE: {file_path}",
+                    "auto", file_path,
+                    f"JSON-LD LocalBusiness avec {len(biz.get('services',[]))} services, rating, horaires",
+                    auto_fixed=True
+                ))
+                logger.info(f"AUTO-FIX Schema LocalBusiness injecte dans {file_path}")
+
+        elif 'application/ld+json' not in content:
+            # Pas de JSON-LD du tout sur page non-principale — CONFIRM
             schema_example = json.dumps({
                 "@context": "https://schema.org",
                 "@type": "Organization",
@@ -396,6 +553,34 @@ class SelfAuditAgent:
                 "confirm", file_path, fix_cmd,
                 auto_fixed=False
             ))
+
+        # ---- DETECT: Liens internes insuffisants (page principale) ----
+        if is_main_page:
+            internal_links = re.findall(
+                r'<a[^>]+href=["\'](?!#|tel:|mailto:|https?://|javascript:)([^"\'>\s]+)["\']',
+                content, re.IGNORECASE
+            )
+            unique_links = set(internal_links)
+            if len(unique_links) < 5:
+                issues.append(self._record_and_return(
+                    site_id, "internal_links_low", "high",
+                    f"Seulement {len(unique_links)} liens internes uniques (min 5): {file_path}",
+                    "confirm", file_path,
+                    f"Liens trouves: {', '.join(list(unique_links)[:10])}. Ajouter liens vers pages cles.",
+                    auto_fixed=False
+                ))
+
+        # ---- DETECT: Listes structurees <ul>/<li> absentes (page principale) ----
+        if is_main_page:
+            has_lists = '<ul' in content.lower() or '<ol' in content.lower()
+            if not has_lists:
+                issues.append(self._record_and_return(
+                    site_id, "no_structured_lists", "high",
+                    f"Aucune liste structuree <ul>/<li> trouvee: {file_path}",
+                    "confirm", file_path,
+                    "Convertir les grilles de services/features en <ul><li> pour SEO semantique",
+                    auto_fixed=False
+                ))
 
         # ---- CONFIRM: Open Graph manquant ----
         if 'og:title' not in content and 'og:description' not in content:

@@ -192,6 +192,18 @@ def cycle_seo_core(sites):
             r = run_agent(name, func, args, timeout, site_id)
             stats["ok" if r["status"] == "success" else "fail"] += 1
 
+    # Self-Audit HTML auto-fix (schema, meta, lazy loading, etc.)
+    try:
+        from self_audit_agent import SelfAuditAgent, SITES as AUDIT_SITES
+        audit_agent = SelfAuditAgent()
+        for audit_site_id in AUDIT_SITES:
+            r = run_agent(f"SelfAudit_{audit_site_id}",
+                          audit_agent.check_html_files, (audit_site_id,), 120, audit_site_id)
+            stats["ok" if r["status"] == "success" else "fail"] += 1
+    except Exception as e:
+        log(f"  Self-Audit in seo-core error: {e}", "ERROR")
+        stats["fail"] += 1
+
     return stats
 
 
@@ -390,7 +402,31 @@ def cycle_maintenance(sites):
             r = run_agent(name, func, args, timeout, site_id)
             stats["ok" if r["status"] == "success" else "fail"] += 1
 
-    # 4. Cleanup old logs (>30 days) and backups (>60 days)
+    # 4. Self-Audit: auto-fix SEO issues on all sites (schema, meta, etc.)
+    try:
+        sys.path.insert(0, AGENTS_DIR)
+        from self_audit_agent import SelfAuditAgent
+        audit_agent = SelfAuditAgent()
+        log("── Self-Audit: scanning all sites for auto-fixable SEO issues")
+        audit_results = audit_agent.full_audit_all()
+        total_auto = 0
+        total_issues = 0
+        for sid, data in audit_results.items():
+            if isinstance(data, dict) and "summary" in data:
+                s = data["summary"]
+                total_auto += s.get("auto_fixed", 0)
+                total_issues += s.get("total_issues", 0)
+                log(f"  {sid}: {s.get('auto_fixed', 0)} auto-fixed, {s.get('pending_confirm', 0)} pending, {s.get('critical', 0)} critical")
+        log(f"  Self-Audit total: {total_auto} auto-fixed / {total_issues} issues")
+        log_agent_run("SelfAudit", "self_audit_all", "all", "success",
+                      f"Auto-fixed:{total_auto} Total:{total_issues}", 0)
+        stats["ok"] += 1
+    except Exception as e:
+        log(f"  Self-Audit error: {e}", "ERROR")
+        log_agent_run("SelfAudit", "self_audit_all", "all", "error", str(e)[:200], 0)
+        stats["fail"] += 1
+
+    # 5. Cleanup old logs (>30 days) and backups (>60 days)
     try:
         import glob
         cutoff_logs = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
