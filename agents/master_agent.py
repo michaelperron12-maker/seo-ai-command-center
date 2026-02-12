@@ -23,6 +23,7 @@ from research_agent import ResearchAgent
 from performance_agent import PerformanceAgent
 from learning_agent import LearningAgent
 from monitoring_agent import MonitoringAgent
+from self_audit_agent import SelfAuditAgent, SITES as AUDIT_SITES
 
 SITES = ["deneigement", "paysagement", "jcpeintre"]
 
@@ -44,6 +45,7 @@ class MasterAgent:
         self.performance = PerformanceAgent(db_path)
         self.learning = LearningAgent(db_path)
         self.monitoring = MonitoringAgent(db_path)
+        self.self_audit = SelfAuditAgent()
         self._init_db()
         self._running = False
 
@@ -323,6 +325,36 @@ class MasterAgent:
 
         return results
 
+    def run_self_audit_cycle(self) -> Dict:
+        """Execute le self-audit HTML auto-fix sur tous les sites"""
+        logger.info("Demarrage cycle self-audit auto-fix...")
+        start = time.time()
+        results = {}
+        try:
+            for site_id in AUDIT_SITES:
+                try:
+                    site_results = self.self_audit.check_html_files(site_id)
+                    auto_fixed = site_results.get("auto_fixed", 0)
+                    checked = site_results.get("checked", 0)
+                    results[site_id] = {
+                        "status": "success",
+                        "total_checks": checked,
+                        "auto_fixed": auto_fixed,
+                        "pending": site_results.get("pending", 0)
+                    }
+                    if auto_fixed > 0:
+                        logger.info(f"  Self-Audit {site_id}: {auto_fixed} auto-fix appliques sur {checked} fichiers")
+                except Exception as e:
+                    results[site_id] = {"status": "error", "error": str(e)}
+                    logger.error(f"  Self-Audit {site_id} erreur: {e}")
+            duration = time.time() - start
+            self.log_run("self_audit", "auto_fix_cycle", "all", "success", results, duration)
+            logger.info(f"Cycle self-audit termine en {duration:.2f}s")
+        except Exception as e:
+            logger.error(f"Self-Audit cycle erreur: {e}")
+            self.log_run("self_audit", "auto_fix_cycle", "all", "error", {"error": str(e)}, time.time() - start)
+        return results
+
     def start_scheduler(self):
         """Démarre le planificateur de tâches"""
         logger.info("Démarrage du scheduler...")
@@ -333,6 +365,7 @@ class MasterAgent:
         schedule.every(1).hours.do(self.run_performance_analysis)
         schedule.every(6).hours.do(self.run_learning_scan)
         schedule.every(24).hours.do(self.run_research_cycle)
+        schedule.every(4).hours.do(self.run_self_audit_cycle)
 
         while self._running:
             schedule.run_pending()
