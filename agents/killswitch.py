@@ -54,6 +54,11 @@ AGENTS = [
     'AutomationAgent', 'AffiliateAgent', 'LoyaltyAgent'
 ]
 
+@app.route("/health", methods=["GET"])
+def health():
+    config = get_config()
+    return jsonify({"status": "ok", "service": "killswitch", "master_enabled": config["master_enabled"], "total_agents": len(AGENTS)})
+
 @app.route('/killswitch/status', methods=['GET'])
 def status():
     config = get_config()

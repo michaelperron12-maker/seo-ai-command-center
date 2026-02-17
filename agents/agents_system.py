@@ -725,6 +725,184 @@ Format JSON:
 class LocalSEOAgent:
     name = "Local SEO Agent"
 
+    def audit_local_seo(self, site_id):
+        """Audit local SEO complet - verifie schema, FAQ, Google Business linkage"""
+        site = SITES.get(site_id, {})
+        if not site:
+            return {'error': f'Site {site_id} inconnu'}
+
+        domain = site.get('domaine', '')
+        url = f'https://{domain}'
+        issues = []
+        score = 100
+        details = {}
+
+        try:
+            resp = requests.get(url, timeout=15, headers={'User-Agent': 'SeoAI-LocalSEO/1.0'})
+            html = resp.text
+        except Exception as e:
+            return {'error': str(e), 'score': 0}
+
+        # 1. Check LocalBusiness JSON-LD
+        ld_json_blocks = re.findall(r'<script[^>]*application/ld\+json[^>]*>(.*?)</script>', html, re.DOTALL | re.IGNORECASE)
+        has_local_business = False
+        has_faq_schema = False
+        faq_schema_count = 0
+        local_business_data = {}
+
+        for block in ld_json_blocks:
+            try:
+                data = json.loads(block.strip())
+                biz_types = ['LocalBusiness', 'LandscapingBusiness', 'HomeAndConstructionBusiness',
+                             'ProfessionalService', 'Plumber', 'Painter', 'HousePainter',
+                             'MovingCompany', 'RoofingContractor', 'GeneralContractor']
+                if data.get('@type') in biz_types:
+                    has_local_business = True
+                    local_business_data = data
+                if data.get('@type') == 'FAQPage':
+                    has_faq_schema = True
+                    faq_schema_count = len(data.get('mainEntity', []))
+            except:
+                pass
+
+        if not has_local_business:
+            issues.append({'type': 'critical', 'message': 'Schema LocalBusiness JSON-LD absent',
+                          'fix': 'Ajouter structured data LocalBusiness dans <head>'})
+            score -= 20
+        else:
+            if not local_business_data.get('telephone'):
+                issues.append({'type': 'warning', 'message': 'Telephone manquant dans schema LocalBusiness',
+                              'fix': 'Ajouter telephone dans JSON-LD'})
+                score -= 5
+            if not local_business_data.get('address'):
+                issues.append({'type': 'warning', 'message': 'Adresse manquante dans schema LocalBusiness',
+                              'fix': 'Ajouter address dans JSON-LD'})
+                score -= 5
+            if not local_business_data.get('areaServed'):
+                issues.append({'type': 'warning', 'message': 'Zones de service (areaServed) manquantes',
+                              'fix': 'Ajouter areaServed avec les villes desservies'})
+                score -= 5
+            if not local_business_data.get('openingHoursSpecification'):
+                issues.append({'type': 'info', 'message': 'Heures ouverture manquantes dans schema',
+                              'fix': 'Ajouter openingHoursSpecification'})
+                score -= 3
+            details['local_business'] = {
+                'name': local_business_data.get('name', ''),
+                'type': local_business_data.get('@type', ''),
+                'has_phone': bool(local_business_data.get('telephone')),
+                'has_address': bool(local_business_data.get('address')),
+                'has_area_served': bool(local_business_data.get('areaServed')),
+                'area_count': len(local_business_data.get('areaServed', [])),
+                'has_hours': bool(local_business_data.get('openingHoursSpecification'))
+            }
+
+        # 2. Check FAQPage schema
+        if not has_faq_schema:
+            issues.append({'type': 'critical', 'message': 'Schema FAQPage JSON-LD absent',
+                          'fix': 'Ajouter structured data FAQPage pour rich snippets Google'})
+            score -= 15
+        else:
+            if faq_schema_count < 5:
+                issues.append({'type': 'warning', 'message': f'Seulement {faq_schema_count} FAQ dans schema (min 5)',
+                              'fix': 'Ajouter plus de FAQ dans JSON-LD'})
+                score -= 5
+            details['faq_schema'] = {'count': faq_schema_count}
+
+        # 3. Check visible FAQ section
+        faq_visible_count = html.lower().count('faq-item')
+        if faq_visible_count == 0:
+            issues.append({'type': 'warning', 'message': 'Section FAQ visible absente',
+                          'fix': 'Ajouter une section FAQ visible avec accordion'})
+            score -= 10
+        else:
+            if has_faq_schema and abs(faq_visible_count - faq_schema_count) > 3:
+                issues.append({'type': 'info',
+                              'message': f'FAQ visible ({faq_visible_count}) != FAQ schema ({faq_schema_count})',
+                              'fix': 'Synchroniser FAQ visibles et schema JSON-LD'})
+                score -= 3
+            details['faq_visible'] = {'count': faq_visible_count}
+
+        # 4. Check cross-linking to sister companies
+        sister_sites = {k: v for k, v in SITES.items() if k != site_id and k != 4}
+        cross_links = []
+        for sid, sdata in sister_sites.items():
+            if sdata.get('domaine', '') in html:
+                cross_links.append(sdata['domaine'])
+        if not cross_links and len(sister_sites) > 0:
+            sister_list = ', '.join(s['domaine'] for s in sister_sites.values())
+            issues.append({'type': 'info', 'message': 'Pas de cross-link vers sites partenaires',
+                          'fix': f'Ajouter liens vers: {sister_list}'})
+            score -= 3
+        details['cross_links'] = cross_links
+
+        # 5. Check Google Maps embed or link
+        html_lower = html.lower()
+        has_gmaps = 'maps.google' in html_lower or 'google.com/maps' in html_lower or 'maps.googleapis' in html_lower
+        if not has_gmaps:
+            issues.append({'type': 'warning', 'message': 'Pas de Google Maps integre ou lie',
+                          'fix': 'Ajouter Google Maps embed ou lien vers fiche Google Business'})
+            score -= 5
+        details['has_google_maps'] = has_gmaps
+
+        # 6. Check NAP (Name, Address, Phone visible)
+        phone_patterns = [r'438[\s.-]?383[\s.-]?7283', r'514[\s.-]?\d{3}[\s.-]?\d{4}']
+        has_phone_visible = any(re.search(p, html) for p in phone_patterns)
+        if not has_phone_visible:
+            issues.append({'type': 'warning', 'message': 'Telephone non visible sur la page',
+                          'fix': 'Afficher le numero clairement'})
+            score -= 5
+        details['has_phone_visible'] = has_phone_visible
+
+        # 7. Check robots.txt allows AI bots
+        try:
+            robots_resp = requests.get(f'https://{domain}/robots.txt', timeout=5)
+            if robots_resp.status_code == 200:
+                robots = robots_resp.text.lower()
+                ai_bots = ['gptbot', 'claudebot', 'perplexitybot']
+                blocked_bots = [b for b in ai_bots if f'user-agent: {b}' in robots and 'disallow: /' in robots]
+                if blocked_bots:
+                    issues.append({'type': 'info', 'message': f'Bots AI bloques: {blocked_bots}',
+                                  'fix': 'Autoriser les bots AI pour GEO (generative engine optimization)'})
+                    score -= 3
+                details['robots_allows_ai'] = len(blocked_bots) == 0
+        except:
+            pass
+
+        log_agent(self.name, f"Local SEO audit {domain}: Score {max(0, score)}, {len(issues)} issues")
+
+        # Save to DB
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("""INSERT INTO agent_logs (agent, message, level, created_at)
+                VALUES (?, ?, 'INFO', datetime('now'))""",
+                (self.name, json.dumps({'domain': domain, 'score': max(0, score),
+                 'issues_count': len(issues), 'grade': 'A' if score >= 90 else 'B' if score >= 75 else 'C' if score >= 60 else 'D'})))
+            conn.commit()
+            conn.close()
+        except:
+            pass
+
+        return {
+            'site_id': site_id,
+            'domain': domain,
+            'score': max(0, score),
+            'grade': 'A' if score >= 90 else 'B' if score >= 75 else 'C' if score >= 60 else 'D' if score >= 40 else 'F',
+            'issues': issues,
+            'details': details,
+            'timestamp': datetime.now().isoformat()
+        }
+
+    def audit_all_sites(self):
+        """Audit local SEO de tous les sites clients"""
+        results = {}
+        for site_id in SITES:
+            if site_id == 4:
+                continue
+            results[site_id] = self.audit_local_seo(site_id)
+            log_agent(self.name, f"Audit site {site_id}: {results[site_id].get('grade', '?')}")
+        return results
+
     def optimize_gmb(self, site_id):
         """Recommandations Google My Business"""
         site = SITES.get(site_id, {})
@@ -752,23 +930,6 @@ Format JSON:
                 pass
         return {}
 
-    def generate_local_citations(self, site_id):
-        """Liste de citations locales a creer"""
-        site = SITES.get(site_id, {})
-        prompt = f"""Liste 20 sites de citations locales pour une entreprise de {site.get('niche', '')} au Quebec:
-
-Format JSON:
-{{"citations": [{{"name": "...", "url": "...", "type": "directory|review|social", "priority": 1-5}}]}}"""
-
-        response = call_qwen(prompt)
-        if response:
-            try:
-                if '```json' in response:
-                    response = response.split('```json')[1].split('```')[0]
-                return json.loads(response.strip())
-            except:
-                pass
-        return {}
 
 # ============================================
 # AGENT 8: COMPETITOR ANALYSIS AGENT
@@ -1921,6 +2082,922 @@ Format JSON:
                 pass
         return {}
 
+# ============================================
+# GOOGLE AGENT - Google APIs Integration
+# GBP Reviews, Search Console, GA4, PageSpeed
+# ============================================
+class GoogleAgent:
+    name = 'Google Agent'
+
+    TOKEN_PATH = '/opt/seo-agent/google_tokens.json'
+    PAGESPEED_API = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed'
+    INDEXING_API = 'https://indexing.googleapis.com/v3/urlNotifications:publish'
+    GBP_API_BASE = 'https://mybusiness.googleapis.com/v4'
+    SC_API_BASE = 'https://www.googleapis.com/webmasters/v3'
+    GA4_API_BASE = 'https://analyticsdata.googleapis.com/v1beta'
+
+    # ------------------------------------------
+    # DB Init
+    # ------------------------------------------
+    def init_db(self):
+        """Create google_reviews and google_analytics_cache tables"""
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS google_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_id INTEGER,
+                review_id TEXT UNIQUE,
+                author TEXT,
+                rating INTEGER,
+                text TEXT,
+                reply TEXT,
+                reply_date TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS google_analytics_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                site_id INTEGER,
+                property_id TEXT,
+                metric TEXT,
+                value TEXT,
+                period TEXT,
+                cached_at TEXT DEFAULT (datetime('now'))
+            )
+        ''')
+        conn.commit()
+        conn.close()
+        log_agent(self.name, 'Tables google_reviews et google_analytics_cache initialisees')
+
+    # ------------------------------------------
+    # Credential Management
+    # ------------------------------------------
+    def setup_credentials(self, credentials_json_path):
+        """Load OAuth2 credentials from JSON file, handle token refresh"""
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+
+        try:
+            # Try loading existing tokens first
+            existing_creds = self._load_tokens()
+            if existing_creds and existing_creds.get('refresh_token'):
+                creds = Credentials(
+                    token=existing_creds.get('access_token'),
+                    refresh_token=existing_creds.get('refresh_token'),
+                    token_uri=existing_creds.get('token_uri', 'https://oauth2.googleapis.com/token'),
+                    client_id=existing_creds.get('client_id'),
+                    client_secret=existing_creds.get('client_secret')
+                )
+                if creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                    self._save_tokens(creds)
+                    log_agent(self.name, 'Tokens OAuth2 rafraichis avec succes')
+                return creds
+
+            # Load from credentials file (first time setup)
+            with open(credentials_json_path, 'r') as f:
+                cred_data = json.load(f)
+
+            if 'installed' in cred_data or 'web' in cred_data:
+                from google_auth_oauthlib.flow import InstalledAppFlow
+                scopes = [
+                    'https://www.googleapis.com/auth/business.manage',
+                    'https://www.googleapis.com/auth/webmasters.readonly',
+                    'https://www.googleapis.com/auth/analytics.readonly',
+                    'https://www.googleapis.com/auth/indexing'
+                ]
+                flow = InstalledAppFlow.from_client_secrets_file(credentials_json_path, scopes=scopes)
+                creds = flow.run_local_server(port=0)
+                self._save_tokens(creds)
+                log_agent(self.name, 'OAuth2 credentials configures et sauvegardes')
+                return creds
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur setup credentials: {e}', level='ERROR')
+            return None
+
+    def _load_tokens(self):
+        """Load saved tokens from disk"""
+        try:
+            with open(self.TOKEN_PATH, 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return None
+
+    def _save_tokens(self, creds):
+        """Save OAuth2 credentials to disk"""
+        token_data = {
+            'access_token': creds.token,
+            'refresh_token': creds.refresh_token,
+            'token_uri': creds.token_uri,
+            'client_id': creds.client_id,
+            'client_secret': creds.client_secret,
+            'expiry': creds.expiry.isoformat() if creds.expiry else None
+        }
+        with open(self.TOKEN_PATH, 'w') as f:
+            json.dump(token_data, f, indent=2)
+        log_agent(self.name, 'Tokens sauvegardes dans ' + self.TOKEN_PATH)
+
+    def _get_oauth_headers(self):
+        """Get Authorization headers from saved tokens, auto-refresh if expired"""
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+
+        tokens = self._load_tokens()
+        if not tokens:
+            log_agent(self.name, 'Aucun token trouve. Appeler setup_credentials() d\'abord.', level='ERROR')
+            return None
+
+        creds = Credentials(
+            token=tokens.get('access_token'),
+            refresh_token=tokens.get('refresh_token'),
+            token_uri=tokens.get('token_uri', 'https://oauth2.googleapis.com/token'),
+            client_id=tokens.get('client_id'),
+            client_secret=tokens.get('client_secret')
+        )
+
+        if creds.expired and creds.refresh_token:
+            try:
+                creds.refresh(Request())
+                self._save_tokens(creds)
+                log_agent(self.name, 'Token rafraichi automatiquement')
+            except Exception as e:
+                log_agent(self.name, f'Erreur refresh token: {e}', level='ERROR')
+                return None
+
+        return {
+            'Authorization': f'Bearer {creds.token}',
+            'Content-Type': 'application/json'
+        }
+
+    def _get_service_account_headers(self, scopes):
+        """Get headers using service account credentials (for Analytics/Search Console)"""
+        from google.oauth2 import service_account
+        from google.auth.transport.requests import Request
+
+        sa_path = self.TOKEN_PATH.replace('google_tokens.json', 'service_account.json')
+        try:
+            creds = service_account.Credentials.from_service_account_file(sa_path, scopes=scopes)
+            creds.refresh(Request())
+            return {
+                'Authorization': f'Bearer {creds.token}',
+                'Content-Type': 'application/json'
+            }
+        except Exception as e:
+            log_agent(self.name, f'Erreur service account: {e}', level='ERROR')
+            # Fallback to OAuth2
+            return self._get_oauth_headers()
+
+    # ------------------------------------------
+    # 1. Google Business Profile - Reviews
+    # ------------------------------------------
+    def get_reviews(self, account_id, location_id):
+        """Fetch all reviews for a location"""
+        headers = self._get_oauth_headers()
+        if not headers:
+            return {'error': 'Pas de credentials OAuth2 configures'}
+
+        url = f'{self.GBP_API_BASE}/accounts/{account_id}/locations/{location_id}/reviews'
+        all_reviews = []
+        next_page_token = None
+
+        try:
+            while True:
+                params = {'pageSize': 50}
+                if next_page_token:
+                    params['pageToken'] = next_page_token
+
+                resp = requests.get(url, headers=headers, params=params, timeout=30)
+
+                if resp.status_code != 200:
+                    log_agent(self.name, f'Erreur API GBP reviews: {resp.status_code} - {resp.text}', level='ERROR')
+                    return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+                data = resp.json()
+                reviews = data.get('reviews', [])
+                all_reviews.extend(reviews)
+
+                next_page_token = data.get('nextPageToken')
+                if not next_page_token:
+                    break
+
+            # Save to DB
+            self._save_reviews_to_db(all_reviews, location_id)
+
+            log_agent(self.name, f'Recupere {len(all_reviews)} avis pour location {location_id}')
+            return {
+                'total': len(all_reviews),
+                'reviews': all_reviews
+            }
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur get_reviews: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def _save_reviews_to_db(self, reviews, location_id):
+        """Save reviews to local DB"""
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Find site_id from location context
+        site_id = None
+        for sid, site in SITES.items():
+            if site.get('gbp_location') == location_id:
+                site_id = sid
+                break
+
+        for review in reviews:
+            review_id = review.get('reviewId', review.get('name', '').split('/')[-1])
+            author = review.get('reviewer', {}).get('displayName', 'Anonyme')
+            rating = review.get('starRating', 'FIVE')
+            rating_map = {'ONE': 1, 'TWO': 2, 'THREE': 3, 'FOUR': 4, 'FIVE': 5}
+            rating_num = rating_map.get(rating, 5)
+            text = review.get('comment', '')
+            existing_reply = review.get('reviewReply', {}).get('comment', '')
+
+            try:
+                cursor.execute('''
+                    INSERT OR IGNORE INTO google_reviews
+                    (site_id, review_id, author, rating, text, reply)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (site_id, review_id, author, rating_num, text, existing_reply))
+            except Exception:
+                pass
+
+        conn.commit()
+        conn.close()
+
+    def generate_review_reply(self, review, site_id=None):
+        """Use call_qwen() to generate a personalized reply based on review rating, text, author"""
+        author = review.get('reviewer', {}).get('displayName', 'client')
+        rating_raw = review.get('starRating', 'FIVE')
+        rating_map = {'ONE': 1, 'TWO': 2, 'THREE': 3, 'FOUR': 4, 'FIVE': 5}
+        rating = rating_map.get(rating_raw, 5)
+        text = review.get('comment', '')
+        business_name = SITES.get(site_id, {}).get('nom', 'notre entreprise') if site_id else 'notre entreprise'
+
+        if rating == 5:
+            tone_instruction = (
+                'Remercie chaleureusement le client. Mentionne un detail specifique '
+                'du service si le texte de l\'avis en parle. Montre de la gratitude sincere.'
+            )
+        elif rating == 4:
+            tone_instruction = (
+                'Remercie le client pour son avis positif. Reconnais qu\'il y a '
+                'toujours place a l\'amelioration. Invite-le a revenir.'
+            )
+        elif rating == 3:
+            tone_instruction = (
+                'Remercie le client pour son avis honnete. Presente des excuses '
+                'pour l\'experience mitigee. Offre de t\'ameliorer et invite-le a te contacter.'
+            )
+        else:
+            tone_instruction = (
+                'Sois empathique et professionnel. Presente des excuses sinceres. '
+                'Offre de resoudre le probleme. Invite le client a te contacter directement '
+                'pour discuter de la situation.'
+            )
+
+        prompt = f"""Genere une reponse a cet avis Google pour l'entreprise "{business_name}".
+
+NOM DU CLIENT: {author}
+NOTE: {rating}/5
+TEXTE DE L'AVIS: {text if text else '(aucun commentaire)'}
+
+INSTRUCTIONS IMPORTANTES:
+- Ecris en FRANCAIS QUEBECOIS AUTHENTIQUE (pas de francais de France)
+- Utilise des expressions quebecoises naturelles: "ben content", "ca fait plaisir", "au plaisir", "merci ben gros", "on apprecie", "c'est le fun"
+- {tone_instruction}
+- 2 a 4 phrases MAXIMUM
+- Termine avec le nom de l'entreprise: {business_name}
+- PAS d'emojis, PAS de hashtags
+- Ton chaleureux et authentique, comme un vrai quebecois qui parle a son client
+- NE PAS utiliser de tags <think> ou autre formatage
+- Reponds DIRECTEMENT avec le texte de la reponse seulement"""
+
+        reply = call_qwen(prompt, max_tokens=500, system_prompt='Tu es un gestionnaire de reputation en ligne au Quebec.')
+
+        if reply:
+            # Clean up potential markdown or extra formatting
+            reply = reply.strip()
+            # Remove think tags
+            import re
+            reply = re.sub(r"<think>.*?</think>", "", reply, flags=re.DOTALL)
+            reply = re.sub(r"<think>.*", "", reply, flags=re.DOTALL)
+            reply = reply.strip()
+            if reply.startswith('"') and reply.endswith('"'):
+                reply = reply[1:-1]
+            log_agent(self.name, f'Reponse generee pour avis de {author} ({rating}/5)')
+            return reply
+
+        log_agent(self.name, 'Echec generation reponse avis', level='ERROR')
+        return None
+
+    def reply_to_review(self, account_id, location_id, review_id, reply_text):
+        """Post a reply to a specific review via API"""
+        headers = self._get_oauth_headers()
+        if not headers:
+            return {'error': 'Pas de credentials OAuth2 configures'}
+
+        url = (
+            f'{self.GBP_API_BASE}/accounts/{account_id}'
+            f'/locations/{location_id}/reviews/{review_id}/reply'
+        )
+        payload = {'comment': reply_text}
+
+        try:
+            resp = requests.put(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code in (200, 201):
+                # Update DB
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE google_reviews
+                    SET reply = ?, reply_date = datetime('now')
+                    WHERE review_id = ?
+                ''', (reply_text, review_id))
+                conn.commit()
+                conn.close()
+
+                log_agent(self.name, f'Reponse postee pour avis {review_id}')
+                return {'success': True, 'review_id': review_id}
+
+            log_agent(self.name, f'Erreur reply review: {resp.status_code} - {resp.text}', level='ERROR')
+            return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur reply_to_review: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def auto_reply_all_reviews(self, account_id, location_id, site_id=None, dry_run=True):
+        """Fetch unreplied reviews, generate AI replies, optionally post them. dry_run=True just generates without posting"""
+        result = self.get_reviews(account_id, location_id)
+        if 'error' in result:
+            return result
+
+        reviews = result.get('reviews', [])
+        unreplied = [r for r in reviews if not r.get('reviewReply')]
+
+        log_agent(self.name, f'{len(unreplied)} avis sans reponse sur {len(reviews)} total')
+
+        replies = []
+        for review in unreplied:
+            review_id = review.get('reviewId', review.get('name', '').split('/')[-1])
+            reply_text = self.generate_review_reply(review, site_id=site_id)
+
+            if not reply_text:
+                continue
+
+            entry = {
+                'review_id': review_id,
+                'author': review.get('reviewer', {}).get('displayName', 'Anonyme'),
+                'rating': review.get('starRating', 'FIVE'),
+                'comment': review.get('comment', ''),
+                'generated_reply': reply_text,
+                'posted': False
+            }
+
+            if not dry_run:
+                post_result = self.reply_to_review(account_id, location_id, review_id, reply_text)
+                entry['posted'] = post_result.get('success', False)
+                entry['post_result'] = post_result
+
+            replies.append(entry)
+
+        mode = 'DRY RUN' if dry_run else 'LIVE'
+        log_agent(self.name, f'Auto-reply {mode}: {len(replies)} reponses generees')
+
+        return {
+            'mode': mode,
+            'total_reviews': len(reviews),
+            'unreplied': len(unreplied),
+            'replies_generated': len(replies),
+            'replies': replies
+        }
+
+    # ------------------------------------------
+    # 2. Google Search Console
+    # ------------------------------------------
+    def get_search_performance(self, site_url, days=30):
+        """Fetch search performance data (clicks, impressions, CTR, position) for last N days"""
+        headers = self._get_service_account_headers(
+            scopes=['https://www.googleapis.com/auth/webmasters.readonly']
+        )
+        if not headers:
+            return {'error': 'Pas de credentials configures'}
+
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        url = f'{self.SC_API_BASE}/sites/{requests.utils.quote(site_url, safe="")}/searchAnalytics/query'
+
+        payload = {
+            'startDate': start_date,
+            'endDate': end_date,
+            'dimensions': ['date'],
+            'rowLimit': 5000
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code != 200:
+                log_agent(self.name, f'Erreur Search Console: {resp.status_code}', level='ERROR')
+                return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+            data = resp.json()
+            rows = data.get('rows', [])
+
+            total_clicks = sum(r.get('clicks', 0) for r in rows)
+            total_impressions = sum(r.get('impressions', 0) for r in rows)
+            avg_ctr = (total_clicks / total_impressions * 100) if total_impressions > 0 else 0
+            avg_position = (
+                sum(r.get('position', 0) for r in rows) / len(rows)
+            ) if rows else 0
+
+            daily = []
+            for row in rows:
+                daily.append({
+                    'date': row['keys'][0],
+                    'clicks': row.get('clicks', 0),
+                    'impressions': row.get('impressions', 0),
+                    'ctr': round(row.get('ctr', 0) * 100, 2),
+                    'position': round(row.get('position', 0), 1)
+                })
+
+            result = {
+                'site_url': site_url,
+                'period': f'{start_date} - {end_date}',
+                'days': days,
+                'summary': {
+                    'total_clicks': total_clicks,
+                    'total_impressions': total_impressions,
+                    'avg_ctr': round(avg_ctr, 2),
+                    'avg_position': round(avg_position, 1)
+                },
+                'daily': daily
+            }
+
+            log_agent(
+                self.name,
+                f'Search Console {site_url}: {total_clicks} clics, '
+                f'{total_impressions} impressions, CTR {avg_ctr:.1f}%, pos {avg_position:.1f}'
+            )
+            return result
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur get_search_performance: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def get_top_queries(self, site_url, limit=20):
+        """Get top search queries with clicks/impressions"""
+        headers = self._get_service_account_headers(
+            scopes=['https://www.googleapis.com/auth/webmasters.readonly']
+        )
+        if not headers:
+            return {'error': 'Pas de credentials configures'}
+
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+        url = f'{self.SC_API_BASE}/sites/{requests.utils.quote(site_url, safe="")}/searchAnalytics/query'
+
+        payload = {
+            'startDate': start_date,
+            'endDate': end_date,
+            'dimensions': ['query'],
+            'rowLimit': limit,
+            'orderBy': 'clicks',
+            'dimensionFilterGroups': []
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code != 200:
+                log_agent(self.name, f'Erreur top queries: {resp.status_code}', level='ERROR')
+                return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+            data = resp.json()
+            rows = data.get('rows', [])
+
+            queries = []
+            for row in rows:
+                queries.append({
+                    'query': row['keys'][0],
+                    'clicks': row.get('clicks', 0),
+                    'impressions': row.get('impressions', 0),
+                    'ctr': round(row.get('ctr', 0) * 100, 2),
+                    'position': round(row.get('position', 0), 1)
+                })
+
+            log_agent(self.name, f'Top {len(queries)} queries pour {site_url}')
+            return {
+                'site_url': site_url,
+                'period': f'{start_date} - {end_date}',
+                'queries': queries
+            }
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur get_top_queries: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def get_indexing_status(self, site_url):
+        """Check indexing coverage via Search Console API"""
+        headers = self._get_service_account_headers(
+            scopes=['https://www.googleapis.com/auth/webmasters.readonly']
+        )
+        if not headers:
+            return {'error': 'Pas de credentials configures'}
+
+        url = f'{self.SC_API_BASE}/sites/{requests.utils.quote(site_url, safe="")}/sitemaps'
+
+        try:
+            resp = requests.get(url, headers=headers, timeout=30)
+
+            if resp.status_code != 200:
+                log_agent(self.name, f'Erreur indexing status: {resp.status_code}', level='ERROR')
+                return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+            data = resp.json()
+            sitemaps = data.get('sitemap', [])
+
+            total_submitted = 0
+            total_indexed = 0
+            sitemap_details = []
+
+            for sm in sitemaps:
+                submitted = 0
+                indexed = 0
+                for content in sm.get('contents', []):
+                    submitted += content.get('submitted', 0)
+                    indexed += content.get('indexed', 0)
+
+                total_submitted += submitted
+                total_indexed += indexed
+
+                sitemap_details.append({
+                    'path': sm.get('path', ''),
+                    'last_submitted': sm.get('lastSubmitted', ''),
+                    'last_downloaded': sm.get('lastDownloaded', ''),
+                    'is_pending': sm.get('isPending', False),
+                    'submitted': submitted,
+                    'indexed': indexed
+                })
+
+            index_rate = (total_indexed / total_submitted * 100) if total_submitted > 0 else 0
+
+            result = {
+                'site_url': site_url,
+                'total_submitted': total_submitted,
+                'total_indexed': total_indexed,
+                'index_rate': round(index_rate, 1),
+                'sitemaps': sitemap_details
+            }
+
+            log_agent(
+                self.name,
+                f'Indexation {site_url}: {total_indexed}/{total_submitted} '
+                f'({index_rate:.1f}%)'
+            )
+            return result
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur get_indexing_status: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def request_indexing(self, page_url):
+        """Request URL indexing via Indexing API"""
+        headers = self._get_service_account_headers(
+            scopes=['https://www.googleapis.com/auth/indexing']
+        )
+        if not headers:
+            return {'error': 'Pas de credentials configures'}
+
+        payload = {
+            'url': page_url,
+            'type': 'URL_UPDATED'
+        }
+
+        try:
+            resp = requests.post(self.INDEXING_API, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code in (200, 201):
+                data = resp.json()
+                log_agent(self.name, f'Indexation demandee pour {page_url}')
+                return {
+                    'success': True,
+                    'url': page_url,
+                    'notification_time': data.get('urlNotificationMetadata', {}).get('latestUpdate', {}).get('notifyTime', '')
+                }
+
+            log_agent(self.name, f'Erreur request indexing: {resp.status_code}', level='ERROR')
+            return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur request_indexing: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    # ------------------------------------------
+    # 3. Google Analytics (GA4)
+    # ------------------------------------------
+    def get_analytics_summary(self, property_id, days=30, site_id=None):
+        """Fetch GA4 summary: sessions, users, pageviews, bounce rate"""
+        headers = self._get_service_account_headers(
+            scopes=['https://www.googleapis.com/auth/analytics.readonly']
+        )
+        if not headers:
+            return {'error': 'Pas de credentials configures'}
+
+        url = f'{self.GA4_API_BASE}/properties/{property_id}:runReport'
+
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+        payload = {
+            'dateRanges': [{'startDate': start_date, 'endDate': end_date}],
+            'metrics': [
+                {'name': 'sessions'},
+                {'name': 'totalUsers'},
+                {'name': 'screenPageViews'},
+                {'name': 'bounceRate'},
+                {'name': 'averageSessionDuration'},
+                {'name': 'newUsers'}
+            ]
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code != 200:
+                log_agent(self.name, f'Erreur GA4 summary: {resp.status_code}', level='ERROR')
+                return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+            data = resp.json()
+            rows = data.get('rows', [])
+
+            if not rows:
+                return {
+                    'property_id': property_id,
+                    'period': f'{start_date} - {end_date}',
+                    'summary': 'Aucune donnee pour cette periode'
+                }
+
+            values = rows[0].get('metricValues', [])
+
+            summary = {
+                'sessions': int(values[0].get('value', 0)) if len(values) > 0 else 0,
+                'users': int(values[1].get('value', 0)) if len(values) > 1 else 0,
+                'pageviews': int(values[2].get('value', 0)) if len(values) > 2 else 0,
+                'bounce_rate': round(float(values[3].get('value', 0)) * 100, 1) if len(values) > 3 else 0,
+                'avg_session_duration': round(float(values[4].get('value', 0)), 1) if len(values) > 4 else 0,
+                'new_users': int(values[5].get('value', 0)) if len(values) > 5 else 0
+            }
+
+            result = {
+                'property_id': property_id,
+                'period': f'{start_date} - {end_date}',
+                'days': days,
+                'summary': summary
+            }
+
+            # Cache to DB
+            if site_id:
+                self._cache_analytics(site_id, property_id, summary, f'{start_date}_{end_date}')
+
+            log_agent(
+                self.name,
+                f'GA4 {property_id}: {summary["sessions"]} sessions, '
+                f'{summary["users"]} users, {summary["pageviews"]} pageviews'
+            )
+            return result
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur get_analytics_summary: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def get_top_pages(self, property_id, limit=10):
+        """Get top pages by sessions"""
+        headers = self._get_service_account_headers(
+            scopes=['https://www.googleapis.com/auth/analytics.readonly']
+        )
+        if not headers:
+            return {'error': 'Pas de credentials configures'}
+
+        url = f'{self.GA4_API_BASE}/properties/{property_id}:runReport'
+
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+        payload = {
+            'dateRanges': [{'startDate': start_date, 'endDate': end_date}],
+            'dimensions': [{'name': 'pagePath'}],
+            'metrics': [
+                {'name': 'sessions'},
+                {'name': 'screenPageViews'},
+                {'name': 'averageSessionDuration'},
+                {'name': 'bounceRate'}
+            ],
+            'orderBys': [{'metric': {'metricName': 'sessions'}, 'desc': True}],
+            'limit': limit
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code != 200:
+                log_agent(self.name, f'Erreur GA4 top pages: {resp.status_code}', level='ERROR')
+                return {'error': f'API error {resp.status_code}', 'details': resp.text}
+
+            data = resp.json()
+            rows = data.get('rows', [])
+
+            pages = []
+            for row in rows:
+                dims = row.get('dimensionValues', [])
+                vals = row.get('metricValues', [])
+                pages.append({
+                    'page': dims[0].get('value', '') if dims else '',
+                    'sessions': int(vals[0].get('value', 0)) if len(vals) > 0 else 0,
+                    'pageviews': int(vals[1].get('value', 0)) if len(vals) > 1 else 0,
+                    'avg_duration': round(float(vals[2].get('value', 0)), 1) if len(vals) > 2 else 0,
+                    'bounce_rate': round(float(vals[3].get('value', 0)) * 100, 1) if len(vals) > 3 else 0
+                })
+
+            log_agent(self.name, f'Top {len(pages)} pages pour GA4 {property_id}')
+            return {
+                'property_id': property_id,
+                'period': f'{start_date} - {end_date}',
+                'pages': pages
+            }
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur get_top_pages: {e}', level='ERROR')
+            return {'error': str(e)}
+
+    def _cache_analytics(self, site_id, property_id, metrics, period):
+        """Cache analytics data to DB"""
+        try:
+            conn = get_db()
+            cursor = conn.cursor()
+            for metric_name, value in metrics.items():
+                cursor.execute('''
+                    INSERT INTO google_analytics_cache
+                    (site_id, property_id, metric, value, period, cached_at)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'))
+                ''', (site_id, property_id, metric_name, str(value), period))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    # ------------------------------------------
+    # 4. PageSpeed Insights
+    # ------------------------------------------
+    def check_pagespeed(self, url, strategy='mobile'):
+        """Run PageSpeed Insights audit (no auth needed, uses public API)"""
+        params = {
+            'url': url,
+            'strategy': strategy,
+            'category': 'performance'
+        }
+
+        # Add API key if available (higher quota)
+        import os
+        api_key = os.getenv('GOOGLE_PAGESPEED_API_KEY', '')
+        if api_key:
+            params['key'] = api_key
+
+        try:
+            resp = requests.get(self.PAGESPEED_API, params=params, timeout=60)
+
+            if resp.status_code != 200:
+                log_agent(self.name, f'Erreur PageSpeed: {resp.status_code}', level='ERROR')
+                return {'error': f'API error {resp.status_code}', 'url': url}
+
+            data = resp.json()
+
+            # Lighthouse results
+            lighthouse = data.get('lighthouseResult', {})
+            categories = lighthouse.get('categories', {})
+            audits = lighthouse.get('audits', {})
+
+            perf_score = categories.get('performance', {}).get('score', 0)
+            perf_score = round(perf_score * 100) if perf_score else 0
+
+            # Core Web Vitals
+            cwv = {}
+            cwv_audits = {
+                'largest-contentful-paint': 'LCP',
+                'first-contentful-paint': 'FCP',
+                'total-blocking-time': 'TBT',
+                'cumulative-layout-shift': 'CLS',
+                'speed-index': 'Speed Index',
+                'interactive': 'TTI'
+            }
+
+            for audit_id, label in cwv_audits.items():
+                audit = audits.get(audit_id, {})
+                cwv[label] = {
+                    'value': audit.get('displayValue', 'N/A'),
+                    'score': round(audit.get('score', 0) * 100) if audit.get('score') else 0
+                }
+
+            # Key opportunities
+            opportunities = []
+            for audit_id, audit in audits.items():
+                if audit.get('details', {}).get('type') == 'opportunity':
+                    savings = audit.get('details', {}).get('overallSavingsMs', 0)
+                    if savings > 0:
+                        opportunities.append({
+                            'title': audit.get('title', ''),
+                            'description': audit.get('description', ''),
+                            'savings_ms': round(savings),
+                            'score': round(audit.get('score', 0) * 100) if audit.get('score') else 0
+                        })
+
+            opportunities.sort(key=lambda x: x['savings_ms'], reverse=True)
+
+            # Field data (CrUX)
+            loading_experience = data.get('loadingExperience', {})
+            field_metrics = loading_experience.get('metrics', {})
+
+            field_data = {}
+            for metric_key, metric_data in field_metrics.items():
+                field_data[metric_key] = {
+                    'percentile': metric_data.get('percentile', 'N/A'),
+                    'category': metric_data.get('category', 'N/A')
+                }
+
+            grade = (
+                'A' if perf_score >= 90 else
+                'B' if perf_score >= 75 else
+                'C' if perf_score >= 50 else
+                'D' if perf_score >= 25 else 'F'
+            )
+
+            result = {
+                'url': url,
+                'strategy': strategy,
+                'performance_score': perf_score,
+                'grade': grade,
+                'core_web_vitals': cwv,
+                'opportunities': opportunities[:5],
+                'field_data': field_data
+            }
+
+            log_agent(
+                self.name,
+                f'PageSpeed {url} ({strategy}): score {perf_score}/100 ({grade})'
+            )
+            return result
+
+        except Exception as e:
+            log_agent(self.name, f'Erreur check_pagespeed: {e}', level='ERROR')
+            return {'error': str(e), 'url': url}
+
+    # ------------------------------------------
+    # Utility: Full Site Report
+    # ------------------------------------------
+    def full_site_report(self, site_id, account_id=None, location_id=None, property_id=None):
+        """Generate a comprehensive Google report for a site"""
+        site = SITES.get(site_id)
+        if not site:
+            return {'error': f'Site ID {site_id} introuvable'}
+
+        domain = site['domaine']
+        report = {
+            'site': site['nom'],
+            'domain': domain,
+            'generated_at': datetime.now().isoformat()
+        }
+
+        # PageSpeed (always available, no auth needed)
+        report['pagespeed_mobile'] = self.check_pagespeed(f'https://{domain}', strategy='mobile')
+        report['pagespeed_desktop'] = self.check_pagespeed(f'https://{domain}', strategy='desktop')
+
+        # Search Console
+        site_url = f'sc-domain:{domain}'
+        report['search_performance'] = self.get_search_performance(site_url)
+        report['top_queries'] = self.get_top_queries(site_url)
+        report['indexing'] = self.get_indexing_status(site_url)
+
+        # GA4
+        if property_id:
+            report['analytics'] = self.get_analytics_summary(property_id, site_id=site_id)
+            report['top_pages'] = self.get_top_pages(property_id)
+
+        # GBP Reviews
+        if account_id and location_id:
+            report['reviews'] = self.get_reviews(account_id, location_id)
+
+        log_agent(self.name, f'Rapport complet genere pour {site["nom"]}')
+        return report
+
+
 class MasterOrchestrator:
     """Agent 30: Orchestrateur principal"""
     name = "Master Orchestrator"
@@ -1955,7 +3032,8 @@ class MasterOrchestrator:
             'landing_page': LandingPageAgent(),
             'blog_idea': BlogIdeaAgent(),
             'video_script': VideoScriptAgent(),
-            'service_description': ServiceDescriptionAgent()
+            'service_description': ServiceDescriptionAgent(),
+            'google': GoogleAgent()
         }
 
     def run_full_audit(self, site_id):
@@ -7813,6 +8891,126 @@ FORMAT JSON:
             },
             'calculated_at': datetime.now().isoformat()
         }
+
+
+
+    def audit_site_html(self, site_id):
+        """Audit local SEO en scannant le HTML du site"""
+        import re as _re
+        site = SITES.get(site_id, {})
+        if not site:
+            return {"error": f"Site {site_id} inconnu"}
+
+        domain = site.get("domaine", "")
+        url = f"https://{domain}"
+        issues = []
+        score = 100
+        details = {}
+
+        try:
+            resp = requests.get(url, timeout=15, headers={"User-Agent": "SeoAI-LocalSEO/1.0"})
+            html = resp.text
+        except Exception as e:
+            return {"error": str(e), "score": 0}
+
+        # 1. Check LocalBusiness JSON-LD
+        ld_blocks = _re.findall(r"<script[^>]*application/ld.json[^>]*>(.*?)</script>", html, _re.DOTALL | _re.IGNORECASE)
+        has_local_biz = False
+        has_faq_schema = False
+        faq_count = 0
+        biz_data = {}
+
+        for block in ld_blocks:
+            try:
+                data = json.loads(block.strip())
+                biz_types = ["LocalBusiness", "LandscapingBusiness", "HomeAndConstructionBusiness",
+                             "ProfessionalService", "Plumber", "Painter", "HousePainter"]
+                if data.get("@type") in biz_types:
+                    has_local_biz = True
+                    biz_data = data
+                if data.get("@type") == "FAQPage":
+                    has_faq_schema = True
+                    faq_count = len(data.get("mainEntity", []))
+            except:
+                pass
+
+        if not has_local_biz:
+            issues.append({"type": "critical", "message": "Schema LocalBusiness JSON-LD absent"})
+            score -= 20
+        else:
+            if not biz_data.get("telephone"):
+                issues.append({"type": "warning", "message": "Telephone manquant dans schema"})
+                score -= 5
+            if not biz_data.get("address"):
+                issues.append({"type": "warning", "message": "Adresse manquante dans schema"})
+                score -= 5
+            if not biz_data.get("areaServed"):
+                issues.append({"type": "warning", "message": "Zones de service (areaServed) manquantes"})
+                score -= 5
+            details["local_business"] = {"type": biz_data.get("@type", ""), "areas": len(biz_data.get("areaServed", []))}
+
+        # 2. Check FAQPage schema
+        if not has_faq_schema:
+            issues.append({"type": "critical", "message": "Schema FAQPage JSON-LD absent"})
+            score -= 15
+        else:
+            if faq_count < 5:
+                issues.append({"type": "warning", "message": f"Seulement {faq_count} FAQ (min 5)"})
+                score -= 5
+            details["faq_schema"] = faq_count
+
+        # 3. Check visible FAQ
+        faq_visible = html.lower().count("faq-item")
+        if faq_visible == 0:
+            issues.append({"type": "warning", "message": "Section FAQ visible absente"})
+            score -= 10
+        details["faq_visible"] = faq_visible
+
+        # 4. Cross-links
+        sister_sites = {k: v for k, v in SITES.items() if k != site_id and k != 4}
+        cross_links = [s["domaine"] for s in sister_sites.values() if s.get("domaine", "") in html]
+        if not cross_links:
+            issues.append({"type": "info", "message": "Pas de cross-link vers sites partenaires"})
+            score -= 3
+        details["cross_links"] = cross_links
+
+        # 5. Google Maps
+        html_lower = html.lower()
+        has_gmaps = "maps.google" in html_lower or "google.com/maps" in html_lower or "maps.googleapis" in html_lower
+        if not has_gmaps:
+            issues.append({"type": "warning", "message": "Pas de Google Maps integre"})
+            score -= 5
+        details["has_google_maps"] = has_gmaps
+
+        # 6. Phone visible
+        phone_found = bool(_re.search(r"438.?383.?7283", html))
+        if not phone_found:
+            issues.append({"type": "warning", "message": "Telephone non visible"})
+            score -= 5
+        details["phone_visible"] = phone_found
+
+        # 7. Check robots.txt AI bots
+        try:
+            robots_resp = requests.get(f"https://{domain}/robots.txt", timeout=5)
+            if robots_resp.status_code == 200:
+                robots = robots_resp.text.lower()
+                details["robots_allows_ai"] = "gptbot" not in robots or "allow" in robots
+        except:
+            pass
+
+        log_agent(self.name, f"Site HTML audit {domain}: Score {max(0, score)}, {len(issues)} issues")
+        return {"site_id": site_id, "domain": domain, "score": max(0, score),
+                "grade": "A" if score >= 90 else "B" if score >= 75 else "C" if score >= 60 else "D",
+                "issues": issues, "details": details}
+
+    def audit_all_sites_html(self):
+        """Audit local SEO HTML de tous les sites clients"""
+        results = {}
+        for site_id in SITES:
+            if site_id == 4:
+                continue
+            results[site_id] = self.audit_site_html(site_id)
+        return results
 
 
 # =============================================================================

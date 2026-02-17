@@ -14,6 +14,7 @@ logs/
 
 # Database
 db/*.db
+db/backup/
 *.sqlite3
 
 # Environment
@@ -37,3 +38,22 @@ node_modules/
 tmp/
 temp/
 *.tmp
+
+# Backups (binaires, quotidiens, rotation 30j)
+backups/
+
+# Backup files
+*.bak
+*.bak_*
+*.bak.*
+*.backup
+
+# Credentials (SECRETS)
+google_credentials.json
+google_tokens.json
+
+# Security state files (change a chaque run)
+security/last-audit.json
+security/last-backup.json
+security/*.backup
+security/testssl.sh/
