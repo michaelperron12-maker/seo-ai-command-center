@@ -280,6 +280,56 @@ def cycle_content(sites):
     return stats
 
 
+
+# Reddit topics par niche — rotation automatique
+REDDIT_TOPICS = {
+    "deneigement": [
+        "Comment bien preparer son entree de garage avant lhiver a Montreal",
+        "Vos astuces pour eviter le verglas sur vos marches et trottoirs",
+        "A quel moment faites-vous deneiger votre stationnement commercial",
+        "Les pires tempetes de neige a Montreal — vos experiences",
+        "Deneigement residentiel vs commercial — les differences de prix au Quebec",
+        "Sel ou abrasif — quest-ce qui est mieux pour lenvironnement",
+        "Comment choisir un bon service de deneigement sur la Rive-Sud",
+        "Vos experiences avec le deneigement durgence 24h",
+    ],
+    "paysagement": [
+        "Quand commencer lentretien de sa pelouse au printemps au Quebec",
+        "Idees damenagement paysager pour petit terrain a Montreal",
+        "Comment proteger ses plantes vivaces pour lhiver quebecois",
+        "Pose de gazon en rouleau vs semences — vos experiences",
+        "Budget amenagement paysager — combien avez-vous paye",
+        "Les meilleurs arbustes pour haie brise-vent au Quebec",
+        "Entretien pelouse ete — arrosage et tonte frequence ideale",
+        "Terrasse en pave ou bois traite — avantages et inconvenients",
+    ],
+    "peinture": [
+        "Peinturer soi-meme ou engager un peintre — votre experience",
+        "Quelles couleurs tendance pour un salon en 2026 au Quebec",
+        "Peinture interieure — combien de couches appliquez-vous",
+        "Trouver un bon peintre a Montreal — vos recommandations",
+        "Prix peinture exterieure maison — combien ca vous a coute",
+        "Quelle marque de peinture utilisez-vous Benjamin Moore ou Sico",
+        "Peinturer sa cuisine — idees et conseils pour un bon resultat",
+        "Estimation peinture condo Montreal — est-ce que 3000$ est raisonnable",
+    ],
+    "seo-marketing": [
+        "Outils SEO gratuits que vous utilisez pour votre PME au Quebec",
+        "Comment une petite entreprise peut ameliorer son Google ranking",
+        "SEO local Montreal — astuces pour apparaitre dans le map pack",
+        "Automatiser son marketing digital — quels outils utilisez-vous",
+    ],
+}
+
+def _get_reddit_topic(site):
+    """Pick a random relevant topic for the site niche"""
+    import random
+    niche = site.get("niche", "")
+    topics = REDDIT_TOPICS.get(niche, REDDIT_TOPICS.get("seo-marketing", []))
+    if topics:
+        return random.choice(topics)
+    return f"Conseils {niche} au Quebec"
+
 def cycle_marketing(sites):
     """MARKETING: Social media, backlinks, competitors, local SEO, reviews, directories — daily"""
     log("═══ CYCLE: MARKETING ═══")
@@ -312,7 +362,7 @@ def cycle_marketing(sites):
              ("Excellent service, très professionnel!", 5, True), 60),
             ("DirectorySubmission", directory_agent.generate_business_listing, (site_id,), 90),
             ("Reddit", reddit_agent.generate_reddit_post,
-             (site_id, site.get('categorie', site['nom'])), 60),
+             (site_id, _get_reddit_topic(site)), 90),
         ]
 
         for name, func, args, timeout in agents_to_run:

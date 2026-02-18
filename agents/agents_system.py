@@ -3235,9 +3235,10 @@ FORMAT JSON:
                 if '```json' in response:
                     response = response.split('```json')[1].split('```')[0]
                 return json.loads(response.strip())
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
 
 class ForumAgent:
@@ -3284,9 +3285,10 @@ FORMAT JSON:
                 if '```json' in response:
                     response = response.split('```json')[1].split('```')[0]
                 return json.loads(response.strip())
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
 
 class DirectoryAgent:
@@ -3358,9 +3360,10 @@ FORMAT JSON:
                 if '```json' in response:
                     response = response.split('```json')[1].split('```')[0]
                 return json.loads(response.strip())
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
 
 class GuestPostAgent:
@@ -3401,9 +3404,10 @@ FORMAT JSON:
                 if '```json' in response:
                     response = response.split('```json')[1].split('```')[0]
                 return json.loads(response.strip())
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
 
 class ContentSchedulerAgent:
@@ -3451,9 +3455,10 @@ FORMAT JSON:
                 if '```json' in response:
                     response = response.split('```json')[1].split('```')[0]
                 return json.loads(response.strip())
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
 
 # ============================================
@@ -3853,9 +3858,10 @@ FORMAT JSON:
                     'plan': row[9],
                     'created_at': row[10]
                 }
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def list_all_clients(self):
         """Liste tous les clients"""
@@ -3985,9 +3991,10 @@ class WhiteLabelReportAgent:
                     'niche': site.get('niche', ''),
                     'location': 'Quebec'
                 }
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def _collect_metrics(self, client):
         """Collecte toutes les metriques SEO du client"""
@@ -4933,9 +4940,10 @@ class KeywordGapAgent:
             conn.close()
             if row:
                 return row[0]
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def _get_client_niche(self, client_id):
         """Recupere la niche du client"""
@@ -5853,9 +5861,10 @@ FORMAT JSON:
             conn.close()
             if row:
                 return json.loads(row[0])
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def update_brief_status(self, brief_id, status):
         """Met a jour le statut d'un brief"""
@@ -6173,9 +6182,10 @@ class BacklinkMonitorAgent:
             conn.close()
             if row:
                 return row[0]
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def _estimate_backlinks(self, domain):
         """Estime les backlinks via IA"""
@@ -6754,9 +6764,10 @@ class SiteSpeedAgent:
             conn.close()
             if row:
                 return f"https://{row[0]}"
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def _measure_speed(self, url):
         """Mesure les metriques de vitesse (simulation)"""
@@ -7860,9 +7871,10 @@ FORMAT JSON:
             conn.close()
             if row:
                 return json.loads(row[0])
-        except:
-            pass
-        return None
+        except Exception as e:
+            import logging
+            logging.warning(f'_call_ai error: {e}')
+            return None
 
     def _compare_snapshots(self, old_snapshot, new_snapshot, competitor):
         """Compare deux snapshots et detecte les changements"""
