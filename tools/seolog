@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""SeoAI Activity Logger - CLI tool for SSH sessions
+Usage:
+  seolog "Fixed nginx config for jcpeintre"
+  seolog -c deploy "Deployed api_server.py v3.1"
+  seolog -c fix -s jcpeintre "Fixed SSL redirect loop"
+  seolog -c security "Updated UFW rules"
+  seolog --list          # voir les 20 dernieres entrees
+  seolog --list 50       # voir les 50 dernieres
+  seolog --today         # tout ce qui s est passe aujourd hui
+  seolog --search nginx  # chercher dans le log
+"""
+import sqlite3, sys, os, argparse
+
+DB = "/opt/seo-agent/db/seo_agent.db"
+
+def get_actor():
+    user = os.environ.get("SUDO_USER") or os.environ.get("USER", "unknown")
+    return user
+
+def log_entry(action, category="general", site_id=None, severity="info", detail=None, source="ssh", actor=None):
+    conn = sqlite3.connect(DB)
+    conn.execute(
+        "INSERT INTO activity_log (source, actor, action, detail, site_id, category, severity, session_id) VALUES (?,?,?,?,?,?,?,?)",
+        (source, actor or get_actor(), action, detail, site_id, category, severity,
+         os.environ.get("SSH_CLIENT", "local")[:20])
+    )
+    conn.commit()
+    conn.close()
+
+def show_entries(limit=20, search=None, today=False):
+    conn = sqlite3.connect(DB)
+    query = "SELECT timestamp, source, actor, category, site_id, action, severity FROM activity_log"
+    params = []
+    conditions = []
+    if today:
+        conditions.append("date(timestamp) = date('now')")
+    if search:
+        conditions.append("(action LIKE ? OR detail LIKE ? OR category LIKE ?)")
+        params.extend(["%" + search + "%"] * 3)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " ORDER BY timestamp DESC LIMIT " + str(limit)
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    if not rows:
+        print("  (aucune entree)")
+        return
+
+    print("{:<20} {:<8} {:<10} {:<12} {:<14} {}".format("Quand", "Source", "Qui", "Cat", "Site", "Action"))
+    print("-" * 100)
+    for r in reversed(rows):
+        ts = r[0][5:16] if r[0] else "?"
+        src = r[1] or ""
+        actor = r[2] or ""
+        cat = r[3] or ""
+        site = r[4] or ""
+        action = r[5] or ""
+        sev = r[6] or "info"
+        marker = "!" if sev == "critical" else "*" if sev == "important" else " "
+        print("{} {:<18} {:<8} {:<10} {:<12} {:<14} {}".format(marker, ts, src, actor, cat, site, action))
+
+def main():
+    parser = argparse.ArgumentParser(description="SeoAI Activity Logger")
+    parser.add_argument("message", nargs="*", help="Action description")
+    parser.add_argument("-c", "--category", default="general", help="Category: deploy, fix, config, security, seo, content, monitoring")
+    parser.add_argument("-s", "--site", default=None, help="Site: jcpeintre, deneigement, paysagement, seoparai")
+    parser.add_argument("-i", "--important", action="store_true", help="Mark as important")
+    parser.add_argument("--critical", action="store_true", help="Mark as critical")
+    parser.add_argument("--list", nargs="?", const=20, type=int, metavar="N", help="Show last N entries")
+    parser.add_argument("--today", action="store_true", help="Show today entries")
+    parser.add_argument("--search", type=str, help="Search in logs")
+    parser.add_argument("--source", default="ssh", help="Source: ssh, agent, api, deploy, system")
+    parser.add_argument("--actor", default=None, help="Override actor name")
+
+    args = parser.parse_args()
+
+    if args.list is not None:
+        show_entries(limit=args.list)
+        return
+    if args.today:
+        show_entries(limit=200, today=True)
+        return
+    if args.search:
+        show_entries(limit=50, search=args.search)
+        return
+
+    if not args.message:
+        parser.print_help()
+        return
+
+    action = " ".join(args.message)
+    severity = "critical" if args.critical else "important" if args.important else "info"
+
+    log_entry(action, category=args.category, site_id=args.site, severity=severity,
+              source=args.source, actor=args.actor)
+    print("OK: [{}] {}".format(args.category, action))
+
+if __name__ == "__main__":
+    main()

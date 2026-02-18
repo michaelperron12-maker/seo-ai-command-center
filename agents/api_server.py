@@ -1664,6 +1664,47 @@ def agent_keywords_alias():
         return jsonify({"status": "triggered", "message": "Keyword research queued for site {}".format(site_id)})
 
 
+# ============================================
+# ACTIVITY TIMELINE API
+# ============================================
+
+@app.route('/api/timeline', methods=['GET'])
+def get_timeline():
+    limit = request.args.get('limit', 50, type=int)
+    source = request.args.get('source')
+    category = request.args.get('category')
+    site_id = request.args.get('site_id')
+    today_only = request.args.get('today', 'false') == 'true'
+    conn = sqlite3.connect(DB_PATH)
+    query = 'SELECT id, timestamp, source, actor, action, detail, site_id, category, severity FROM activity_log WHERE 1=1'
+    params = []
+    if source:
+        query += ' AND source = ?'
+        params.append(source)
+    if category:
+        query += ' AND category = ?'
+        params.append(category)
+    if site_id:
+        query += ' AND site_id = ?'
+        params.append(site_id)
+    if today_only:
+        query += " AND date(timestamp) = date('now')"
+    query += ' ORDER BY timestamp DESC LIMIT ?'
+    params.append(limit)
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return jsonify({'timeline': [{'id': r[0], 'timestamp': r[1], 'source': r[2], 'actor': r[3], 'action': r[4], 'detail': r[5], 'site_id': r[6], 'category': r[7], 'severity': r[8]} for r in rows]})
+
+@app.route('/api/timeline/sync', methods=['POST'])
+def sync_timeline():
+    try:
+        from activity_hook import sync_recent_agent_runs
+        count = sync_recent_agent_runs(hours=24)
+        return jsonify({'status': 'ok', 'synced': count})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == "__main__":
     print("=== SEO Agent API Server v3.0 ===")
     print("Port: 8002")
