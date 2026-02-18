@@ -19,6 +19,7 @@ cp /var/www/ticket911/db/ticket911.db /tmp/db-backup-$DATE/ 2>/dev/null
 cp /var/www/jcpeintre-api/data/jcpeintre.db /tmp/db-backup-$DATE/ 2>/dev/null
 cp /opt/seo-agent/agents/seo_agents.db /tmp/db-backup-$DATE/ 2>/dev/null
 cp /var/www/dashboard/sessions.db /tmp/db-backup-$DATE/ 2>/dev/null
+cp /opt/seo-agent/db/seo_analytics.db /tmp/db-backup-$DATE/ 2>/dev/null
 tar czf $BACKUP_DIR/databases-$DATE.tar.gz /tmp/db-backup-$DATE/ 2>/dev/null
 rm -rf /tmp/db-backup-$DATE
 

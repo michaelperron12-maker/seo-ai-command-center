@@ -446,11 +446,19 @@ class SEOScanner:
             try:
                 data = json.loads(script.string)
                 if isinstance(data, dict):
-                    schema_types.append(data.get('@type', ''))
+                    t = data.get('@type', '')
+                    if isinstance(t, list):
+                        schema_types.extend([str(x) for x in t])
+                    else:
+                        schema_types.append(str(t))
                 elif isinstance(data, list):
                     for item in data:
                         if isinstance(item, dict):
-                            schema_types.append(item.get('@type', ''))
+                            t = item.get('@type', '')
+                            if isinstance(t, list):
+                                schema_types.extend([str(x) for x in t])
+                            else:
+                                schema_types.append(str(t))
             except:
                 pass
 
