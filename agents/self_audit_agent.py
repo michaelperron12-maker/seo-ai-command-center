@@ -1183,7 +1183,7 @@ python3 self_audit_agent.py pending-sql  # SQL des fixes<br>
 python3 self_audit_agent.py confirm-all  # Approuver tout
             </code>
             <p style="margin-top:15px; font-size:12px; color:#6c757d;">
-                Dashboard: <a href="http://148.113.194.234:8080/">http://148.113.194.234:8080/</a>
+                Dashboard: <a href="https://seoparai.com/dashboard">https://seoparai.com/dashboard</a>
             </p>
         </div>
         </body></html>

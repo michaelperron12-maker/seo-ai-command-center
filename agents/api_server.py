@@ -805,11 +805,34 @@ def api_index():
             'uptime': '/api/agents/uptime',
             'health': '/api/health'
         },
-        'dashboard': 'http://148.113.194.234:8080'
+        'dashboard': 'https://seoparai.com/dashboard'
     })
 
 
 
+
+# Traductions simples pour Self-Audit
+AUDIT_LABELS = {
+    "canonical": ("URL canonique manquante", "Google peut indexer des doublons de cette page"),
+    "open_graph": ("Apercu reseaux sociaux manquant", "Quand on partage sur Facebook/LinkedIn, pas de belle image ni titre"),
+    "schema_markup": ("Donnees structurees manquantes", "Google ne comprend pas bien le type de page (commerce, service, etc.)"),
+    "meta_description": ("Description Google manquante", "Google va inventer sa propre description dans les resultats"),
+    "no_structured_lists": ("Pas de liste structuree", "Les listes aident Google a comprendre les services offerts"),
+    "internal_links_low": ("Pas assez de liens internes", "Les pages doivent se lier entre elles pour le SEO"),
+    "lazy_loading": ("Images pas optimisees", "Les images ralentissent le site sans lazy loading"),
+    "schema_local_business": ("Fiche entreprise manquante", "Google ne sait pas que c'est un commerce local"),
+    "exposed_file": ("Fichier sensible expose", "Un fichier qui devrait etre cache est accessible publiquement"),
+    "security_header": ("Protection securite manquante", "Le site manque une protection contre les attaques web"),
+    "doctype": ("Declaration HTML manquante", "La page n'a pas le bon format HTML5"),
+    "open_port": ("Port ouvert sur le serveur", "Un port reseau est ouvert et potentiellement a risque"),
+    "viewport": ("Pas adapte mobile", "La page ne s'affiche pas bien sur telephone"),
+    "sitemap_domain_mismatch": ("Sitemap mauvais domaine", "Le sitemap pointe vers le mauvais site"),
+    "server_version_exposed": ("Version serveur visible", "Les hackers peuvent voir quelle version de serveur on utilise"),
+}
+
+def _simplify_path(msg):
+    import re
+    return re.sub(r'/var/www/([^/]+)/', r'\1 > ', msg).replace('/index.html', '').replace('.html', '')
 
 @app.route("/api/self-audit/dashboard", methods=["GET"])
 def self_audit_dashboard():
@@ -823,8 +846,12 @@ def self_audit_dashboard():
         SUM(CASE WHEN severity = 'critical' AND auto_fixed = 0 AND confirmed = 0 THEN 1 ELSE 0 END) as critical_open
     FROM self_audit_results""")
     stats = cursor.fetchone()
-    cursor.execute("""SELECT id, site_id, check_type, severity, message, fix_level, auto_fixed, confirmed, created_at
-    FROM self_audit_results ORDER BY created_at DESC LIMIT 30""")
+    cursor.execute("""SELECT id, site_id, check_type, severity, message, fix_level, auto_fixed, confirmed, created_at, fix_command
+    FROM self_audit_results ORDER BY
+        CASE WHEN fix_level = 'confirm' AND confirmed = 0 THEN 0 ELSE 1 END,
+        CASE severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
+        created_at DESC
+    LIMIT 200""")
     issues = cursor.fetchall()
     cursor.execute("""SELECT site_id, issues_found, auto_fixed, pending_confirm, completed_at
     FROM self_audit_runs WHERE site_id != '_email_skip' ORDER BY completed_at DESC LIMIT 1""")
@@ -836,8 +863,11 @@ def self_audit_dashboard():
             "critical_open": stats[4] if stats else 0},
         "issues": [{"id": r[0], "site_id": r[1], "check_type": r[2], "severity": r[3],
             "message": r[4], "fix_level": r[5], "auto_fixed": bool(r[6]), "confirmed": bool(r[7]),
-            "created_at": r[8],
-            "status": "auto_fixed" if r[6] else ("confirmed" if r[7] else "pending" if r[5]=="confirm" else "manual")
+            "created_at": r[8], "fix_command": r[9] or "",
+            "status": "auto_fixed" if r[6] else ("confirmed" if r[7] else "pending" if r[5]=="confirm" else "manual"),
+            "label": AUDIT_LABELS.get(r[2], (r[2], ""))[0],
+            "why": AUDIT_LABELS.get(r[2], ("", r[4]))[1],
+            "simple_message": _simplify_path(r[4])
         } for r in issues],
         "last_run": {"site_id": last_run[0], "issues_found": last_run[1], "auto_fixed": last_run[2],
             "pending_confirm": last_run[3], "completed_at": last_run[4]} if last_run else None

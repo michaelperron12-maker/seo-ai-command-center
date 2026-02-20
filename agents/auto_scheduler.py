@@ -170,6 +170,7 @@ def cycle_seo_core(sites):
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
+        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         url = f"https://{domain}"
         log(f"── Site {i}: {site['nom']} ({domain})")
@@ -222,6 +223,7 @@ def cycle_content(sites):
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
+        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         seeds = site.get('mots_cles_seed', [])
         seed = seeds[0] if seeds else site['nom']
@@ -318,6 +320,10 @@ REDDIT_TOPICS = {
         "Comment une petite entreprise peut ameliorer son Google ranking",
         "SEO local Montreal — astuces pour apparaitre dans le map pack",
         "Automatiser son marketing digital — quels outils utilisez-vous",
+        "Intelligence artificielle pour PME au Quebec — vos experiences",
+        "Agents AI pour automatiser le SEO — ca vaut la peine",
+        "Comment IA change le marketing digital au Quebec en 2026",
+        "Chatbots vs agents AI — quelle difference pour une entreprise",
     ],
 }
 
@@ -343,24 +349,27 @@ def cycle_marketing(sites):
     directory_agent = DirectoryAgent()
     reddit_agent = RedditAgent()
     forum_agent = ForumAgent()
+    blink_monitor = BacklinkMonitorAgent()
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
+        site_id_int = i  # Integer key for SITES dict lookups in agents_system.py
         domain = site['domaine']
         log(f"── Site {i}: {site['nom']} ({domain})")
 
         agents_to_run = [
             ("SocialMedia", social_agent.generate_social_posts,
              (f"{site['nom']} - Services professionnels", f"https://{domain}"), 90),
-            ("BacklinkAnalysis", backlink_agent.analyze_opportunities, (site_id,), 120),
+            ("BacklinkAnalysis", backlink_agent.analyze_opportunities, (site_id_int,), 120),
+            ("BacklinkDiscover", blink_monitor.discover_backlinks, (site_id_int,), 180),
             ("CompetitorAnalysis", competitor_agent.identify_competitors,
-             (site_id,), 120),
-            ("LocalSEO_GMB", local_agent.audit_gmb_profile, (site_id,), 90),
-            ("LocalSEO_NAP", local_agent.audit_nap_consistency, (site_id,), 60),
-            ("LocalSEO_Reviews", local_agent.analyze_reviews, (site_id,), 60),
+             (site_id_int,), 120),
+            ("LocalSEO_GMB", local_agent.audit_gmb_profile, (site_id_int,), 90),
+            ("LocalSEO_NAP", local_agent.audit_nap_consistency, (site_id_int,), 60),
+            ("LocalSEO_Reviews", local_agent.analyze_reviews, (site_id_int,), 60),
             ("ReviewManagement", review_agent.generate_review_response,
              ("Excellent service, très professionnel!", 5, True), 60),
-            ("DirectorySubmission", directory_agent.generate_business_listing, (site_id,), 90),
+            ("DirectorySubmission", directory_agent.generate_business_listing, (site_id_int,), 90),
             ("Reddit", reddit_agent.generate_reddit_post,
              (site_id, _get_reddit_topic(site)), 90),
         ]
@@ -385,29 +394,29 @@ def cycle_business(sites):
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
+        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         seeds = site.get('mots_cles_seed', [])
         log(f"── Site {i}: {site['nom']} ({domain})")
 
-        # SERP tracking — track keyword positions
-        for kw in seeds[:3]:
-            r = run_agent("SERPTracker", serp_agent.check_position, (kw, domain), 60, site_id)
-            stats["ok" if r["status"] == "success" else "fail"] += 1
-
-        # Keyword gap analysis
-        r = run_agent("KeywordGap", gap_agent.analyze_gap, (site_id, []), 120, site_id)
+        # SERP tracking — track ALL keyword positions from tracked_keywords table
+        r = run_agent("SERPTracker", serp_agent.track_all_keywords, (i,), 300, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
-        # Backlink monitoring
-        r = run_agent("BacklinkMonitor", blink_monitor.check_backlink_status, (site_id,), 90, site_id)
+        # Keyword gap analysis
+        r = run_agent("KeywordGap", gap_agent.analyze_gap, (site_id_int, []), 120, site_id)
+        stats["ok" if r["status"] == "success" else "fail"] += 1
+
+        # Backlink monitoring (check existing backlinks status)
+        r = run_agent("BacklinkMonitor", blink_monitor.check_backlink_status, (site_id_int,), 90, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Competitor watch
-        r = run_agent("CompetitorWatch", comp_watch.check_for_changes, (site_id,), 120, site_id)
+        r = run_agent("CompetitorWatch", comp_watch.check_for_changes, (site_id_int,), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Weekly report (generate daily, display weekly)
-        r = run_agent("Reporting", reporting_agent.generate_weekly_report, (site_id,), 120, site_id)
+        r = run_agent("Reporting", reporting_agent.generate_weekly_report, (site_id_int,), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
     return stats
@@ -437,6 +446,7 @@ def cycle_maintenance(sites):
     # 3. Per-site checks
     for i, site in enumerate(sites, 1):
         site_id = str(i)
+        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         url = f"https://{domain}"
         log(f"── Maintenance: {site['nom']} ({domain})")

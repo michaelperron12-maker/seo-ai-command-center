@@ -1,0 +1,3005 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO AI Command Center - 62 Agents | 4 Sites</title>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <style>
+        :root{--primary:#3b82f6;--success:#22c55e;--warning:#f59e0b;--danger:#ef4444;--info:#06b6d4;--purple:#8b5cf6}
+        [data-theme="dark"]{--bg:#0a0f1a;--surface:#111827;--surface-2:#1f2937;--text:#f9fafb;--text-muted:#9ca3af;--border:#374151}
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+        .dashboard{display:flex;min-height:100vh}
+
+        /* Sidebar */
+        .sidebar{background:var(--surface);border-right:1px solid var(--border);padding:12px 0;width:200px;min-width:200px;height:100vh;overflow-y:auto;position:sticky;top:0}
+        .sidebar-logo{padding:12px 14px;border-bottom:1px solid var(--border);margin-bottom:8px}
+        .sidebar-logo h2{font-size:.8rem;background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .nav-section{margin-bottom:6px}
+        .nav-title{font-size:.5rem;text-transform:uppercase;color:var(--text-muted);padding:6px 14px;letter-spacing:.1em}
+        .nav-item{display:flex;align-items:center;padding:6px 14px;color:var(--text-muted);cursor:pointer;font-size:.7rem;gap:6px;transition:all .15s}
+        .nav-item:hover{background:var(--surface-2);color:var(--text)}
+        .nav-item.active{background:linear-gradient(90deg,rgba(59,130,246,.2),transparent);color:var(--primary);border-left:2px solid var(--primary)}
+        .nav-item .badge{margin-left:auto;padding:1px 5px;border-radius:8px;font-size:.5rem;font-weight:700}
+        .nav-item .badge.danger{background:var(--danger);color:#fff}
+        .nav-item .badge.success{background:var(--success);color:#fff}
+        .nav-item .badge.warning{background:var(--warning);color:#000}
+
+        /* Main */
+        .main{flex:1;padding:12px;overflow-x:hidden}
+        .header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--surface);border-radius:8px;margin-bottom:12px}
+        .header h1{font-size:.85rem}
+        .header-actions{display:flex;gap:6px;align-items:center}
+        .health-badge{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:16px;font-size:.65rem;font-weight:600}
+        .health-badge.ok{background:rgba(34,197,94,.15);color:var(--success)}
+        .health-dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+
+        .section{display:none}.section.active{display:block}
+        .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+        .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+        .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+
+        /* Cards */
+        .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px}
+        .card-title{font-size:.6rem;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px}
+        .card-value{font-size:1.4rem;font-weight:800}
+        .card-sub{font-size:.6rem;color:var(--text-muted);margin-top:2px}
+
+        /* Site Cards */
+        .site-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;cursor:pointer;transition:all .2s}
+        .site-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.3)}
+        .site-card.site-1{border-top:3px solid #3b82f6}
+        .site-card.site-2{border-top:3px solid #22c55e}
+        .site-card.site-3{border-top:3px solid #f59e0b}
+        .site-card.site-4{border-top:3px solid #e63946}
+        .site-header{display:flex;justify-content:space-between;align-items:start;margin-bottom:10px}
+        .site-name{font-weight:700;font-size:.85rem}
+        .site-domain{font-size:.65rem;color:var(--text-muted)}
+        .site-status{padding:2px 6px;border-radius:10px;font-size:.5rem;font-weight:700}
+        .site-status.up{background:rgba(34,197,94,.2);color:var(--success)}
+        .site-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+        .site-stat{text-align:center;padding:6px;background:var(--surface-2);border-radius:4px}
+        .site-stat-val{font-size:.85rem;font-weight:700}
+        .site-stat-label{font-size:.45rem;color:var(--text-muted);text-transform:uppercase}
+
+        /* Agent Cards */
+        .agent-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+        .agent-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;cursor:pointer;transition:all .15s}
+        .agent-card:hover{background:var(--surface-2);transform:scale(1.02)}
+        .agent-card.running{border-color:var(--primary);animation:glow 1s infinite}
+        @keyframes glow{0%,100%{box-shadow:0 0 5px var(--primary)}50%{box-shadow:0 0 15px var(--primary)}}
+        .agent-icon{font-size:1.3rem;margin-bottom:4px}
+        .agent-name{font-size:.55rem;font-weight:600;line-height:1.2}
+        .agent-status{width:6px;height:6px;border-radius:50%;background:var(--success);margin:4px auto 0}
+
+        /* Tables */
+        .table-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+        .table-header{padding:10px;background:var(--surface-2);display:flex;justify-content:space-between;align-items:center}
+        .table-title{font-weight:700;font-size:.75rem}
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:.65rem}
+        th{background:var(--surface);font-size:.5rem;text-transform:uppercase;color:var(--text-muted)}
+
+        /* Buttons */
+        .btn{padding:5px 10px;border:none;border-radius:5px;font-size:.65rem;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-weight:600;transition:all .15s}
+        .btn-primary{background:var(--primary);color:#fff}
+        .btn-success{background:var(--success);color:#fff}
+        .btn-danger{background:var(--danger);color:#fff}
+        .btn-warning{background:var(--warning);color:#000}
+        .btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+        .btn:hover{opacity:.9}
+        .btn-lg{padding:10px 16px;font-size:.75rem}
+
+        /* Progress */
+        .progress{height:4px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+        .progress-bar{height:100%;border-radius:2px}
+
+        /* Modal */
+        .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:1000}
+        .modal.open{display:flex}
+        .modal-content{background:var(--surface);border-radius:10px;padding:20px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto}
+        .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+        .modal-title{font-size:1rem;font-weight:700}
+        .modal-close{background:none;border:none;color:var(--text);font-size:1.2rem;cursor:pointer}
+
+        /* Toast */
+        .toast-container{position:fixed;bottom:16px;right:16px;z-index:1001;display:flex;flex-direction:column;gap:6px}
+        .toast{padding:10px 14px;border-radius:6px;color:#fff;font-size:.7rem;display:flex;align-items:center;gap:6px;animation:slideIn .3s}
+        .toast.success{background:var(--success)}
+        .toast.error{background:var(--danger)}
+        .toast.info{background:var(--primary)}
+        @keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+
+        /* Pending Item */
+        .pending-item{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+        .pending-item.site-1{border-left:3px solid #3b82f6}
+        .pending-item.site-2{border-left:3px solid #22c55e}
+        .pending-item.site-3{border-left:3px solid #f59e0b}
+        .pending-item.site-4{border-left:3px solid #e63946}
+        .pending-icon{font-size:1.2rem}
+        .pending-info{flex:1}
+        .pending-title{font-weight:600;font-size:.75rem}
+        .pending-meta{font-size:.6rem;color:var(--text-muted)}
+        .pending-actions{display:flex;gap:4px}
+
+        /* Cron Card */
+        .cron-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;margin-bottom:6px}
+        .cron-icon{font-size:1rem}
+        .cron-info{flex:1}
+        .cron-name{font-weight:600;font-size:.7rem}
+        .cron-schedule{font-size:.55rem;color:var(--text-muted)}
+        .cron-status{width:8px;height:8px;border-radius:50%}
+        .cron-status.active{background:var(--success);box-shadow:0 0 6px var(--success)}
+
+        /* Chat */
+        .chat-container{background:var(--surface);border-radius:8px;display:flex;flex-direction:column;height:400px}
+        .chat-messages{flex:1;padding:10px;overflow-y:auto}
+        .chat-msg{padding:8px 10px;border-radius:6px;margin-bottom:6px;font-size:.75rem;max-width:80%}
+        .chat-msg.user{background:var(--primary);margin-left:auto}
+        .chat-msg.ai{background:var(--surface-2)}
+        .chat-input{display:flex;gap:6px;padding:10px;border-top:1px solid var(--border)}
+        .chat-input input{flex:1;padding:8px;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:.75rem}
+
+        @media(max-width:1200px){.grid-4{grid-template-columns:repeat(2,1fr)}.agent-grid{grid-template-columns:repeat(4,1fr)}}
+        @media(max-width:768px){
+            .dashboard{flex-direction:column}
+            .sidebar{display:none;position:fixed;top:0;left:0;width:260px;height:100vh;z-index:1000;box-shadow:4px 0 20px rgba(0,0,0,.5)}
+            .sidebar.open{display:block}
+            .sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999}
+            .sidebar-overlay.open{display:block}
+            .mobile-menu-btn{display:flex!important}
+            .main{width:100%;padding:8px}
+            .header{flex-direction:column;gap:8px;padding:8px 10px}
+            .header h1{font-size:.75rem;text-align:center}
+            .header-actions{flex-wrap:wrap;justify-content:center}
+            .grid-4{grid-template-columns:1fr 1fr}
+            .grid-3{grid-template-columns:1fr}
+            .grid-2{grid-template-columns:1fr}
+            .card{padding:8px}
+            .card-value{font-size:1.1rem}
+            .site-card{padding:10px}
+            .site-header{flex-direction:column;gap:6px}
+            .site-stats{flex-wrap:wrap}
+            .table-card{overflow-x:auto;-webkit-overflow-scrolling:touch}
+            .table-card table{min-width:500px}
+            .chat-container{height:300px}
+        }
+        @media(max-width:480px){
+            .grid-4{grid-template-columns:1fr}
+            .card-value{font-size:1rem}
+            .card-title{font-size:.5rem}
+            .header h1{font-size:.7rem}
+            .site-name{font-size:.75rem}
+            .btn{font-size:.6rem;padding:4px 8px}
+        }
+        /* Terminal */
+        .terminal-card{background:#0a0a0a;border:1px solid #333;border-radius:8px;overflow:hidden}
+        .terminal-header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#1a1a1a;border-bottom:1px solid #333}
+        .terminal-dots{display:flex;gap:5px}
+        .terminal-dots .dot{width:10px;height:10px;border-radius:50%}
+        .terminal-dots .dot.red{background:#ff5f57}
+        .terminal-dots .dot.yellow{background:#ffbd2e}
+        .terminal-dots .dot.green{background:#28c840}
+        .terminal-title{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:#9ca3af}
+        .terminal-body{padding:12px;font-family:'JetBrains Mono',monospace;font-size:.7rem;line-height:1.8;min-height:280px;max-height:350px;overflow-y:auto;color:#22c55e}
+        .terminal-body::-webkit-scrollbar{width:4px}
+        .terminal-body::-webkit-scrollbar-thumb{background:#333;border-radius:2px}
+        .t-line{white-space:pre-wrap;word-break:break-all}
+        .t-line.info{color:#60a5fa}
+        .t-line.success{color:#22c55e}
+        .t-line.error{color:#ef4444}
+        .t-line.warning{color:#f59e0b}
+        .t-line.cmd{color:#22d3ee}
+        .t-line.output{color:#f1f5f9}
+        .terminal-input{display:flex;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid #333;background:#111}
+        .terminal-prompt{font-family:'JetBrains Mono',monospace;color:#22c55e;font-weight:700}
+        .terminal-input input{flex:1;background:transparent;border:none;outline:none;color:#f1f5f9;font-family:'JetBrains Mono',monospace;font-size:.75rem;caret-color:#22c55e}
+
+        /* Command Palette */
+        .cmd-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:2000;display:none;align-items:flex-start;justify-content:center;padding-top:15vh}
+        .cmd-overlay.open{display:flex}
+        .cmd-box{width:500px;max-width:90vw;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);overflow:hidden}
+        .cmd-search{display:flex;align-items:center;gap:8px;padding:12px;border-bottom:1px solid var(--border)}
+        .cmd-search input{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:.85rem}
+        .cmd-results{max-height:300px;overflow-y:auto}
+        .cmd-item{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;font-size:.75rem;transition:background .1s}
+        .cmd-item:hover,.cmd-item.active{background:rgba(59,130,246,.15)}
+        .cmd-item .cmd-label{flex:1;color:var(--text)}
+        .cmd-item .cmd-hint{font-size:.6rem;color:var(--text-muted)}
+    
+        /* Auto-Fix */
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        .autofix-agent-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;transition:all .2s}
+        .autofix-agent-card:hover{background:var(--surface-2)}
+        .autofix-agent-card .agent-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+        .autofix-agent-card .agent-header .name{font-weight:700;font-size:.8rem;display:flex;align-items:center;gap:6px}
+        .autofix-agent-card .agent-header .status-icon{font-size:1rem}
+        .autofix-agent-card .findings{font-size:.7rem;color:var(--text-muted);margin-bottom:8px;line-height:1.6}
+        .autofix-agent-card .findings li{margin-left:14px;list-style:disc}
+        .autofix-log-entry{padding:4px 0;border-bottom:1px solid var(--border)}
+        .autofix-log-entry.success{color:var(--success)}
+        .autofix-log-entry.error{color:var(--danger)}
+        .autofix-log-entry.info{color:var(--info)}
+    </style>
+</head>
+<body>
+<div class="dashboard">
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileMenu()"></div>
+    <aside class="sidebar" id="mobileSidebar">
+        <div class="sidebar-logo">
+            <h2>SEO AI Command Center</h2>
+            <div style="font-size:.5rem;color:var(--text-muted)"><span id="sidebar-agent-count">62</span> Agents | Multi-AI</div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-item" data-section="actions" style="background:linear-gradient(90deg,rgba(239,68,68,.3),transparent);border-left:3px solid var(--danger);font-weight:700">
+                🔔 ACTIONS REQUISES <span class="badge danger" id="actions-badge" style="font-size:.6rem;padding:2px 8px">0</span>
+            </div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">Vue Globale</div>
+            <div class="nav-item active" data-section="dashboard">📊 Dashboard</div>
+            <div class="nav-item" data-section="analytics" style="background:linear-gradient(90deg,rgba(6,182,212,.2),transparent);border-left:2px solid var(--info)">📈 Web Analytics <span class="badge" style="background:var(--info);color:#000;margin-left:auto" id="analytics-live-badge">0</span></div>
+            <div class="nav-item" onclick="openReviewModal()" style="background:linear-gradient(90deg,rgba(234,179,8,.2),transparent);border-left:2px solid #eab308">⭐ Réponses Google</div>
+            <div class="nav-item" data-section="command" style="background:linear-gradient(90deg,rgba(139,92,246,.2),transparent);border-left:2px solid var(--purple)">⚡ Command Center <span class="badge" style="background:var(--purple);color:#fff;margin-left:auto">NEW</span></div>
+            <div class="nav-item" data-section="alerts">🚨 Alertes <span class="badge danger" id="alert-badge">0</span></div>
+            <div class="nav-item" data-section="pending">✅ En Attente <span class="badge warning" id="pending-badge">0</span></div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">Sites</div>
+            <div class="nav-item" data-section="site-1" style="border-left:2px solid #3b82f6">❄️ Deneigement</div>
+            <div class="nav-item" data-section="site-2" style="border-left:2px solid #22c55e">🌿 Paysagement</div>
+            <div class="nav-item" data-section="site-3" style="border-left:2px solid #f59e0b">🎨 JC Peintre</div>
+            <div class="nav-item" data-section="site-4" style="border-left:2px solid #e63946">🤖 SEO par AI</div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">SEO</div>
+            <div class="nav-item" data-section="keywords">🔑 Mots-cles</div>
+            <div class="nav-item" data-section="content">📝 Contenu</div>
+            <div class="nav-item" data-section="audit">🔍 Audit</div>
+            <div class="nav-item" data-section="clusters" style="padding-left:24px;font-size:.65rem">🧩 Clusters</div>
+            <div class="nav-item" data-section="topical-maps" style="padding-left:24px;font-size:.65rem">🗺️ Topical Maps</div>
+            <div class="nav-item" data-section="backlinks">🔗 Backlinks</div>
+            <div class="nav-item" data-section="reports">📄 Reports <span class="badge" style="background:var(--info);color:#fff;margin-left:auto">NEW</span></div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">Automatisation</div>
+            <div class="nav-item" data-section="agents">🤖 <span id="nav-agent-count">62</span> Agents</div>
+            <div class="nav-item" data-section="self-audit">🛡️ Self-Audit <span class="badge warning" id="self-audit-badge">0</span></div>
+            <div class="nav-item" data-section="n8n">⚡ n8n</div>
+            <div class="nav-item" data-section="crons">⏰ Crons</div>
+            <div class="nav-item" data-section="scheduler" style="background:linear-gradient(90deg,rgba(34,197,94,.2),transparent);border-left:2px solid var(--success)">🚀 Scheduler <span class="badge" style="background:var(--success);color:#000;margin-left:auto">AUTO</span></div>
+            <div class="nav-item" data-section="autofix" style="background:linear-gradient(90deg,rgba(139,92,246,.2),transparent);border-left:2px solid var(--purple)">🔧 Auto-Fix <span class="badge" style="background:var(--purple);color:#fff;margin-left:auto">SEO</span></div>
+        </div>
+
+        <div class="nav-section">
+            <div class="nav-title">Outils</div>
+            <div class="nav-item" data-section="ai-chat">💬 Chat AI</div>
+            <div class="nav-item" data-section="notifications">🔔 Notifications</div>
+            <div class="nav-item" data-section="server">🖥️ Serveur</div>
+            <div class="nav-item" data-section="security" style="background:linear-gradient(90deg,rgba(34,197,94,.2),transparent);border-left:2px solid var(--success)">🛡️ Securite <span class="badge" style="background:var(--success);color:#000;margin-left:auto">LIVE</span></div>
+
+        </div>
+    </aside>
+
+    <main class="main">
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:8px">
+                <button class="mobile-menu-btn" style="display:none;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:1.2rem;padding:6px 10px;cursor:pointer" onclick="toggleMobileMenu()">☰</button>
+                <h1>📊 <span id="page-title">Dashboard</span></h1>
+            </div>
+            <div class="header-actions">
+                <div class="health-badge ok" id="global-health">
+                    <div class="health-dot"></div>
+                    <span>3/3 Sites OK</span>
+                </div>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.6rem;color:var(--text-muted)" title="Kill Switch — Pause/Resume all agents">
+                    <input type="checkbox" id="killswitch-toggle" checked onchange="toggleKillSwitch(this.checked)" style="accent-color:var(--success)">
+                    Agents
+                </label>
+                <button class="btn btn-ghost" onclick="refreshAll()">🔄</button>
+                <span class="btn btn-ghost" onclick="toggleCommandPalette()" style="font-size:.55rem;padding:2px 6px;border:1px solid var(--border);border-radius:4px;cursor:pointer">Ctrl+K</span>
+                <span style="font-size:.6rem;color:var(--text-muted)" id="last-update">--:--</span>
+            </div>
+        </div>
+
+        <!-- ACTIONS REQUISES -->
+        <div class="section" id="section-actions">
+            <div class="card" style="background:linear-gradient(135deg,rgba(239,68,68,.1),rgba(239,68,68,.05));border:2px solid var(--danger);margin-bottom:16px">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+                    <div style="font-size:2.5rem">🔔</div>
+                    <div>
+                        <h2 style="font-size:1.2rem;margin-bottom:4px">Actions Requises</h2>
+                        <div style="color:var(--text-muted);font-size:.75rem">Ces éléments nécessitent votre attention</div>
+                    </div>
+                    <div style="margin-left:auto;text-align:center">
+                        <div style="font-size:2.5rem;font-weight:800;color:var(--danger)" id="total-actions">0</div>
+                        <div style="font-size:.6rem;color:var(--text-muted)">EN ATTENTE</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenus à valider -->
+            <div class="card" style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                    <h3 style="font-size:.9rem">📝 Contenus à Valider</h3>
+                    <span class="badge warning" id="action-drafts-count">0</span>
+                </div>
+                <div id="action-drafts-list"></div>
+            </div>
+
+            <!-- Alertes à résoudre -->
+            <div class="card" style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                    <h3 style="font-size:.9rem">🚨 Alertes à Résoudre</h3>
+                    <span class="badge danger" id="action-alerts-count">0</span>
+                </div>
+                <div id="action-alerts-list"></div>
+            </div>
+
+            <!-- Actions rapides -->
+            <div class="card">
+                <h3 style="font-size:.9rem;margin-bottom:12px">⚡ Actions Rapides</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:8px">
+                    <button class="btn btn-success btn-lg" onclick="approveAllDrafts()">✓ Approuver tous les contenus</button>
+                    <button class="btn btn-primary btn-lg" onclick="runAgentAction('content/article',{site_id:1,keyword:'deneigement'})">📝 Générer nouveau contenu</button>
+                    <button class="btn btn-warning btn-lg" onclick="runFullAudit()">🔍 Lancer audit complet</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD -->
+        <div class="section active" id="section-dashboard">
+            <div class="grid-4">
+                <div class="card"><div class="card-title">Sites Online</div><div class="card-value" style="color:var(--success)" id="stat-sites">3/3</div><div class="card-sub">Uptime 99.9%</div></div>
+                <div class="card"><div class="card-title">Alertes</div><div class="card-value" id="stat-alerts">0</div><div class="card-sub">Aucun probleme</div></div>
+                <div class="card"><div class="card-title">Mots-cles</div><div class="card-value" id="stat-kw">30</div><div class="card-sub">Actifs</div></div>
+                <div class="card"><div class="card-title">Contenus</div><div class="card-value" id="stat-content">0</div><div class="card-sub">En attente</div></div>
+            </div>
+
+            <h3 style="font-size:.75rem;margin-bottom:8px">🌐 Etat des Sites</h3>
+            <div class="grid-3" id="sites-overview"></div>
+
+            <div class="grid-2" style="margin-top:12px">
+                <div class="card">
+                    <div class="card-title">Temps de Reponse (ms)</div>
+                    <div id="chart-response" style="height:150px"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Agents Actifs</div>
+                    <div style="display:flex;align-items:center;gap:16px;padding:20px">
+                        <div style="font-size:3rem">🤖</div>
+                        <div>
+                            <div style="font-size:2rem;font-weight:800" id="agents-active">62</div>
+                            <div style="font-size:.7rem;color:var(--text-muted)">agents fonctionnels</div>
+                        </div>
+                        <button class="btn btn-primary btn-lg" onclick="showSection('agents')">Voir tous →</button>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📋 Activite Recente</h3>
+            <div class="table-card">
+                <table>
+                    <thead><tr><th>Site</th><th>Action</th><th>Details</th><th>Heure</th></tr></thead>
+                    <tbody id="activity-table"></tbody>
+                </table>
+            </div>
+
+            <div class="grid-2" style="margin-top:16px">
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">📊 Agent Runs / Jour (7j)</div>
+                    <div id="chart-agent-runs" style="height:220px"></div>
+                </div>
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">📈 Uptime % par Site (7j)</div>
+                    <div id="chart-uptime-daily" style="height:220px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SITE 1 -->
+        <div class="section" id="section-site-1">
+            <div class="card" style="margin-bottom:12px;border-top:3px solid #3b82f6">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <h2 style="font-size:1rem">❄️ Deneigement Excellence</h2>
+                        <div style="font-size:.7rem;color:var(--text-muted)">deneigement-excellence.ca</div>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <a href="https://deneigement-excellence.ca" target="_blank" class="btn btn-ghost">🔗 Visiter</a>
+                        <button class="btn btn-primary" onclick="runAgentAction('content/article',{site_id:1,keyword:'deneigement'})">📝 Generer Article</button>
+                        <button class="btn btn-warning" onclick="runAgentAction('audit/technical',{site_id:1})">🔍 Audit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-4">
+                <div class="card"><div class="card-title">Status</div><div class="card-value" style="color:var(--success)">Online</div></div>
+                <div class="card"><div class="card-title">Reponse</div><div class="card-value" id="site1-response">--ms</div></div>
+                <div class="card"><div class="card-title">Mots-cles</div><div class="card-value" id="site1-kw">10</div></div>
+                <div class="card"><div class="card-title">Contenus</div><div class="card-value" id="site1-content">0</div></div>
+            </div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">🔑 Mots-cles</h3>
+            <div class="table-card"><table><thead><tr><th>Mot-cle</th><th>Volume</th><th>Difficulte</th><th>Statut</th></tr></thead><tbody id="site1-kw-table"></tbody></table></div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📝 Contenus en Attente</h3>
+            <div id="site1-pending"></div>
+        </div>
+
+        <!-- SITE 2 -->
+        <div class="section" id="section-site-2">
+            <div class="card" style="margin-bottom:12px;border-top:3px solid #22c55e">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <h2 style="font-size:1rem">🌿 Paysagiste Excellence</h2>
+                        <div style="font-size:.7rem;color:var(--text-muted)">paysagiste-excellence.ca</div>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <a href="https://paysagiste-excellence.ca" target="_blank" class="btn btn-ghost">🔗 Visiter</a>
+                        <button class="btn btn-success" onclick="runAgentAction('content/article',{site_id:2,keyword:'paysagement'})">📝 Generer Article</button>
+                        <button class="btn btn-warning" onclick="runAgentAction('audit/technical',{site_id:2})">🔍 Audit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-4">
+                <div class="card"><div class="card-title">Status</div><div class="card-value" style="color:var(--success)">Online</div></div>
+                <div class="card"><div class="card-title">Reponse</div><div class="card-value" id="site2-response">--ms</div></div>
+                <div class="card"><div class="card-title">Mots-cles</div><div class="card-value" id="site2-kw">10</div></div>
+                <div class="card"><div class="card-title">Contenus</div><div class="card-value" id="site2-content">0</div></div>
+            </div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">🔑 Mots-cles</h3>
+            <div class="table-card"><table><thead><tr><th>Mot-cle</th><th>Volume</th><th>Difficulte</th><th>Statut</th></tr></thead><tbody id="site2-kw-table"></tbody></table></div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📝 Contenus en Attente</h3>
+            <div id="site2-pending"></div>
+        </div>
+
+        <!-- SITE 3 -->
+        <div class="section" id="section-site-3">
+            <div class="card" style="margin-bottom:12px;border-top:3px solid #f59e0b">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <h2 style="font-size:1rem">🎨 JC Peintre</h2>
+                        <div style="font-size:.7rem;color:var(--text-muted)">jcpeintre.com</div>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <a href="https://jcpeintre.com" target="_blank" class="btn btn-ghost">🔗 Visiter</a>
+                        <button class="btn btn-warning" onclick="runAgentAction('content/article',{site_id:3,keyword:'peinture'})">📝 Generer Article</button>
+                        <button class="btn btn-warning" onclick="runAgentAction('audit/technical',{site_id:3})">🔍 Audit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-4">
+                <div class="card"><div class="card-title">Status</div><div class="card-value" style="color:var(--success)">Online</div></div>
+                <div class="card"><div class="card-title">Reponse</div><div class="card-value" id="site3-response">--ms</div></div>
+                <div class="card"><div class="card-title">Mots-cles</div><div class="card-value" id="site3-kw">10</div></div>
+                <div class="card"><div class="card-title">Contenus</div><div class="card-value" id="site3-content">0</div></div>
+            </div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">🔑 Mots-cles</h3>
+            <div class="table-card"><table><thead><tr><th>Mot-cle</th><th>Volume</th><th>Difficulte</th><th>Statut</th></tr></thead><tbody id="site3-kw-table"></tbody></table></div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📝 Contenus en Attente</h3>
+            <div id="site3-pending"></div>
+        </div>
+
+        <!-- SITE 4 -->
+        <div class="section" id="section-site-4">
+            <div class="card" style="margin-bottom:12px;border-top:3px solid #e63946">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                    <div>
+                        <h2 style="font-size:1rem">🤖 SEO par AI</h2>
+                        <div style="font-size:.7rem;color:var(--text-muted)">seoparai.com</div>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <a href="https://seoparai.com/" target="_blank" class="btn btn-ghost">🔗 Visiter</a>
+                        <button class="btn btn-primary" style="background:#e63946" onclick="runAgentAction('content/article',{site_id:4,keyword:'seo automation'})">📝 Generer Article</button>
+                        <button class="btn btn-warning" onclick="runAgentAction('audit/technical',{site_id:4})">🔍 Audit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="grid-4">
+                <div class="card"><div class="card-title">Status</div><div class="card-value" style="color:var(--success)">Online</div></div>
+                <div class="card"><div class="card-title">Reponse</div><div class="card-value" id="site4-response">--ms</div></div>
+                <div class="card"><div class="card-title">Mots-cles</div><div class="card-value" id="site4-kw">10</div></div>
+                <div class="card"><div class="card-title">Contenus</div><div class="card-value" id="site4-content">0</div></div>
+            </div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">🔑 Mots-cles</h3>
+            <div class="table-card"><table><thead><tr><th>Mot-cle</th><th>Volume</th><th>Difficulte</th><th>Statut</th></tr></thead><tbody id="site4-kw-table"></tbody></table></div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📝 Contenus en Attente</h3>
+            <div id="site4-pending"></div>
+        </div>
+
+        <!-- ALERTS -->
+        <div class="section" id="section-alerts">
+            <div class="grid-3" style="margin-bottom:12px">
+                <div class="card"><div class="card-title">Total Alertes</div><div class="card-value" id="alerts-total">0</div></div>
+                <div class="card"><div class="card-title">Critiques</div><div class="card-value" style="color:var(--danger)" id="alerts-critical">0</div></div>
+                <div class="card"><div class="card-title">Resolues 24h</div><div class="card-value" style="color:var(--success)">0</div></div>
+            </div>
+            <div class="grid-2" style="margin-bottom:12px">
+                <div id="alerts-list" style="flex:1"></div>
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">Repartition Severite</div>
+                    <div id="chart-alert-severity" style="height:200px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PENDING -->
+        <div class="section" id="section-pending">
+            <div class="grid-4" style="margin-bottom:12px">
+                <div class="card" style="border-left:3px solid #3b82f6"><div class="card-title">Deneigement</div><div class="card-value" id="pending-1">0</div></div>
+                <div class="card" style="border-left:3px solid #22c55e"><div class="card-title">Paysagement</div><div class="card-value" id="pending-2">0</div></div>
+                <div class="card" style="border-left:3px solid #f59e0b"><div class="card-title">JC Peintre</div><div class="card-value" id="pending-3">0</div></div>
+                <div class="card" style="border-left:3px solid #e63946"><div class="card-title">SEO par AI</div><div class="card-value" id="pending-4">0</div></div>
+            </div>
+            <div id="pending-list"></div>
+        </div>
+
+        <!-- KEYWORDS -->
+        <div class="section" id="section-keywords">
+            <div class="grid-3" style="margin-bottom:12px">
+                <div class="card"><div class="card-title">Total</div><div class="card-value" id="kw-total">30</div></div>
+                <button class="btn btn-primary btn-lg" style="padding:16px" onclick="runAgentAction('keyword-research',{site_id:1,seed_keyword:'deneigement',limit:10})">🔍 Rechercher nouveaux mots-cles</button>
+                <button class="btn btn-success btn-lg" style="padding:16px" onclick="runAgentAction('blog-ideas/1')">💡 Generer idees articles</button>
+            </div>
+            <div class="card" style="padding:16px;margin-bottom:12px">
+                <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">📉 Positions SERP (30j)</div>
+                <div id="chart-keyword-positions" style="height:220px"></div>
+            </div>
+            <div class="table-card">
+                <div class="table-header"><span class="table-title">Tous les Mots-cles</span></div>
+                <table><thead><tr><th>Site</th><th>Mot-cle</th><th>Volume</th><th>Difficulte</th><th>Statut</th></tr></thead><tbody id="keywords-table"></tbody></table>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="section" id="section-content">
+            <div class="grid-4" style="margin-bottom:12px">
+                <button class="btn btn-primary btn-lg" style="padding:14px" onclick="runAgentAction('content/article',{site_id:1,keyword:'deneigement montreal'})">❄️ Article Deneigement</button>
+                <button class="btn btn-success btn-lg" style="padding:14px" onclick="runAgentAction('content/article',{site_id:2,keyword:'paysagiste montreal'})">🌿 Article Paysagement</button>
+                <button class="btn btn-warning btn-lg" style="padding:14px" onclick="runAgentAction('content/article',{site_id:3,keyword:'peintre montreal'})">🎨 Article JC Peintre</button>
+                <button class="btn btn-ghost btn-lg" style="padding:14px" onclick="runAgentAction('faq',{site_id:1,topic:'deneigement',count:10})">❓ Generer FAQ</button>
+            </div>
+            <div class="grid-2" style="margin-bottom:12px">
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">Pipeline Contenu</div>
+                    <div id="chart-content-pipeline" style="height:200px"></div>
+                </div>
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">Content Score</div>
+                    <textarea id="score-content-input" placeholder="Collez votre contenu ici..." style="width:100%;height:80px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:.8rem;resize:none"></textarea>
+                    <div style="display:flex;gap:8px;margin-top:6px">
+                        <input id="score-keyword-input" placeholder="Mot-cle cible" style="flex:1;padding:6px 10px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:6px;font-size:.8rem">
+                        <button class="btn btn-primary" onclick="runContentScore()">Analyser</button>
+                    </div>
+                    <div id="score-result" style="margin-top:8px"></div>
+                </div>
+            </div>
+            <div class="table-card">
+                <div class="table-header"><span class="table-title">Contenus Generes</span></div>
+                <table><thead><tr><th>Site</th><th>Titre</th><th>Type</th><th>Date</th><th>Actions</th></tr></thead><tbody id="content-table"></tbody></table>
+            </div>
+        </div>
+
+        <!-- AUDIT -->
+        <div class="section" id="section-audit">
+            <div class="grid-3" style="margin-bottom:12px">
+                <button class="btn btn-primary btn-lg" style="padding:16px" onclick="runAgentAction('full-audit/1')">🔍 Audit Deneigement</button>
+                <button class="btn btn-success btn-lg" style="padding:16px" onclick="runAgentAction('full-audit/2')">🔍 Audit Paysagement</button>
+                <button class="btn btn-warning btn-lg" style="padding:16px" onclick="runAgentAction('full-audit/3')">🔍 Audit JC Peintre</button>
+            </div>
+            <div class="grid-3" id="audit-results"></div>
+        </div>
+
+
+        <!-- SELF-AUDIT -->
+        <div class="section" id="section-self-audit">
+            <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(59,130,246,.1));border:1px solid var(--purple)">
+                <div style="display:flex;align-items:center;gap:12px">
+                    <div style="font-size:2rem">ð¡ï¸</div>
+                    <div style="flex:1">
+                        <div style="font-weight:700;font-size:1rem">Self-Audit Agent</div>
+                        <div style="font-size:.7rem;color:var(--text-muted)">Auto-diagnostic et correction du systeme</div>
+                    </div>
+                    <div style="text-align:center">
+                        <div style="font-size:.6rem;color:var(--text-muted)">Dernier run</div>
+                        <div style="font-size:.75rem;font-weight:600" id="sa-last-run">--</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="runSelfAudit()">ð Lancer Audit</button>
+                </div>
+            </div>
+
+            <div class="grid-4" style="margin-bottom:12px">
+                <div class="card"><div class="card-title">Total Issues</div><div class="card-value" id="sa-total">0</div></div>
+                <div class="card" style="border-left:3px solid var(--success)"><div class="card-title">Auto-Corriges</div><div class="card-value" style="color:var(--success)" id="sa-auto">0</div><div class="card-sub">Corrections automatiques</div></div>
+                <div class="card" style="border-left:3px solid var(--warning)"><div class="card-title">En Attente</div><div class="card-value" style="color:var(--warning)" id="sa-pending">0</div><div class="card-sub">Confirmation requise</div></div>
+                <div class="card" style="border-left:3px solid var(--danger)"><div class="card-title">Critiques Ouvertes</div><div class="card-value" style="color:var(--danger)" id="sa-critical">0</div><div class="card-sub">Intervention manuelle</div></div>
+            </div>
+
+            <div class="table-card">
+                <div class="table-header">
+                    <span class="table-title">ð¡ï¸ Issues Self-Audit</span>
+                    <div style="display:flex;gap:6px;align-items:center"><select id="sa-filter-site" onchange="filterSelfAudit()" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.7rem"><option value="">Tous sites</option><option value="deneigement">Deneigement</option><option value="paysagement">Paysagement</option><option value="jcpeintre">JC Peintre</option><option value="seoparai">SeoAI</option></select><select id="sa-filter-status" onchange="filterSelfAudit()" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:.7rem"><option value="">Tous</option><option value="pending" selected>En attente</option><option value="auto_fixed">Auto-fixes</option><option value="confirmed">Confirmes</option></select>
+                        <button class="btn btn-success" onclick="confirmAllSelfAudit()">â Confirmer Tout</button>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Status</th><th>Site</th><th>Agent</th><th>Type</th><th>Severite</th><th>Message</th><th>Actions</th></tr></thead>
+                    <tbody id="sa-issues-table"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- AGENTS -->
+        <div class="section" id="section-agents">
+            <div class="card" style="margin-bottom:12px;background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(139,92,246,.1))">
+                <div style="display:flex;align-items:center;gap:12px">
+                    <div style="font-size:2rem">🤖</div>
+                    <div style="flex:1">
+                        <div style="font-weight:700">62 Agents AI - Multi-AI Engine</div>
+                        <div style="font-size:.7rem;color:var(--text-muted)">Cliquez sur un agent pour l'executer</div>
+                    </div>
+                    <div class="card-value" id="agents-count">62</div>
+                    <span style="font-size:.7rem;color:var(--success)">actifs</span>
+                </div>
+            </div>
+            <div class="agent-grid" id="agents-grid"></div>
+        </div>
+
+        <!-- N8N -->
+        <div class="section" id="section-n8n">
+            <div class="grid-3" style="margin-bottom:12px">
+                <div class="cron-card"><div class="cron-icon">🔄</div><div class="cron-info"><div class="cron-name">SEO Master</div><div class="cron-schedule">Toutes les 6h</div></div><div class="cron-status active"></div></div>
+                <div class="cron-card"><div class="cron-icon">👁️</div><div class="cron-info"><div class="cron-name">Monitoring</div><div class="cron-schedule">Toutes les 5min</div></div><div class="cron-status active"></div></div>
+                <div class="cron-card"><div class="cron-icon">📝</div><div class="cron-info"><div class="cron-name">Content</div><div class="cron-schedule">Chaque jour</div></div><div class="cron-status active"></div></div>
+            </div>
+            <div class="card" style="padding:0;overflow:hidden">
+                <iframe src="https://seoparai.com:5678/" style="width:100%;height:500px;border:none"></iframe>
+            </div>
+        </div>
+
+        <!-- CRONS -->
+        <div class="section" id="section-crons">
+            <div id="crons-list"></div>
+        </div>
+
+        <!-- AI CHAT -->
+        <div class="section" id="section-ai-chat">
+            <div class="chat-container">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-msg ai">Bonjour! Je suis Qwen 235B. Posez-moi vos questions SEO ou demandez-moi de generer du contenu.</div>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="chat-input" placeholder="Votre question..." onkeypress="if(event.key==='Enter')sendChat()">
+                    <button class="btn btn-primary" onclick="sendChat()">Envoyer</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOTIFICATIONS -->
+        <div class="section" id="section-notifications">
+            <div class="card" style="margin-bottom:12px">
+                <h3 style="font-size:.85rem;margin-bottom:10px">📱 Notifications WhatsApp</h3>
+                <div style="display:flex;gap:10px;align-items:center">
+                    <input type="text" id="whatsapp-number" placeholder="+15146092882" value="+15146092882" style="flex:1;padding:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text)">
+                    <button class="btn btn-success" onclick="configWhatsApp()">Configurer</button>
+                    <button class="btn btn-primary" onclick="testWhatsApp()">Tester</button>
+                </div>
+                <div style="font-size:.65rem;color:var(--text-muted);margin-top:8px">
+                    Pour activer: envoyez "I allow callmebot to send me messages" au +34 644 51 95 23 sur WhatsApp
+                </div>
+            </div>
+            <div class="card">
+                <h3 style="font-size:.85rem;margin-bottom:10px">🔔 Alertes Configurees</h3>
+                <div style="display:grid;gap:8px">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.75rem"><input type="checkbox" checked> Site down (> 1min)</label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.75rem"><input type="checkbox" checked> SSL expire (< 7 jours)</label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.75rem"><input type="checkbox" checked> Erreur agent</label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:.75rem"><input type="checkbox"> Nouveau contenu genere</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- COMMAND CENTER -->
+        <div class="section" id="section-command">
+            <div class="grid-2">
+                <div class="card" style="padding:0">
+                    <div style="padding:12px 14px;border-bottom:1px solid var(--border)"><h3 style="font-size:.8rem;margin:0">⚡ Operations</h3></div>
+                    <div style="padding:12px">
+                        <div style="font-size:.55rem;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;letter-spacing:.1em">Deployment</div>
+                        <div style="display:flex;gap:6px;margin-bottom:10px">
+                            <button class="btn btn-primary" onclick="cmdExec('sync-github')">🔄 Sync GitHub</button>
+                            <button class="btn btn-ghost" style="border-color:var(--info);color:var(--info)" onclick="cmdExec('deploy')">🚀 Deploy VPS</button>
+                        </div>
+                        <div style="font-size:.55rem;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;letter-spacing:.1em">Services</div>
+                        <div style="display:flex;gap:6px;margin-bottom:10px">
+                            <button class="btn btn-warning" onclick="cmdExec('restart-services')">🔄 Restart Services</button>
+                            <button class="btn btn-success" onclick="cmdExec('check-ssl')">🔒 Check SSL</button>
+                            <button class="btn btn-ghost" style="border-color:var(--purple);color:var(--purple)" onclick="cmdExec('backup-db')">💾 Backup DB</button>
+                        </div>
+                        <div style="font-size:.55rem;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;letter-spacing:.1em">SEO Operations</div>
+                        <div style="display:flex;gap:6px;margin-bottom:10px">
+                            <button class="btn btn-primary" onclick="cmdExec('full-audit')">🔍 Full Audit</button>
+                            <button class="btn btn-success" onclick="cmdExec('generate-content')">📝 Generate Content</button>
+                            <button class="btn btn-danger" onclick="cmdExec('fix-all')">🔧 Fix All Issues</button>
+                        </div>
+                        <div style="font-size:.55rem;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;letter-spacing:.1em">Research</div>
+                        <div style="display:flex;gap:6px">
+                            <button class="btn btn-ghost" style="border-color:var(--info);color:var(--info)" onclick="cmdExec('keyword-research')">🔑 Keyword Research</button>
+                            <button class="btn btn-ghost" style="border-color:var(--warning);color:var(--warning)" onclick="cmdExec('competitor-analysis')">🎯 Competitor Analysis</button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <!-- Terminal -->
+                    <div class="terminal-card">
+                        <div class="terminal-header">
+                            <div class="terminal-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+                            <span class="terminal-title">seoparai@vps ~ command-center</span>
+                        </div>
+                        <div class="terminal-body" id="terminal-output">
+                            <div class="t-line info">> SeoparAI Command Center v2.0</div>
+                            <div class="t-line info">> 62 agents ready | 4 sites monitored</div>
+                            <div class="t-line info">> Type a command or use buttons on the left.</div>
+                        </div>
+                        <div class="terminal-input">
+                            <span class="terminal-prompt">$</span>
+                            <input type="text" id="terminal-input" placeholder="Type command... (help for list)" onkeydown="if(event.key==='Enter'&&this.value.trim()){handleTerminalInput(this.value.trim());this.value=''}">
+                        </div>
+                    </div>
+                    <!-- Command History -->
+                    <div class="table-card" style="margin-top:10px">
+                        <div class="table-header"><span class="table-title">📋 Historique</span></div>
+                        <div style="max-height:150px;overflow-y:auto">
+                            <table><thead><tr><th>Heure</th><th>Commande</th><th>Status</th><th>Duree</th></tr></thead>
+                            <tbody id="cmd-history"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SERVER -->
+        
+        <div class="section" id="section-scheduler">
+            <h2>🚀 Auto Scheduler — 6 Cycles Autonomes</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">Modèle: <strong style="color:var(--primary)">DeepSeek R1-0528</strong> | 59 agents | 4 sites</p>
+
+            <div id="scheduler-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--primary)" id="sched-total-24h">—</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Runs 24h</div>
+                </div>
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--success)" id="sched-success-rate">—</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Taux succès</div>
+                </div>
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--info)" id="sched-unique-agents">—</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Agents actifs</div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header" style="font-weight:700">📋 Cycles automatiques</div>
+                <table class="table" style="font-size:.8rem">
+                    <thead>
+                        <tr><th>Cycle</th><th>Cron</th><th>Description</th><th>Status</th><th>Dernier run</th></tr>
+                    </thead>
+                    <tbody id="scheduler-cycles">
+                        <tr><td colspan="5" style="color:var(--text-muted)">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card" style="margin-bottom:16px;padding:16px">
+                <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">📈 Taux de Succes Scheduler (7j)</div>
+                <div id="chart-scheduler-daily" style="height:200px"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="font-weight:700">📊 Derniers agent runs <button class="btn btn-ghost" onclick="loadSchedulerRuns()" style="float:right;font-size:.7rem">🔄 Refresh</button></div>
+                <table class="table" style="font-size:.8rem">
+                    <thead>
+                        <tr><th>Agent</th><th>Site</th><th>Status</th><th>Durée</th><th>Date</th></tr>
+                    </thead>
+                    <tbody id="scheduler-runs">
+                        <tr><td colspan="5" style="color:var(--text-muted)">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CLUSTERS -->
+        <div class="section" id="section-clusters">
+            <h2>🧩 Keyword Clusters</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">Regroupement semantique des mots-cles par topic via DeepSeek R1</p>
+            <div class="grid-3" style="margin-bottom:16px">
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--primary)" id="clusters-count">0</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Clusters</div>
+                </div>
+                <select id="cluster-site-select" style="padding:10px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+                    <option value="1">Deneigement Excellence</option>
+                    <option value="2">Paysagiste Excellence</option>
+                    <option value="3">JC Peintre</option>
+                    <option value="4">SEO par AI</option>
+                </select>
+                <button class="btn btn-primary btn-lg" onclick="generateClusters()">🧩 Generer Clusters</button>
+            </div>
+            <div id="clusters-container"></div>
+            <div id="clusters-saved" style="margin-top:16px"></div>
+        </div>
+
+        <!-- TOPICAL MAPS -->
+        <div class="section" id="section-topical-maps">
+            <h2>🗺️ Topical Maps</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">Architecture de contenu pillar/cluster/support generee par AI</p>
+            <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
+                <select id="tmap-site-select" style="padding:10px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+                    <option value="1">Deneigement Excellence</option>
+                    <option value="2">Paysagiste Excellence</option>
+                    <option value="3">JC Peintre</option>
+                    <option value="4">SEO par AI</option>
+                </select>
+                <input id="tmap-seed" placeholder="Sujet pilier (ex: deneigement residentiel)" style="flex:1;padding:10px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+                <button class="btn btn-primary btn-lg" onclick="generateTopicalMap()">🗺️ Generer Map</button>
+            </div>
+            <div id="tmap-result"></div>
+            <div id="tmap-saved" style="margin-top:16px"></div>
+        </div>
+
+        <!-- BACKLINKS -->
+        <div class="section" id="section-backlinks">
+            <h2>🔗 Backlinks</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">Analyse des backlinks, referring domains et opportunites</p>
+            <div class="grid-4" style="margin-bottom:16px">
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--primary)" id="bl-total">0</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Total Backlinks</div>
+                </div>
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--success)" id="bl-new">0</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Nouveaux 30j</div>
+                </div>
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--danger)" id="bl-lost">0</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Perdus 30j</div>
+                </div>
+                <div class="card" style="text-align:center;padding:16px">
+                    <div style="font-size:2rem;font-weight:800;color:var(--info)" id="bl-domains">0</div>
+                    <div style="font-size:.7rem;color:var(--text-muted)">Ref. Domains</div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">Repartition Anchors</div>
+                    <div id="chart-anchor-types" style="height:200px"></div>
+                </div>
+                <div class="card" style="padding:16px">
+                    <div style="font-size:.75rem;font-weight:700;margin-bottom:8px">Backlinks recents</div>
+                    <div id="bl-recent-list" style="max-height:200px;overflow-y:auto;font-size:.8rem"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPORTS -->
+        <div class="section" id="section-reports">
+            <h2>📄 Reports</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">Rapports SEO white-label generes automatiquement</p>
+            <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center">
+                <select id="report-site-select" style="padding:10px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem">
+                    <option value="1">Deneigement Excellence</option>
+                    <option value="2">Paysagiste Excellence</option>
+                    <option value="3">JC Peintre</option>
+                    <option value="4">SEO par AI</option>
+                </select>
+                <button class="btn btn-primary btn-lg" onclick="generateReport()">📄 Generer Rapport</button>
+                <button class="btn btn-ghost btn-lg" onclick="loadReports()">🔄 Rafraichir</button>
+            </div>
+            <div id="reports-list"></div>
+            <div id="report-preview" style="margin-top:16px"></div>
+        </div>
+
+        <div class="section" id="section-server">
+            <div class="grid-4">
+                <div class="card"><div class="card-title">CPU</div><div class="card-value" id="srv-cpu">0</div><div class="progress" style="margin-top:6px"><div class="progress-bar" id="srv-cpu-bar" style="width:5%;background:var(--success)"></div></div></div>
+                <div class="card"><div class="card-title">RAM</div><div class="card-value" id="srv-ram">0%</div><div class="progress" style="margin-top:6px"><div class="progress-bar" id="srv-ram-bar" style="width:15%;background:var(--success)"></div></div></div>
+                <div class="card"><div class="card-title">Disque</div><div class="card-value" id="srv-disk">0%</div><div class="progress" style="margin-top:6px"><div class="progress-bar" id="srv-disk-bar" style="width:20%;background:var(--success)"></div></div></div>
+                <div class="card"><div class="card-title">RAM Detail</div><div class="card-value" style="font-size:.9rem" id="srv-ram-detail">--</div></div>
+            </div>
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📦 Applications</h3>
+            <div class="grid-2" id="pm2-list"></div>
+        </div>
+
+        <!-- AUTO-FIX SEO -->
+        <div class="section" id="section-autofix">
+            <h2>🔧 Auto-Fix SEO</h2>
+            <p style="color:var(--text-muted);margin-bottom:16px">Diagnostic et correction automatique des problemes SEO par agents</p>
+
+            <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+                <select id="autofix-site-select" style="padding:10px 14px;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:.85rem;min-width:200px">
+                    <option value="">-- Selectionner un site --</option>
+                </select>
+                <button class="btn btn-primary btn-lg" onclick="autofixDiagnostic()" id="autofix-diag-btn">🔍 Diagnostiquer</button>
+                <button class="btn btn-success btn-lg" onclick="autofixRunAll()" id="autofix-fixall-btn" style="display:none">⚡ Tout corriger</button>
+                <button class="btn btn-ghost btn-lg" onclick="autofixReset()">🔄 Reset</button>
+            </div>
+
+            <!-- Diagnostic Status -->
+            <div id="autofix-status" style="display:none;margin-bottom:16px">
+                <div class="card" style="border-left:3px solid var(--primary)">
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <div id="autofix-spinner" style="display:none;width:16px;height:16px;border:2px solid var(--primary);border-top:2px solid transparent;border-radius:50%;animation:spin 1s linear infinite"></div>
+                        <span id="autofix-status-text" style="font-size:.75rem;font-weight:600">Pret</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Results -->
+            <div id="autofix-results" style="margin-bottom:16px"></div>
+
+            <!-- Fix Log -->
+            <div id="autofix-log-container" style="display:none">
+                <h3 style="font-size:.75rem;margin-bottom:8px">📋 Journal des corrections</h3>
+                <div id="autofix-log" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;max-height:300px;overflow-y:auto;font-family:monospace;font-size:.7rem;line-height:1.8"></div>
+            </div>
+        </div>
+
+        <!-- WEB ANALYTICS -->
+        <div class="section" id="section-analytics">
+            <div class="header" style="margin-bottom:12px;background:linear-gradient(135deg,rgba(6,182,212,.1),rgba(59,130,246,.1))">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:1.2rem">📈</span>
+                    <h1 style="font-size:.85rem">Web Analytics</h1>
+                    <span class="health-badge ok" id="analytics-realtime-badge"><span class="health-dot"></span> <span id="analytics-active-count">0</span> en ligne</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <select id="analytics-site-filter" class="btn btn-ghost" style="font-size:.65rem;padding:4px 8px;cursor:pointer" onchange="loadAnalytics()">
+                        <option value="all">Tous les sites</option>
+                        <option value="seoparai">SeoAI</option>
+                        <option value="jcpeintre">JC Peintre</option>
+                        <option value="deneigement">Deneigement</option>
+                        <option value="paysagiste">Paysagiste</option>
+                    </select>
+                    <select id="analytics-period-filter" class="btn btn-ghost" style="font-size:.65rem;padding:4px 8px;cursor:pointer" onchange="loadAnalytics()">
+                        <option value="7d">7 jours</option>
+                        <option value="30d" selected>30 jours</option>
+                        <option value="90d">90 jours</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadAnalytics()" style="font-size:.6rem">↻ Rafraichir</button>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid-4" id="analytics-kpis">
+                <div class="card">
+                    <div class="card-title">Visiteurs aujourd'hui</div>
+                    <div class="card-value" id="a-today-visitors" style="color:var(--info)">-</div>
+                    <div class="card-sub" id="a-today-pv">- pages vues</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Visiteurs (periode)</div>
+                    <div class="card-value" id="a-period-visitors" style="color:var(--success)">-</div>
+                    <div class="card-sub" id="a-period-pv">- pages vues</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">En temps reel</div>
+                    <div class="card-value" id="a-realtime-count" style="color:var(--warning)">0</div>
+                    <div class="card-sub" id="a-realtime-detail">Aucun visiteur actif</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Google Ads Clicks</div>
+                    <div class="card-value" id="a-gclid-count" style="color:var(--purple)">0</div>
+                    <div class="card-sub" id="a-gclid-detail">0 conversions</div>
+                </div>
+            </div>
+
+            <!-- Per-site breakdown -->
+            <div class="grid-4" id="analytics-sites-breakdown" style="margin-bottom:12px">
+                <div class="card site-card site-4" style="cursor:default">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:700;font-size:.75rem">🤖 SeoAI</span>
+                        <span class="site-status up" id="a-site-seoparai-status">-</span>
+                    </div>
+                    <div style="font-size:1.1rem;font-weight:800;margin:4px 0" id="a-site-seoparai-visitors">0</div>
+                    <div style="font-size:.55rem;color:var(--text-muted)" id="a-site-seoparai-pv">0 pages vues</div>
+                </div>
+                <div class="card site-card site-3" style="cursor:default">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:700;font-size:.75rem">🎨 JC Peintre</span>
+                        <span class="site-status up" id="a-site-jcpeintre-status">-</span>
+                    </div>
+                    <div style="font-size:1.1rem;font-weight:800;margin:4px 0" id="a-site-jcpeintre-visitors">0</div>
+                    <div style="font-size:.55rem;color:var(--text-muted)" id="a-site-jcpeintre-pv">0 pages vues</div>
+                </div>
+                <div class="card site-card site-1" style="cursor:default">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:700;font-size:.75rem">❄️ Deneigement</span>
+                        <span class="site-status up" id="a-site-deneigement-status">-</span>
+                    </div>
+                    <div style="font-size:1.1rem;font-weight:800;margin:4px 0" id="a-site-deneigement-visitors">0</div>
+                    <div style="font-size:.55rem;color:var(--text-muted)" id="a-site-deneigement-pv">0 pages vues</div>
+                </div>
+                <div class="card site-card site-2" style="cursor:default">
+                    <div style="display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:700;font-size:.75rem">🌿 Paysagiste</span>
+                        <span class="site-status up" id="a-site-paysagiste-status">-</span>
+                    </div>
+                    <div style="font-size:1.1rem;font-weight:800;margin:4px 0" id="a-site-paysagiste-visitors">0</div>
+                    <div style="font-size:.55rem;color:var(--text-muted)" id="a-site-paysagiste-pv">0 pages vues</div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1: Visitors + Referrers -->
+            <div class="grid-2">
+                <div class="card" style="min-height:280px">
+                    <div class="card-title">Visiteurs par jour</div>
+                    <div id="chart-analytics-visitors" style="height:250px"></div>
+                </div>
+                <div class="card" style="min-height:280px">
+                    <div class="card-title">Sources de trafic</div>
+                    <div id="chart-analytics-referrers" style="height:250px"></div>
+                </div>
+            </div>
+
+            <!-- Charts Row 2: Devices + Top Pages -->
+            <div class="grid-2">
+                <div class="card" style="min-height:280px">
+                    <div class="card-title">Appareils</div>
+                    <div id="chart-analytics-devices" style="height:250px"></div>
+                </div>
+                <div class="table-card">
+                    <div class="table-header">
+                        <span class="table-title">Top Pages</span>
+                    </div>
+                    <table>
+                        <thead><tr><th>Page</th><th style="text-align:right">Vues</th></tr></thead>
+                        <tbody id="analytics-top-pages"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Realtime Active Pages -->
+            <div class="table-card" style="margin-top:12px">
+                <div class="table-header">
+                    <span class="table-title">🟢 Pages Actives en Temps Reel</span>
+                    <span style="font-size:.6rem;color:var(--text-muted)">Rafraichi toutes les 10s</span>
+                </div>
+                <table>
+                    <thead><tr><th>Site</th><th>Page</th><th style="text-align:right">Visiteurs</th></tr></thead>
+                    <tbody id="analytics-active-pages"></tbody>
+                </table>
+            </div>
+
+            <!-- Google Ads Clicks -->
+            <div class="table-card" style="margin-top:12px">
+                <div class="table-header">
+                    <span class="table-title">🎯 Google Ads — Clics gclid</span>
+                    <span style="font-size:.6rem;color:var(--text-muted)" id="gclid-summary">-</span>
+                </div>
+                <table>
+                    <thead><tr><th>gclid</th><th>Site</th><th>Page</th><th>Date</th><th>Converti</th><th>Envoye</th></tr></thead>
+                    <tbody id="analytics-gclid-table"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SECURITY & MONITORING -->
+        <div class="section" id="section-security">
+            <div class="header" style="margin-bottom:12px;background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(59,130,246,.1))">
+                <div style="display:flex;align-items:center;gap:8px">
+                    <span style="font-size:1.2rem">🛡️</span>
+                    <h1 style="font-size:.85rem">Securite & Monitoring</h1>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <span class="health-badge ok" id="sec-global-status"><span class="health-dot"></span> Systeme Protege</span>
+                    <button class="btn btn-ghost" onclick="loadSecurityStatus()" style="font-size:.6rem">🔄 Rafraichir</button>
+                </div>
+            </div>
+
+            <!-- Row 1: Key metrics -->
+            <div class="grid-4" id="sec-metrics">
+                <div class="card" style="border-left:3px solid var(--success)">
+                    <div class="card-title">Services Actifs</div>
+                    <div class="card-value" id="sec-services-count">-</div>
+                    <div class="card-sub" id="sec-services-detail">Chargement...</div>
+                </div>
+                <div class="card" style="border-left:3px solid var(--danger)">
+                    <div class="card-title">IPs Bloquees</div>
+                    <div class="card-value" id="sec-banned-count">-</div>
+                    <div class="card-sub" id="sec-banned-detail">Fail2ban + CrowdSec</div>
+                </div>
+                <div class="card" style="border-left:3px solid var(--info)">
+                    <div class="card-title">Dernier Backup</div>
+                    <div class="card-value" id="sec-backup-size" style="font-size:1.1rem">-</div>
+                    <div class="card-sub" id="sec-backup-date">-</div>
+                </div>
+                <div class="card" style="border-left:3px solid var(--purple)">
+                    <div class="card-title">Lynis Score</div>
+                    <div class="card-value" id="sec-lynis-score">-</div>
+                    <div class="card-sub" id="sec-lynis-date">-</div>
+                </div>
+            </div>
+
+            <!-- Row 2: Uptime monitors -->
+            <h3 style="font-size:.75rem;margin:12px 0 8px">📡 Uptime Monitors (check 60s)</h3>
+            <div class="grid-3" id="sec-monitors">
+                <div class="card" style="text-align:center;padding:20px"><div class="card-sub">Chargement...</div></div>
+            </div>
+
+            <!-- Row 3: Services grid -->
+            <h3 style="font-size:.75rem;margin:12px 0 8px">⚙️ Services & Outils de Securite</h3>
+            <div class="grid-3" id="sec-tools">
+                <div class="card" style="text-align:center;padding:20px"><div class="card-sub">Chargement...</div></div>
+            </div>
+
+            <!-- Row 4: SSL Certificates -->
+            <h3 style="font-size:.75rem;margin:12px 0 8px">🔒 Certificats SSL</h3>
+            <div class="table-card">
+                <table>
+                    <thead><tr><th>Domaine</th><th>Expiration</th><th>Status</th></tr></thead>
+                    <tbody id="sec-ssl-table">
+                        <tr><td colspan="3" style="text-align:center;color:var(--text-muted)">Chargement...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Row 5: Resources -->
+            <h3 style="font-size:.75rem;margin:16px 0 8px">💾 Ressources Serveur</h3>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title">RAM</div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <div class="card-value" id="sec-ram-pct">-</div>
+                        <div style="flex:1"><div class="progress"><div class="progress-bar" id="sec-ram-bar" style="width:0%;background:var(--success)"></div></div></div>
+                    </div>
+                    <div class="card-sub" id="sec-ram-detail">-</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Disque</div>
+                    <div style="display:flex;align-items:center;gap:10px">
+                        <div class="card-value" id="sec-disk-pct">-</div>
+                        <div style="flex:1"><div class="progress"><div class="progress-bar" id="sec-disk-bar" style="width:0%;background:var(--success)"></div></div></div>
+                    </div>
+                    <div class="card-sub">OVH VPS 72 Go</div>
+                </div>
+            </div>
+
+            <!-- Row 6: Fail2ban details -->
+            <h3 style="font-size:.75rem;margin:16px 0 8px">🚫 Fail2ban Jails</h3>
+            <div class="grid-3" id="sec-f2b-jails">
+                <div class="card" style="text-align:center;padding:20px"><div class="card-sub">Chargement...</div></div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Modal -->
+<div class="modal" id="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-title" id="modal-title">Resultat</span>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div id="modal-body"></div>
+    </div>
+</div>
+
+<!-- Command Palette (Ctrl+K) -->
+<div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)toggleCommandPalette()">
+    <div class="cmd-box">
+        <div class="cmd-search">
+            <span>🔍</span>
+            <input type="text" id="cmd-search-input" placeholder="Search commands..." oninput="filterCommands(this.value)" onkeydown="cmdPaletteNav(event)">
+        </div>
+        <div class="cmd-results" id="cmd-results"></div>
+    </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+const API='';
+const siteInfo={1:{name:'Deneigement',icon:'❄️',color:'#3b82f6'},2:{name:'Paysagement',icon:'🌿',color:'#22c55e'},3:{name:'JC Peintre',icon:'🎨',color:'#f59e0b'},4:{name:'SEO par AI',icon:'🤖',color:'#e63946'}};
+const agentIcons={'keyword_research':'🔬','content_generation':'📝','faq_generation':'❓','technical_seo':'🔧','performance':'⚡','backlink':'🔗','local_seo':'📍','competitor':'🎯','content_optimization':'✨','schema':'📋','social_media':'📱','email':'📧','image':'🖼️','internal_linking':'🔀','url':'🌐','title_tag':'🏷️','content_calendar':'📅','pricing':'💰','review':'⭐','review_management':'⭐','conversion':'📈','monitoring':'👁️','ssl':'🔒','backup':'💾','analytics':'📊','reporting':'📑','landing_page':'🎨','blog_idea':'💡','video_script':'🎬','service_description':'📄'};
+
+// Navigation
+document.querySelectorAll('.nav-item').forEach(item=>{
+    item.addEventListener('click',()=>{
+        const section=item.dataset.section;
+        if(!section)return;
+        showSection(section);
+    });
+});
+
+function showSection(section){
+    document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
+    document.querySelector(`.nav-item[data-section="${section}"]`)?.classList.add('active');
+    document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+    document.getElementById(`section-${section}`).classList.add('active');
+    if(section==='security') loadSecurityStatus();
+    document.getElementById('page-title').textContent=document.querySelector(`.nav-item[data-section="${section}"]`)?.textContent.trim()||section;
+}
+
+function showToast(msg,type='info'){
+    const c=document.getElementById('toast-container');
+    const t=document.createElement('div');
+    t.className=`toast ${type}`;
+    t.textContent=msg;
+    c.appendChild(t);
+    setTimeout(()=>t.remove(),3000);
+}
+
+function openModal(title,content){
+    document.getElementById('modal-title').textContent=title;
+    document.getElementById('modal-body').innerHTML=typeof content==='object'?`<pre style="font-size:.7rem;overflow:auto;max-height:400px">${JSON.stringify(content,null,2)}</pre>`:content;
+    document.getElementById('modal').classList.add('open');
+}
+
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+
+// API Calls
+async function api(endpoint,method='GET',data=null,timeout=30000){
+    try{
+        const controller=new AbortController();
+        const timeoutId=setTimeout(()=>controller.abort(),timeout);
+        const opts={method,headers:{'Content-Type':'application/json'},signal:controller.signal};
+        if(data)opts.body=JSON.stringify(data);
+        const res=await fetch(`${API}${endpoint}`,opts);
+        clearTimeout(timeoutId);
+        if(!res.ok){
+            console.warn(`API ${endpoint}: ${res.status}`);
+            return null;
+        }
+        const text=await res.text();
+        if(!text)return null;
+        try{return JSON.parse(text)}catch(e){console.warn(`JSON parse error for ${endpoint}`);return null}
+    }catch(e){
+        if(e.name==='AbortError')console.log('Timeout: '+endpoint);
+        else console.warn('API error:',e.message);
+        return null;
+    }
+}
+
+// Run Agent Action
+async function runAgentAction(action,data={}){
+    showToast(`Execution ${action}... (peut prendre 30-60s)`,'info');
+    const isGet=action.includes('/');
+    const aiAgents=['content/article','faq','keyword-research','blog-ideas','calendar','pricing','landing-page','video-script','service-page','newsletter','social-posts','optimize-content','competitors','backlinks','local-seo','internal-links','review-response','cta'];
+    const timeout=aiAgents.some(a=>action.includes(a))?120000:30000;
+    const result=await api(`/api/agent/${action}`,isGet?'GET':'POST',isGet?null:data,timeout);
+    if(result){
+        showToast('Agent termine!','success');
+        openModal(`Resultat: ${action}`,result);
+    }
+}
+
+// Load Functions
+async function loadStats(){
+    const data=await api('/api/stats');
+    if(data){
+        document.getElementById('stat-alerts').textContent=data.active_alerts||0;
+        document.getElementById('alert-badge').textContent=data.active_alerts||0;
+        document.getElementById('stat-content').textContent=data.pending_drafts||0;
+        document.getElementById('pending-badge').textContent=data.pending_drafts||0;
+    }
+}
+
+async function loadSitesOverview(){
+    const uptime=await api('/api/agents/uptime');
+    if(!uptime)return;
+
+    const sites=await api('/api/sites');
+    let html='';
+    (sites?.sites||[]).forEach((s,i)=>{
+        const id=i+1;
+        const u=uptime.uptime?.[id]||{};
+        const ms=Math.round((u.response_time||0)*1000);
+        document.getElementById(`site${id}-response`).textContent=ms+'ms';
+
+        html+=`
+        <div class="site-card site-${id}" onclick="showSection('site-${id}')">
+            <div class="site-header">
+                <div>
+                    <div class="site-name">${siteInfo[id].icon} ${s.nom}</div>
+                    <div class="site-domain">${s.domaine}</div>
+                </div>
+                <span class="site-status ${u.status==='up'?'up':'down'}">${u.status==='up'?'ONLINE':'DOWN'}</span>
+            </div>
+            <div class="site-stats">
+                <div class="site-stat"><div class="site-stat-val" style="color:var(--success)">${ms}ms</div><div class="site-stat-label">Reponse</div></div>
+                <div class="site-stat"><div class="site-stat-val">99%</div><div class="site-stat-label">Uptime</div></div>
+                <div class="site-stat"><div class="site-stat-val" id="overview-kw-${id}">10</div><div class="site-stat-label">Mots-cles</div></div>
+                <div class="site-stat"><div class="site-stat-val" id="overview-content-${id}">0</div><div class="site-stat-label">Contenus</div></div>
+            </div>
+        </div>`;
+    });
+    document.getElementById('sites-overview').innerHTML=html;
+}
+
+async function loadKeywords(){
+    const data=await api('/api/keywords');
+    if(!data)return;
+    const kw=data.keywords||[];
+
+    const counts={1:0,2:0,3:0};
+    const bysite={1:[],2:[],3:[]};
+    kw.forEach(k=>{counts[k.site_id]++;bysite[k.site_id].push(k)});
+
+    document.getElementById('stat-kw').textContent=kw.length;
+    document.getElementById('kw-total').textContent=kw.length;
+    [1,2,3].forEach(id=>{
+        document.getElementById(`site${id}-kw`).textContent=counts[id];
+        document.getElementById(`overview-kw-${id}`).textContent=counts[id];
+        document.getElementById(`site${id}-kw-table`).innerHTML=(bysite[id]||[]).slice(0,10).map(k=>`
+            <tr><td><strong>${k.keyword}</strong></td><td>${k.volume}</td><td>${k.difficulty}%</td><td style="color:var(--success)">Actif</td></tr>
+        `).join('');
+    });
+
+    document.getElementById('keywords-table').innerHTML=kw.slice(0,30).map(k=>`
+        <tr>
+            <td><span style="color:${siteInfo[k.site_id].color}">${siteInfo[k.site_id].icon}</span></td>
+            <td><strong>${k.keyword}</strong></td>
+            <td>${k.volume}</td>
+            <td><div class="progress" style="width:40px"><div class="progress-bar" style="width:${k.difficulty}%;background:${k.difficulty<35?'var(--success)':'var(--warning)'}"></div></div></td>
+            <td style="color:var(--success)">Actif</td>
+        </tr>
+    `).join('');
+}
+
+async function loadPending(){
+    const data=await api('/api/pending');
+    if(!data)return;
+    const drafts=data.drafts||[];
+
+    const counts={1:0,2:0,3:0};
+    drafts.forEach(d=>counts[d.site_id]++);
+
+    [1,2,3].forEach(id=>{
+        document.getElementById(`pending-${id}`).textContent=counts[id];
+        document.getElementById(`site${id}-content`).textContent=counts[id];
+        document.getElementById(`overview-content-${id}`).textContent=counts[id];
+
+        const siteDrafts=drafts.filter(d=>d.site_id==id);
+        document.getElementById(`site${id}-pending`).innerHTML=siteDrafts.length?siteDrafts.map(d=>`
+            <div class="pending-item site-${id}">
+                <div class="pending-icon">📝</div>
+                <div class="pending-info">
+                    <div class="pending-title">${d.sujet||d.titre||'Sans titre'}</div>
+                    <div class="pending-meta">${d.created_at}</div>
+                </div>
+                <div class="pending-actions">
+                    <button class="btn btn-success" onclick="approveDraft(${d.id})">✓</button>
+                    <button class="btn btn-danger" onclick="rejectDraft(${d.id})">✗</button>
+                </div>
+            </div>
+        `).join(''):'<div class="card" style="text-align:center;padding:20px;color:var(--text-muted)">Aucun contenu en attente</div>';
+    });
+
+    document.getElementById('pending-list').innerHTML=drafts.length?drafts.map(d=>`
+        <div class="card site-${d.site_id}" style="margin-bottom:10px;border-left:3px solid ${siteInfo[d.site_id]?.color||'#666'}">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+                <div>
+                    <div style="font-weight:700;font-size:.85rem">${d.titre||d.sujet||'Sans titre'}</div>
+                    <div style="font-size:.65rem;color:var(--text-muted)">${siteInfo[d.site_id]?.icon} ${siteInfo[d.site_id]?.name} | Mot-clé: <strong>${d.sujet||'--'}</strong> | ${d.created_at}</div>
+                </div>
+                <span style="padding:2px 8px;border-radius:10px;font-size:.55rem;background:var(--warning);color:#000">En attente</span>
+            </div>
+            <div style="display:flex;gap:6px">
+                <button class="btn btn-primary" onclick="previewDraft(${d.id})">👁️ Aperçu complet</button>
+                <button class="btn btn-success" onclick="approveDraft(${d.id})">✓ Approuver</button>
+                <button class="btn btn-danger" onclick="rejectDraft(${d.id})">✗ Rejeter</button>
+            </div>
+        </div>
+    `).join(''):'<div class="card" style="text-align:center;padding:30px">✅ Aucun contenu en attente</div>';
+
+    document.getElementById('content-table').innerHTML=drafts.slice(0,10).map(d=>`
+        <tr>
+            <td><span style="color:${siteInfo[d.site_id]?.color}">${siteInfo[d.site_id]?.icon}</span></td>
+            <td>${(d.sujet||d.titre||'--').substring(0,40)}...</td>
+            <td>Article</td>
+            <td>${d.created_at}</td>
+            <td><button class="btn btn-success" onclick="approveDraft(${d.id})">✓</button></td>
+        </tr>
+    `).join('');
+}
+
+async function loadAgents(){
+    const data=await api('/api/agents/status');
+    if(!data)return;
+    const agents=data.agents||[];
+
+    document.getElementById('agents-count').textContent=agents.length;
+    document.getElementById('agents-active').textContent=agents.length;try{document.getElementById('sidebar-agent-count').textContent=agents.length;document.getElementById('nav-agent-count').textContent=agents.length;document.title='SEO AI Command Center - '+agents.length+' Agents | 4 Sites';}catch(e){}
+
+    document.getElementById('agents-grid').innerHTML=agents.map(a=>`
+        <div class="agent-card" onclick="runAgentForType('${a.type}')">
+            <div class="agent-icon">${agentIcons[a.type]||'🤖'}</div>
+            <div class="agent-name">${a.name.replace(' Agent','')}</div>
+            <div class="agent-status"></div>
+        </div>
+    `).join('');
+}
+
+function runAgentForType(type){
+    const actions={
+        'keyword_research':()=>runAgentAction('keyword-research',{site_id:1,seed_keyword:'deneigement',limit:10}),
+        'content_generation':()=>runAgentAction('content/article',{site_id:1,keyword:'deneigement'}),
+        'faq_generation':()=>runAgentAction('faq',{site_id:1,topic:'deneigement',count:10}),
+        'technical_seo':()=>runAgentAction('audit/technical',{site_id:1}),
+        'performance':()=>runAgentAction('performance',{site_id:1}),
+        'backlink':()=>runAgentAction('backlinks',{site_id:1}),
+        'local_seo':()=>runAgentAction('local-seo/gmb',{site_id:1}),
+        'competitor':()=>runAgentAction('competitors',{site_id:1}),
+        'schema':()=>runAgentAction('schema/local-business',{site_id:1}),
+        'social_media':()=>runAgentAction('social-posts',{article_title:'Test',article_url:'https://example.com'}),
+        'content_calendar':()=>runAgentAction('calendar',{site_id:1,weeks:4}),
+        'pricing':()=>runAgentAction('pricing',{site_id:1,service:'deneigement'}),
+        'blog_idea':()=>runAgentAction('blog-ideas/1'),
+        'monitoring':()=>{api('/api/agents/uptime').then(r=>openModal('Uptime Check',r))},
+        'ssl':()=>runAgentAction('ssl-check',{site_id:1}),
+        'backup':()=>runAgentAction('backup'),
+        'analytics':()=>runAgentAction('analytics/1'),
+        'reporting':()=>runAgentAction('report/1'),
+        'landing_page':()=>runAgentAction('landing-page',{site_id:1,service:'deneigement',keyword:'deneigement montreal'}),
+        'video_script':()=>runAgentAction('video-script',{topic:'deneigement hiver',duration:60}),
+        'service_description':()=>runAgentAction('service-page',{site_id:1,service_name:'Deneigement residentiel'}),
+        'email':()=>runAgentAction('newsletter',{site_id:1,articles:[]}),
+        'image':()=>runAgentAction('image-alt',{context:'deneigement neige hiver',keyword:'deneigement'}),
+        'review_management':()=>runAgentAction('review-response',{review_text:'Excellent service!',rating:5,is_positive:true}),'review':()=>runAgentAction('review-response',{review_text:'Excellent service!',rating:5,is_positive:true}),
+        'conversion':()=>runAgentAction('cta',{current_cta:'Contactez-nous',page_type:'service'}),
+        'internal_linking':()=>runAgentAction('internal-links',{site_id:1,topic:'deneigement'}),
+        'url':()=>runAgentAction('url-slug',{title:'Service de deneigement',keyword:'deneigement'}),
+        'title_tag':()=>runAgentAction('title-tag',{current_title:'Deneigement',keyword:'deneigement montreal',brand:'Excellence'}),
+        'content_optimization':()=>runAgentAction('optimize-content',{content:'Contenu a optimiser',keyword:'deneigement'})
+    };
+    (actions[type]||(() => showToast('Agent '+type+' en cours...','info')))();
+}
+
+async function loadServer(){
+    const data=await api('/api/server/realtime');
+    if(!data)return;
+    document.getElementById('srv-cpu').textContent=data.cpu_load;
+    document.getElementById('srv-ram').textContent=data.memory_percent+'%';
+    document.getElementById('srv-disk').textContent=data.disk_percent+'%';
+    document.getElementById('srv-ram-detail').textContent=`${data.memory_used_mb}/${data.memory_total_mb}MB`;
+    document.getElementById('srv-cpu-bar').style.width=Math.min(data.cpu_load*20,100)+'%';
+    document.getElementById('srv-ram-bar').style.width=data.memory_percent+'%';
+    document.getElementById('srv-disk-bar').style.width=data.disk_percent+'%';
+}
+
+// ========== SECTION ACTIONS REQUISES ==========
+async function loadActions(){
+    const [pendingData, alertsData] = await Promise.all([
+        api('/api/pending'),
+        api('/api/alerts')
+    ]);
+
+    const drafts = pendingData?.drafts || [];
+    const alerts = alertsData?.alerts || [];
+    const total = drafts.length + alerts.length;
+
+    // Update badges
+    document.getElementById('actions-badge').textContent = total;
+    document.getElementById('total-actions').textContent = total;
+    document.getElementById('action-drafts-count').textContent = drafts.length;
+    document.getElementById('action-alerts-count').textContent = alerts.length;
+
+    // Style badge based on count
+    const badge = document.getElementById('actions-badge');
+    if(total > 0) {
+        badge.style.animation = 'pulse 1s infinite';
+    } else {
+        badge.style.animation = 'none';
+    }
+
+    // Render drafts
+    document.getElementById('action-drafts-list').innerHTML = drafts.length ? drafts.map(d => `
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:4px solid ${siteInfo[d.site_id]?.color||'#666'}">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+                <div>
+                    <div style="font-weight:700;font-size:.85rem">${d.titre || 'Sans titre'}</div>
+                    <div style="font-size:.65rem;color:var(--text-muted)">${siteInfo[d.site_id]?.icon||''} ${siteInfo[d.site_id]?.name||'Site '+d.site_id} | Mot-clé: ${d.sujet || '--'}</div>
+                </div>
+            </div>
+            <div style="display:flex;gap:6px">
+                <button class="btn btn-primary" onclick="previewDraft(${d.id})">👁️ Voir</button>
+                <button class="btn btn-success" onclick="approveDraft(${d.id})">✓ Approuver</button>
+                <button class="btn btn-danger" onclick="rejectDraft(${d.id})">✗ Rejeter</button>
+            </div>
+        </div>
+    `).join('') : '<div style="text-align:center;padding:20px;color:var(--success)">✅ Aucun contenu en attente</div>';
+
+    // Render alerts with agent source
+    const agentLabels2={'self_audit_agent':'Self-Audit','monitoring_agent':'Monitoring','unknown':'Agent'};
+    document.getElementById('action-alerts-list').innerHTML = alerts.length ? alerts.map(a => {
+        const aLabel=agentLabels2[a.source_agent]||(a.source_agent||'Agent');
+        const isNew2=a.status==='new';
+        const sevBg2=a.severity==='critical'?'var(--danger)':'var(--warning)';
+        return `
+        <div style="background:var(--surface-2);border-radius:8px;padding:12px;margin-bottom:8px;border-left:4px solid ${sevBg2}${isNew2?';border:1px solid var(--primary)':''}">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                        <span style="font-size:.55rem;color:var(--info)">${aLabel}</span>
+                        ${isNew2?'<span style="padding:1px 6px;border-radius:8px;font-size:.5rem;background:var(--primary);color:#fff">NOUVEAU</span>':''}
+                        <span style="font-size:.5rem;padding:1px 6px;border-radius:8px;background:${sevBg2};color:#fff">${(a.severity||'').toUpperCase()}</span>
+                    </div>
+                    <div style="font-weight:700;font-size:.8rem">${a.message}</div>
+                    <div style="font-size:.6rem;color:var(--text-muted)">${a.site_id||''} | ${a.created_at||''}</div>
+                </div>
+                <button class="btn btn-success" onclick="resolveAlert(${a.id})">Resoudre</button>
+            </div>
+        </div>`;
+    }).join('') : '<div style="text-align:center;padding:20px;color:var(--success)">Aucune alerte</div>';
+}
+
+async function runFullAudit(){
+    showToast('Lancement audit complet des 3 sites...', 'info');
+    for(let i = 1; i <= 3; i++){
+        runAgentAction('audit/technical', {site_id: i});
+    }
+}
+
+async function loadCrons(){
+    const data=await api('/api/cron');
+    if(!data)return;
+    document.getElementById('crons-list').innerHTML=(data.tasks||[]).map(c=>`
+        <div class="cron-card">
+            <div class="cron-icon">⏰</div>
+            <div class="cron-info"><div class="cron-name">${c.name}</div><div class="cron-schedule">${c.schedule}</div></div>
+            <div class="cron-status ${c.active?'active':''}"></div>
+        </div>
+    `).join('');
+}
+
+async function loadPM2(){
+    const data=await api('/api/pm2');
+    if(!data)return;
+    document.getElementById('pm2-list').innerHTML=(data.apps||[]).map(a=>`
+        <div class="cron-card">
+            <div class="cron-icon">📦</div>
+            <div class="cron-info"><div class="cron-name">${a.name}</div><div class="cron-schedule">RAM: ${Math.round(a.memory/1024/1024)}MB</div></div>
+            <div class="cron-status active"></div>
+        </div>
+    `).join('');
+}
+
+async function loadActivity(){
+    const data=await api('/api/pending');
+    const drafts=(data?.drafts||[]).slice(0,5);
+    document.getElementById('activity-table').innerHTML=drafts.map(d=>`
+        <tr>
+            <td><span style="color:${siteInfo[d.site_id]?.color}">${siteInfo[d.site_id]?.icon}</span></td>
+            <td>Contenu genere</td>
+            <td>${(d.sujet||'').substring(0,30)}...</td>
+            <td>${d.created_at?.split(' ')[1]||'--'}</td>
+        </tr>
+    `).join('')||'<tr><td colspan="4" style="text-align:center">Aucune activite recente</td></tr>';
+}
+
+async function loadAlerts(){
+    const data=await api('/api/alerts');
+    const alerts=data?.alerts||[];
+    document.getElementById('alerts-total').textContent=alerts.length;
+    document.getElementById('alerts-critical').textContent=alerts.filter(a=>a.severity==='critical').length;
+
+    const agentNames={'self_audit_agent':'Self-Audit','monitoring_agent':'Monitoring','performance_agent':'Performance','learning_agent':'Learning','research_agent':'Research','unknown':'Agent'};
+    const statusStyles={'new':'background:var(--primary);color:#fff','active':'background:var(--surface-2);color:var(--warning)','auto_fixed':'background:var(--success);color:#fff','resolved':'background:var(--success);color:#fff'};
+    const statusLabels={'new':'NOUVEAU','active':'ACTIF','auto_fixed':'AUTO-CORRIGE','resolved':'RESOLU'};
+
+    document.getElementById('alerts-list').innerHTML=alerts.length?alerts.map(a=>{
+        const agent=agentNames[a.source_agent]||(a.source_agent||'Agent');
+        const stStyle=statusStyles[a.status]||statusStyles.active;
+        const stLabel=statusLabels[a.status]||a.status;
+        const isNew=a.status==='new';
+        const sevIcon=a.severity==='critical'?'[!!]':a.severity==='high'?'[!]':'[i]';
+        const sevBg=a.severity==='critical'?'var(--danger)':a.severity==='high'?'var(--warning)':'var(--info)';
+        return `
+        <div class="pending-item" style="${isNew?'border:1px solid var(--primary);':''}">
+            <div class="pending-icon">${sevIcon}</div>
+            <div class="pending-info" style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
+                    <span style="padding:2px 8px;border-radius:10px;font-size:.5rem;font-weight:700;${stStyle}">${stLabel}</span>
+                    <span style="font-size:.55rem;color:var(--info)">${agent}</span>
+                    <span style="font-size:.5rem;padding:1px 6px;border-radius:8px;background:${sevBg};color:#fff">${(a.severity||'').toUpperCase()}</span>
+                </div>
+                <div class="pending-title">${a.message}</div>
+                <div class="pending-meta">${a.site_id||''} | ${a.created_at||''}${a.corrected_by?' | Corrige par: '+a.corrected_by:''}</div>
+            </div>
+            ${a.is_resolved?'':'<button class="btn btn-success" onclick="resolveAlert('+a.id+')">Resoudre</button>'}
+        </div>`;
+    }).join('') : '<div style="text-align:center;padding:20px;color:var(--success)">Aucune alerte</div>';
+}
+
+// Actions
+async function approveAllDrafts(){
+    const data=await api("/api/pending");
+    if(data&&data.drafts){
+        for(const d of data.drafts){await api("/api/actions/approve","POST",{type:"draft",id:d.id});}
+        showToast(data.drafts.length+" contenus approuves!","success");
+        loadPending();loadStats();loadActions();
+    }
+}
+
+async function approveDraft(id){
+    await api('/api/actions/approve','POST',{type:'draft',id});
+    showToast('Contenu approuve!','success');
+    loadPending();loadStats();
+}
+
+async function rejectDraft(id){
+    await api('/api/actions/reject','POST',{type:'draft',id});
+    showToast('Contenu rejete','warning');
+    loadPending();loadStats();
+}
+
+async function resolveAlert(id){
+    await api(`/api/alerts/${id}/resolve`,'POST');
+    showToast('Alerte resolue','success');
+    loadAlerts();loadStats();
+}
+
+async function previewDraft(id){
+    showToast('Chargement apercu...','info');
+    const data=await api(`/api/drafts/${id}/preview`);
+    if(data){
+        let contenu=data.contenu||'';
+        try{contenu=JSON.parse(contenu)}catch(e){}
+        const html=`
+            <div style="margin-bottom:12px">
+                <strong>Site:</strong> ${siteInfo[data.site_id]?.name||data.site_id}<br>
+                <strong>Mot-cle:</strong> ${data.mot_cle||'--'}<br>
+                <strong>Date:</strong> ${data.created_at}
+            </div>
+            <div style="background:var(--surface-2);padding:12px;border-radius:6px;max-height:400px;overflow:auto">
+                ${typeof contenu==='object'?`<h3>${contenu.titre||''}</h3><p><em>${contenu.meta_description||''}</em></p><div>${contenu.contenu||JSON.stringify(contenu,null,2)}</div>`:contenu}
+            </div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+                <button class="btn btn-success" onclick="approveDraft(${id});closeModal()">✓ Approuver</button>
+                <button class="btn btn-danger" onclick="rejectDraft(${id});closeModal()">✗ Rejeter</button>
+            </div>
+        `;
+        openModal(data.titre||'Apercu',html);
+    }
+}
+
+// Chat
+async function sendChat(){
+    const input=document.getElementById('chat-input');
+    const msg=input.value.trim();
+    if(!msg)return;
+
+    const msgs=document.getElementById('chat-messages');
+    msgs.innerHTML+=`<div class="chat-msg user">${msg}</div>`;
+    input.value='';
+    msgs.innerHTML+=`<div class="chat-msg ai" id="typing">⏳ DeepSeek R1 reflechit...</div>`;
+    msgs.scrollTop=msgs.scrollHeight;
+
+    const data=await api('/api/ai/chat','POST',{message:msg,context:'seo'});
+    document.getElementById('typing').remove();
+    msgs.innerHTML+=`<div class="chat-msg ai">${data?.response||data?.error||'Erreur'}</div>`;
+    msgs.scrollTop=msgs.scrollHeight;
+}
+
+// WhatsApp
+async function configWhatsApp(){
+    const phone=document.getElementById('whatsapp-number').value;
+    const data=await api('/api/notifications/whatsapp/config','POST',{phone});
+    if(data?.success)showToast('WhatsApp configure!','success');
+    else showToast('Erreur','error');
+}
+
+async function testWhatsApp(){
+    const data=await api('/api/notifications/whatsapp/test','POST');
+    showToast(data?.success?'Notification envoyee!':'Erreur: '+data?.error,data?.success?'success':'error');
+}
+
+
+// Self-Audit Functions
+async function loadSelfAudit(){
+    const data=await api('/api/self-audit/dashboard');
+    if(!data)return;
+    window._saAllIssues=data.issues||[];
+    const s=data.stats||{};
+    document.getElementById('sa-total').textContent=s.total||0;
+    document.getElementById('sa-auto').textContent=s.auto_fixed||0;
+    document.getElementById('sa-pending').textContent=s.pending_confirm||0;
+    document.getElementById('sa-critical').textContent=s.critical_open||0;
+    document.getElementById('self-audit-badge').textContent=(s.pending_confirm||0)+(s.critical_open||0);
+    if(data.last_run){document.getElementById('sa-last-run').textContent=data.last_run.completed_at||'--';}
+
+    const statusIcons={'auto_fixed':'â','confirmed':'âï¸','pending':'â³','manual':'ð§'};
+    const statusColors={'auto_fixed':'var(--success)','confirmed':'var(--info)','pending':'var(--warning)','manual':'var(--danger)'};
+    const siteColors={'deneigement':'#3b82f6','paysagement':'#22c55e','jcpeintre':'#f59e0b','seoparai':'#e63946'};
+    const sevColors={'critical':'var(--danger)','high':'var(--warning)','medium':'var(--info)'};
+    const issues=data.issues||[];
+    document.getElementById('sa-issues-table').innerHTML=issues.map(i=>`
+        <tr style="opacity:${i.auto_fixed?'.6':'1'}">
+            <td><span style="padding:2px 8px;border-radius:10px;font-size:.55rem;font-weight:700;background:${statusColors[i.status]||'var(--info)'};color:#fff">${(statusIcons[i.status]||'') + ' ' + (i.status||'').toUpperCase()}</span></td>
+            <td><span style="color:${siteColors[i.site_id]||'#fff'}">${i.site_id}</span></td>
+            <td style="font-size:.6rem;color:var(--info)">Self-Audit</td>
+            <td>${i.check_type}</td>
+            <td><span style="color:${sevColors[i.severity]||'var(--text)'}">${(i.severity||'').toUpperCase()}</span></td>
+            <td style="font-size:.65rem">${(i.message||'').substring(0,60)}${(i.message||'').length>60?'...':''}</td>
+            <td>${i.status==='pending'?'<button class="btn btn-success" onclick="confirmSelfAuditFix('+i.id+')">\u2713</button>':i.auto_fixed?'<span style="color:var(--success);font-size:.65rem">Auto</span>':''}</td>
+        </tr>
+    `).join('')||'<tr><td colspan="7" style="text-align:center;padding:20px">Aucune issue</td></tr>';
+}
+
+async function confirmSelfAuditFix(id){
+    await api('/api/self-audit/confirm/'+id,'POST');
+    showToast('Fix confirme!','success');
+    loadSelfAudit();
+}
+
+async function confirmAllSelfAudit(){
+    if(!confirm('Confirmer TOUS les fixes en attente?'))return;
+    await api('/api/self-audit/confirm-all','POST');
+    showToast('Tous les fixes confirmes!','success');
+    loadSelfAudit();
+}
+
+async function runSelfAudit(){
+    showToast('Self-Audit en cours... (30-60s)','info');
+    const result=await api('/api/agent/self-audit','POST',{},60000);
+    if(result){showToast('Self-Audit termine!','success');loadSelfAudit();loadAlerts();}
+    else{showToast('Self-Audit: verifier logs','warning');}
+}
+
+// ========== COMMAND CENTER ==========
+const cmdRegistry=[
+    {id:'sync-github',label:'Sync GitHub',icon:'🔄',endpoint:'/api/command/git-sync',method:'POST'},
+    {id:'deploy',label:'Deploy to VPS',icon:'🚀',endpoint:'/api/command/deploy',method:'POST'},
+    {id:'restart-services',label:'Restart Services',icon:'🔄',endpoint:'/api/command/restart-services',method:'POST'},
+    {id:'check-ssl',label:'Check SSL',icon:'🔒',endpoint:'/api/ssl/check',method:'POST'},
+    {id:'backup-db',label:'Backup DB',icon:'💾',endpoint:'/api/db/backup',method:'POST'},
+    {id:'full-audit',label:'Full Audit',icon:'🔍',endpoint:'/api/agent/self-audit',method:'POST'},
+    {id:'generate-content',label:'Generate Content',icon:'📝',endpoint:'/api/agent/generate',method:'POST'},
+    {id:'fix-all',label:'Fix All Issues',icon:'🔧',endpoint:'/api/agent/fix-all',method:'POST'},
+    {id:'keyword-research',label:'Keyword Research',icon:'🔑',endpoint:'/api/agent/keywords',method:'POST'},
+    {id:'competitor-analysis',label:'Competitor Analysis',icon:'🎯',endpoint:'/api/agent/competitors',method:'POST'},
+];
+const cmdHistory=[];
+
+function termLine(text,cls=''){
+    const body=document.getElementById('terminal-output');
+    if(!body)return;
+    const line=document.createElement('div');
+    line.className='t-line'+(cls?' '+cls:'');
+    line.textContent=text;
+    body.appendChild(line);
+    while(body.children.length>200)body.removeChild(body.firstChild);
+    body.scrollTop=body.scrollHeight;
+}
+
+async function cmdExec(cmdId){
+    const cmd=cmdRegistry.find(c=>c.id===cmdId);
+    if(!cmd){showToast('Unknown: '+cmdId,'error');return;}
+    const start=Date.now();
+    termLine('Executing: '+cmd.label+'...','info');
+    const entry={time:new Date(),cmd:cmd.label,status:'running',duration:0};
+    cmdHistory.unshift(entry);
+    renderCmdHistory();
+
+    const body={site_id:1};
+    if(cmdId==='generate-content')body.keyword='SEO automatisé';
+    if(cmdId==='keyword-research')body.seed='SEO Québec';
+
+    const result=await api(cmd.endpoint,cmd.method,body,60000);
+    const elapsed=Date.now()-start;
+    entry.duration=elapsed;
+
+    if(result&&(result.success||result.status==='ok'||result.message)){
+        entry.status='success';
+        termLine(cmd.label+': OK ('+elapsed+'ms)','success');
+        if(result.message)termLine(result.message,'output');
+        if(result.output)termLine(result.output,'output');
+        showToast(cmd.label+' — OK','success');
+    }else{
+        entry.status='error';
+        termLine(cmd.label+': ERROR — '+(result?.error||'Failed'),'error');
+        showToast(cmd.label+' — Erreur','error');
+    }
+    renderCmdHistory();
+    loadStats();
+}
+
+function handleTerminalInput(text){
+    termLine('$ '+text,'cmd');
+    const cmd=cmdRegistry.find(c=>c.id===text||c.label.toLowerCase()===text.toLowerCase());
+    if(cmd){cmdExec(cmd.id);}
+    else if(text==='help'){
+        termLine('Available commands:','info');
+        cmdRegistry.forEach(c=>termLine('  '+c.id+' — '+c.label,'output'));
+        termLine('  help — Show this help','output');
+        termLine('  clear — Clear terminal','output');
+        termLine('  status — System status','output');
+    }else if(text==='clear'){
+        document.getElementById('terminal-output').innerHTML='';
+        termLine('Terminal cleared.','info');
+    }else if(text==='status'){
+        cmdShowStatus();
+    }else{
+        termLine('Unknown: '+text+'. Type "help"','warning');
+    }
+}
+
+async function cmdShowStatus(){
+    termLine('Fetching status...','info');
+    const[sv,st]=await Promise.all([api('/api/server/realtime'),api('/api/stats')]);
+    if(sv)termLine('CPU: '+(sv.cpu_load||'--')+' | RAM: '+(sv.memory_percent||'--')+'% | Disk: '+(sv.disk_percent||'--')+'%','output');
+    if(st)termLine('Sites: '+(st.sites_count||4)+' | KW: '+(st.keywords_count||'--')+' | Drafts: '+(st.pending_drafts||'--')+' | Alerts: '+(st.active_alerts||'--'),'output');
+    termLine('Status check complete.','success');
+}
+
+function renderCmdHistory(){
+    const tbody=document.getElementById('cmd-history');
+    if(!tbody)return;
+    tbody.innerHTML=cmdHistory.slice(0,15).map(h=>{
+        const badge=h.status==='success'?'<span style="color:var(--success)">OK</span>':h.status==='error'?'<span style="color:var(--danger)">ERR</span>':'<span style="color:var(--info)">...</span>';
+        const time=h.time?new Date(h.time).toLocaleTimeString('fr-CA',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'--';
+        return '<tr><td>'+time+'</td><td>'+h.cmd+'</td><td>'+badge+'</td><td>'+(h.duration?h.duration+'ms':'--')+'</td></tr>';
+    }).join('');
+}
+
+// ========== KILL SWITCH ==========
+async function toggleKillSwitch(active){
+    if(!active){
+        if(!confirm('PAUSE tous les 62 agents? Cela stoppe toutes les taches automatisees.')){
+            document.getElementById('killswitch-toggle').checked=true;
+            return;
+        }
+    }
+    const endpoint=active?'/api/deactivate-killswitch':'/api/activate-killswitch';
+    const r=await api(endpoint,'POST');
+    if(r){showToast(active?'Agents actives':'Agents en pause',active?'success':'error');}
+}
+
+// ========== COMMAND PALETTE (Ctrl+K) ==========
+let cmdPaletteIdx=0;
+let cmdPaletteItems=[];
+
+function getAllPaletteItems(){
+    const items=[];
+    // Navigation
+    const sections=[
+        {label:'Dashboard',icon:'📊',section:'dashboard'},
+        {label:'Command Center',icon:'⚡',section:'command'},
+        {label:'Actions Requises',icon:'🔔',section:'actions'},
+        {label:'Alertes',icon:'🚨',section:'alerts'},
+        {label:'En Attente',icon:'✅',section:'pending'},
+        {label:'Deneigement',icon:'❄️',section:'site-1'},
+        {label:'Paysagement',icon:'🌿',section:'site-2'},
+        {label:'JC Peintre',icon:'🎨',section:'site-3'},
+        {label:'SEO par AI',icon:'🤖',section:'site-4'},
+        {label:'Mots-cles',icon:'🔑',section:'keywords'},
+        {label:'Contenu',icon:'📝',section:'content'},
+        {label:'Audit',icon:'🔍',section:'audit'},
+        {label:'Self-Audit',icon:'🛡️',section:'self-audit'},
+        {label:'Agents',icon:'🤖',section:'agents'},
+        {label:'n8n',icon:'⚡',section:'n8n'},
+        {label:'Crons',icon:'⏰',section:'crons'},
+        {label:'Chat AI',icon:'💬',section:'ai-chat'},
+        {label:'Notifications',icon:'🔔',section:'notifications'},
+        {label:'Serveur',icon:'🖥️',section:'server'},
+    ];
+    sections.forEach(s=>items.push({label:'Go to '+s.label,icon:s.icon,hint:'Navigation',action:()=>showSection(s.section)}));
+    // Commands
+    cmdRegistry.forEach(c=>items.push({label:c.label,icon:c.icon,hint:'Command',action:()=>{showSection('command');cmdExec(c.id)}}));
+    // Actions
+    items.push({label:'Refresh All',icon:'🔄',hint:'Action',action:()=>refreshAll()});
+    items.push({label:'Approve All Drafts',icon:'✓',hint:'Action',action:()=>approveAllDrafts()});
+    items.push({label:'Run Self-Audit',icon:'🛡️',hint:'Action',action:()=>runSelfAudit()});
+    return items;
+}
+
+function toggleCommandPalette(){
+    const overlay=document.getElementById('cmd-overlay');
+    if(overlay.classList.contains('open')){
+        overlay.classList.remove('open');
+    }else{
+        overlay.classList.add('open');
+        const input=document.getElementById('cmd-search-input');
+        input.value='';
+        filterCommands('');
+        setTimeout(()=>input.focus(),50);
+    }
+}
+
+function filterCommands(query){
+    const all=getAllPaletteItems();
+    cmdPaletteItems=query?all.filter(i=>i.label.toLowerCase().includes(query.toLowerCase())):all;
+    cmdPaletteIdx=0;
+    renderPaletteResults();
+}
+
+function renderPaletteResults(){
+    const container=document.getElementById('cmd-results');
+    if(!cmdPaletteItems.length){container.innerHTML='<div style="padding:20px;text-align:center;color:var(--text-muted)">No results</div>';return;}
+    container.innerHTML=cmdPaletteItems.map((item,i)=>
+        '<div class="cmd-item'+(i===cmdPaletteIdx?' active':'')+'" data-idx="'+i+'" onclick="executePaletteItem('+i+')">'+
+        '<span>'+item.icon+'</span><span class="cmd-label">'+item.label+'</span><span class="cmd-hint">'+item.hint+'</span></div>'
+    ).join('');
+}
+
+function cmdPaletteNav(e){
+    if(e.key==='ArrowDown'){e.preventDefault();cmdPaletteIdx=Math.min(cmdPaletteItems.length-1,cmdPaletteIdx+1);renderPaletteResults();}
+    if(e.key==='ArrowUp'){e.preventDefault();cmdPaletteIdx=Math.max(0,cmdPaletteIdx-1);renderPaletteResults();}
+    if(e.key==='Enter'){e.preventDefault();executePaletteItem(cmdPaletteIdx);}
+    if(e.key==='Escape'){toggleCommandPalette();}
+}
+
+function executePaletteItem(idx){
+    if(cmdPaletteItems[idx]){
+        toggleCommandPalette();
+        cmdPaletteItems[idx].action();
+    }
+}
+
+// Ctrl+K global shortcut
+document.addEventListener('keydown',e=>{
+    if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();toggleCommandPalette();}
+    if(e.key==='Escape'&&document.getElementById('cmd-overlay').classList.contains('open')){toggleCommandPalette();}
+});
+
+// Refresh
+async function refreshAll(){
+
+    await Promise.all([loadStats(),loadSitesOverview(),loadKeywords(),loadPending(),loadAgents(),loadServer(),loadCrons(),loadPM2(),loadActivity(),loadAlerts(),loadActions(),loadSelfAudit()]);
+    document.getElementById('last-update').textContent=new Date().toLocaleTimeString();
+
+}
+
+// Mobile menu
+function toggleMobileMenu(){
+    document.getElementById('mobileSidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('open');
+}
+function closeMobileMenu(){
+    document.getElementById('mobileSidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+}
+// Close sidebar on nav click (mobile)
+document.querySelectorAll('.nav-item').forEach(el=>{
+    el.addEventListener('click',()=>{if(window.innerWidth<=768)closeMobileMenu()});
+});
+
+// Init
+document.addEventListener('DOMContentLoaded',()=>{
+    refreshAll();
+    setInterval(()=>{loadStats();loadServer()},30000);
+});
+
+
+// ═══ SCHEDULER ═══
+async function loadSchedulerStatus(){
+    try{
+        const r=await fetch(API+'/api/scheduler/status');
+        const d=await r.json();
+        document.getElementById('sched-total-24h').textContent=d.stats_24h.total_runs;
+        document.getElementById('sched-success-rate').textContent=d.stats_24h.success_rate+'%';
+        document.getElementById('sched-unique-agents').textContent=d.stats_24h.unique_agents;
+        const tbody=document.getElementById('scheduler-cycles');
+        tbody.innerHTML=d.cycles.map(c=>{
+            const statusBadge=c.status==='success'?'<span class="badge success">✓ OK</span>':
+                c.status==='partial'?'<span class="badge warning">⚠ Partial</span>':
+                c.status==='running'?'<span class="badge" style="background:var(--info)">⏳ Running</span>':
+                c.status==='never'?'<span class="badge" style="background:var(--surface-2);color:var(--text-muted)">— Never</span>':
+                '<span class="badge danger">✗ Error</span>';
+            const lastRun=c.last_run?c.last_run.started_at:'—';
+            return '<tr><td style="font-weight:700">'+c.name.toUpperCase()+'</td><td><code>'+c.cron+'</code></td><td>'+c.description+'</td><td>'+statusBadge+'</td><td>'+lastRun+'</td></tr>';
+        }).join('');
+    }catch(e){console.error('Scheduler load error:',e)}
+}
+async function loadSchedulerRuns(){
+    try{
+        const r=await fetch(API+'/api/scheduler/runs?limit=30');
+        const runs=await r.json();
+        const tbody=document.getElementById('scheduler-runs');
+        tbody.innerHTML=runs.map(r=>{
+            const statusBadge=r.status==='success'?'<span class="badge success">✓</span>':
+                r.status==='error'?'<span class="badge danger">✗</span>':
+                r.status==='timeout'?'<span class="badge warning">⏱</span>':
+                '<span class="badge">'+r.status+'</span>';
+            const dur=r.duration_seconds?r.duration_seconds.toFixed(1)+'s':'—';
+            return '<tr><td>'+r.agent_name+'</td><td>'+r.site_id+'</td><td>'+statusBadge+'</td><td>'+dur+'</td><td style="font-size:.7rem">'+r.started_at+'</td></tr>';
+        }).join('');
+    }catch(e){console.error('Scheduler runs error:',e)}
+}
+
+// Load scheduler on section show
+const origShowSection=showSection;
+showSection=function(s){origShowSection(s);if(s==='scheduler'){loadSchedulerStatus();loadSchedulerRuns();}};
+
+
+
+// ============== CHARTS ==============
+async function loadAllCharts() {
+    try {
+        const [runsRes, uptimeRes, kwRes, contentRes, alertRes, schedRes] = await Promise.allSettled([
+            fetch('/api/charts/agent-runs-daily').then(r=>r.json()),
+            fetch('/api/charts/uptime-daily').then(r=>r.json()),
+            fetch('/api/charts/keyword-positions').then(r=>r.json()),
+            fetch('/api/charts/content-pipeline').then(r=>r.json()),
+            fetch('/api/charts/alert-severity').then(r=>r.json()),
+            fetch('/api/charts/scheduler-daily').then(r=>r.json())
+        ]);
+
+        // 1. Agent Runs Bar Chart
+        if (runsRes.status==='fulfilled' && runsRes.value.days) {
+            const d = runsRes.value;
+            new ApexCharts(document.querySelector('#chart-agent-runs'), {
+                chart: {type:'bar', height:220, background:'transparent', toolbar:{show:false}},
+                series: [{name:'Total',data:d.total},{name:'Succes',data:d.success}],
+                xaxis: {categories: d.days.map(x=>x.slice(5)), labels:{style:{colors:'#94a3b8',fontSize:'10px'}}},
+                yaxis: {labels:{style:{colors:'#94a3b8'}}},
+                colors: ['#6366f1','#22c55e'],
+                plotOptions: {bar:{borderRadius:4,columnWidth:'60%'}},
+                dataLabels: {enabled:false},
+                legend: {labels:{colors:'#94a3b8'},fontSize:'10px'},
+                grid: {borderColor:'rgba(71,85,105,.3)'},
+                theme: {mode:'dark'}
+            }).render();
+        }
+
+        // 2. Uptime Line Chart
+        if (uptimeRes.status==='fulfilled' && uptimeRes.value.days) {
+            const d = uptimeRes.value;
+            const series = Object.entries(d.sites||{}).map(([name,vals])=>({name,data:vals}));
+            if (series.length) {
+                new ApexCharts(document.querySelector('#chart-uptime-daily'), {
+                    chart: {type:'line', height:220, background:'transparent', toolbar:{show:false}},
+                    series: series,
+                    xaxis: {categories: d.days.map(x=>x.slice(5)), labels:{style:{colors:'#94a3b8',fontSize:'10px'}}},
+                    yaxis: {min:90,max:100,labels:{style:{colors:'#94a3b8'},formatter:v=>v.toFixed(0)+'%'}},
+                    colors: ['#3b82f6','#22c55e','#f59e0b','#e63946'],
+                    stroke: {width:2,curve:'smooth'},
+                    legend: {labels:{colors:'#94a3b8'},fontSize:'10px'},
+                    grid: {borderColor:'rgba(71,85,105,.3)'},
+                    theme: {mode:'dark'}
+                }).render();
+            }
+        }
+
+        // 3. Keyword Positions Line Chart
+        if (kwRes.status==='fulfilled') {
+            const d = kwRes.value;
+            if (d.series && d.series.length) {
+                new ApexCharts(document.querySelector('#chart-keyword-positions'), {
+                    chart: {type:'line', height:220, background:'transparent', toolbar:{show:false}},
+                    series: d.series,
+                    xaxis: {categories: (d.dates||[]).map(x=>x.slice(5)), labels:{style:{colors:'#94a3b8',fontSize:'10px'}}},
+                    yaxis: {reversed:true, min:1, labels:{style:{colors:'#94a3b8'}}},
+                    colors: ['#6366f1','#22c55e','#f59e0b','#e63946','#a855f7'],
+                    stroke: {width:2, curve:'smooth'},
+                    legend: {labels:{colors:'#94a3b8'},fontSize:'10px'},
+                    grid: {borderColor:'rgba(71,85,105,.3)'},
+                    theme: {mode:'dark'}
+                }).render();
+            } else {
+                document.querySelector('#chart-keyword-positions').innerHTML='<div style="color:var(--text-muted);text-align:center;padding:40px;font-size:.8rem">Pas encore de donnees SERP historiques</div>';
+            }
+        }
+
+        // 4. Content Pipeline Donut
+        if (contentRes.status==='fulfilled') {
+            const d = contentRes.value;
+            const labels = Object.keys(d).filter(k=>k!=='error');
+            const values = labels.map(k=>d[k]);
+            if (values.some(v=>v>0)) {
+                new ApexCharts(document.querySelector('#chart-content-pipeline'), {
+                    chart: {type:'donut', height:200, background:'transparent'},
+                    series: values,
+                    labels: labels.map(l=>l.charAt(0).toUpperCase()+l.slice(1)),
+                    colors: ['#6366f1','#22c55e','#f59e0b','#e63946','#a855f7','#06b6d4'],
+                    legend: {labels:{colors:'#94a3b8'},fontSize:'10px',position:'bottom'},
+                    dataLabels: {style:{fontSize:'11px'}},
+                    theme: {mode:'dark'}
+                }).render();
+            } else {
+                document.querySelector('#chart-content-pipeline').innerHTML='<div style="color:var(--text-muted);text-align:center;padding:40px;font-size:.8rem">Aucun contenu encore</div>';
+            }
+        }
+
+        // 5. Alert Severity Donut
+        if (alertRes.status==='fulfilled') {
+            const d = alertRes.value;
+            const labels = Object.keys(d).filter(k=>k!=='error');
+            const values = labels.map(k=>d[k]);
+            if (values.some(v=>v>0)) {
+                new ApexCharts(document.querySelector('#chart-alert-severity'), {
+                    chart: {type:'donut', height:200, background:'transparent'},
+                    series: values,
+                    labels: labels.map(l=>l.charAt(0).toUpperCase()+l.slice(1)),
+                    colors: ['#ef4444','#f97316','#f59e0b','#06b6d4'],
+                    legend: {labels:{colors:'#94a3b8'},fontSize:'10px',position:'bottom'},
+                    theme: {mode:'dark'}
+                }).render();
+            }
+        }
+
+        // 6. Scheduler Success Area Chart
+        if (schedRes.status==='fulfilled' && schedRes.value.days) {
+            const d = schedRes.value;
+            new ApexCharts(document.querySelector('#chart-scheduler-daily'), {
+                chart: {type:'area', height:200, background:'transparent', toolbar:{show:false}},
+                series: [{name:'Total',data:d.total||[]},{name:'Succes',data:d.success||[]}],
+                xaxis: {categories: d.days.map(x=>x.slice(5)), labels:{style:{colors:'#94a3b8',fontSize:'10px'}}},
+                yaxis: {labels:{style:{colors:'#94a3b8'}}},
+                colors: ['#6366f1','#22c55e'],
+                stroke: {width:2,curve:'smooth'},
+                fill: {type:'gradient',gradient:{opacityFrom:0.4,opacityTo:0.05}},
+                legend: {labels:{colors:'#94a3b8'},fontSize:'10px'},
+                grid: {borderColor:'rgba(71,85,105,.3)'},
+                theme: {mode:'dark'}
+            }).render();
+        }
+    } catch(e) { console.error('Charts error:', e); }
+}
+
+// ============== CONTENT SCORE ==============
+async function runContentScore() {
+    const content = document.getElementById('score-content-input').value;
+    const keyword = document.getElementById('score-keyword-input').value;
+    if (!content || !keyword) { alert('Contenu et mot-cle requis'); return; }
+    document.getElementById('score-result').innerHTML='<div style="color:var(--text-muted)">Analyse en cours...</div>';
+    try {
+        const r = await fetch('/api/content-score', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({content,keyword})});
+        const d = await r.json();
+        const color = d.score>=85?'var(--success)':d.score>=70?'#22c55e':d.score>=55?'var(--warning)':d.score>=40?'#f97316':'var(--danger)';
+        let html = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">';
+        html += '<div style="font-size:2.5rem;font-weight:900;color:'+color+'">'+d.score+'</div>';
+        html += '<div><div style="font-size:1.2rem;font-weight:700;color:'+color+'">'+d.grade+'</div>';
+        html += '<div style="font-size:.7rem;color:var(--text-muted)">'+d.word_count+' mots | densite: '+d.keyword_density+'%</div></div></div>';
+        if (d.breakdown) {
+            html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+            for (const [k,v] of Object.entries(d.breakdown)) {
+                const c = v>=80?'var(--success)':v>=60?'var(--warning)':'var(--danger)';
+                html += '<span style="padding:3px 8px;background:var(--surface-2);border-radius:6px;font-size:.7rem;border-left:3px solid '+c+'">'+k.replace('_',' ')+': <strong>'+v+'</strong></span>';
+            }
+            html += '</div>';
+        }
+        if (d.recommendations && d.recommendations.length) {
+            html += '<div style="font-size:.75rem;margin-top:6px">';
+            d.recommendations.forEach(r=>{ html += '<div style="color:var(--warning);margin:3px 0">• '+r+'</div>'; });
+            html += '</div>';
+        }
+        document.getElementById('score-result').innerHTML = html;
+    } catch(e) { document.getElementById('score-result').innerHTML='<div style="color:var(--danger)">Erreur: '+e.message+'</div>'; }
+}
+
+// ============== CLUSTERS ==============
+async function generateClusters() {
+    const siteId = document.getElementById('cluster-site-select').value;
+    document.getElementById('clusters-container').innerHTML='<div class="card" style="padding:20px;text-align:center;color:var(--text-muted)"><div class="loading-skeleton" style="height:20px;width:60%;margin:0 auto 10px"></div><div>DeepSeek R1 analyse les keywords...</div></div>';
+    try {
+        const r = await fetch('/api/keyword-cluster', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({site_id:siteId})});
+        const d = await r.json();
+        if (d.error) { document.getElementById('clusters-container').innerHTML='<div class="card" style="padding:16px;color:var(--danger)">'+d.error+'</div>'; return; }
+        document.getElementById('clusters-count').textContent = d.cluster_count || 0;
+        let html = '<div class="grid-2">';
+        (d.clusters||[]).forEach((c,i)=>{
+            const colors = ['#6366f1','#22c55e','#f59e0b','#e63946','#a855f7','#06b6d4','#ec4899'];
+            const clr = colors[i%colors.length];
+            html += '<div class="card" style="padding:14px;border-left:3px solid '+clr+'">';
+            html += '<div style="font-weight:700;margin-bottom:6px;color:'+clr+'">'+c.name+'</div>';
+            html += '<div style="font-size:.7rem;color:var(--text-muted);margin-bottom:6px">'+c.keyword_count+' keywords | Priority: '+c.priority+'/10 | Intent: '+(c.intent||'mixed')+'</div>';
+            html += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+            (c.keywords||[]).forEach(k=>{
+                const kw = typeof k === 'string' ? k : k.keyword;
+                const vol = typeof k === 'object' && k.volume ? ' ('+k.volume+')' : '';
+                html += '<span style="padding:2px 8px;background:var(--surface-2);border-radius:4px;font-size:.7rem">'+kw+vol+'</span>';
+            });
+            html += '</div>';
+            if (c.suggested_pillar) html += '<div style="font-size:.7rem;color:var(--info);margin-top:6px">Pillar: '+c.suggested_pillar+'</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+        document.getElementById('clusters-container').innerHTML = html;
+    } catch(e) { document.getElementById('clusters-container').innerHTML='<div class="card" style="padding:16px;color:var(--danger)">Erreur: '+e.message+'</div>'; }
+}
+
+async function loadSavedClusters(siteId) {
+    try {
+        const r = await fetch('/api/keyword-clusters?site_id='+(siteId||1));
+        const d = await r.json();
+        document.getElementById('clusters-count').textContent = d.count || 0;
+        if (!d.clusters || !d.clusters.length) { document.getElementById('clusters-saved').innerHTML='<div style="color:var(--text-muted);font-size:.8rem">Aucun cluster sauvegarde</div>'; return; }
+        let html = '<h3 style="font-size:.75rem;margin-bottom:8px">Clusters sauvegardes</h3><div class="grid-2">';
+        d.clusters.forEach(c=>{
+            html += '<div class="card" style="padding:12px"><div style="font-weight:600;font-size:.85rem">'+c.name+'</div>';
+            html += '<div style="font-size:.7rem;color:var(--text-muted)">'+c.article_count+' kw | Priority '+c.priority+' | '+c.created_at+'</div></div>';
+        });
+        html += '</div>';
+        document.getElementById('clusters-saved').innerHTML = html;
+    } catch(e) {}
+}
+
+// ============== TOPICAL MAPS ==============
+async function generateTopicalMap() {
+    const siteId = document.getElementById('tmap-site-select').value;
+    const seed = document.getElementById('tmap-seed').value;
+    if (!seed) { alert('Entrez un sujet pilier'); return; }
+    document.getElementById('tmap-result').innerHTML='<div class="card" style="padding:20px;text-align:center;color:var(--text-muted)"><div class="loading-skeleton" style="height:20px;width:60%;margin:0 auto 10px"></div><div>DeepSeek R1 genere la topical map...</div></div>';
+    try {
+        const r = await fetch('/api/topical-map/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({site_id:siteId, seed_topic:seed})});
+        const d = await r.json();
+        if (d.error) { document.getElementById('tmap-result').innerHTML='<div class="card" style="padding:16px;color:var(--danger)">'+d.error+'</div>'; return; }
+        let html = '';
+        // Pillar
+        if (d.pillar) {
+            html += '<div class="card" style="padding:16px;border-left:4px solid var(--primary);margin-bottom:12px">';
+            html += '<div style="font-size:.65rem;text-transform:uppercase;color:var(--primary);font-weight:700;letter-spacing:1px">PILLAR PAGE</div>';
+            html += '<div style="font-size:1.1rem;font-weight:700;margin:4px 0">'+d.pillar.title+'</div>';
+            html += '<div style="font-size:.75rem;color:var(--text-muted)">Keyword: <strong>'+d.pillar.keyword+'</strong> | '+(d.pillar.word_count||3000)+' mots</div>';
+            html += '</div>';
+        }
+        // Clusters
+        html += '<div class="grid-2">';
+        (d.clusters||[]).forEach((c,i)=>{
+            const colors = ['#6366f1','#22c55e','#f59e0b','#e63946','#a855f7','#06b6d4'];
+            const clr = colors[i%colors.length];
+            html += '<div class="card" style="padding:14px;border-top:3px solid '+clr+'">';
+            html += '<div style="font-weight:700;color:'+clr+';margin-bottom:6px">'+c.topic+'</div>';
+            html += '<div style="font-size:.7rem;color:var(--text-muted);margin-bottom:6px">Keyword: '+c.keyword+' | '+(c.articles||[]).length+' articles</div>';
+            (c.articles||[]).forEach(a=>{
+                const pColor = a.priority==='high'?'var(--danger)':a.priority==='medium'?'var(--warning)':'var(--text-muted)';
+                html += '<div style="padding:6px 8px;margin:4px 0;background:var(--surface-2);border-radius:6px;font-size:.75rem">';
+                html += '<div style="font-weight:600">'+a.title+'</div>';
+                html += '<div style="color:var(--text-muted);font-size:.65rem">'+a.keyword+' | '+a.type+' | <span style="color:'+pColor+'">'+a.priority+'</span> | '+(a.word_count||1500)+' mots</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        });
+        html += '</div>';
+        html += '<div style="margin-top:8px;font-size:.75rem;color:var(--success)">Total: '+d.pillar_count+' pillar + '+d.total_articles+' articles</div>';
+        document.getElementById('tmap-result').innerHTML = html;
+    } catch(e) { document.getElementById('tmap-result').innerHTML='<div class="card" style="padding:16px;color:var(--danger)">Erreur: '+e.message+'</div>'; }
+}
+
+// ============== BACKLINKS ==============
+async function loadBacklinks(siteId) {
+    try {
+        const r = await fetch('/api/backlinks/summary?site_id='+(siteId||1));
+        const d = await r.json();
+        document.getElementById('bl-total').textContent = d.total_backlinks || 0;
+        document.getElementById('bl-new').textContent = d.new_30d || 0;
+        document.getElementById('bl-lost').textContent = d.lost_30d || 0;
+        document.getElementById('bl-domains').textContent = d.referring_domains || 0;
+        // Anchor donut
+        const anchors = d.anchor_distribution || {};
+        const aLabels = Object.keys(anchors);
+        const aValues = Object.values(anchors);
+        if (aValues.some(v=>v>0)) {
+            new ApexCharts(document.querySelector('#chart-anchor-types'), {
+                chart: {type:'donut', height:200, background:'transparent'},
+                series: aValues,
+                labels: aLabels,
+                colors: ['#6366f1','#22c55e','#f59e0b','#e63946','#a855f7'],
+                legend: {labels:{colors:'#94a3b8'},fontSize:'10px',position:'bottom'},
+                theme: {mode:'dark'}
+            }).render();
+        }
+        // Recent backlinks
+        if (d.recent && d.recent.length) {
+            let html = '';
+            d.recent.forEach(b=>{
+                html += '<div style="padding:6px 0;border-bottom:1px solid var(--border)">';
+                html += '<div style="font-weight:600;font-size:.75rem">'+b.source_url+'</div>';
+                html += '<div style="font-size:.65rem;color:var(--text-muted)">Anchor: '+b.anchor_text+' | '+b.created_at+'</div>';
+                html += '</div>';
+            });
+            document.getElementById('bl-recent-list').innerHTML = html;
+        }
+    } catch(e) {}
+}
+
+// ============== REPORTS ==============
+async function generateReport() {
+    const siteId = document.getElementById('report-site-select').value;
+    document.getElementById('reports-list').innerHTML='<div style="color:var(--text-muted);padding:16px;text-align:center">Generation du rapport en cours...</div>';
+    try {
+        const r = await fetch('/api/report/generate', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({site_id:siteId})});
+        const d = await r.json();
+        if (d.error) { document.getElementById('reports-list').innerHTML='<div style="color:var(--danger)">'+d.error+'</div>'; return; }
+        loadReports();
+        if (d.id) previewReport(d.id);
+    } catch(e) { document.getElementById('reports-list').innerHTML='<div style="color:var(--danger)">Erreur: '+e.message+'</div>'; }
+}
+
+async function loadReports() {
+    try {
+        const r = await fetch('/api/reports');
+        const d = await r.json();
+        if (!d.reports || !d.reports.length) { document.getElementById('reports-list').innerHTML='<div style="color:var(--text-muted);font-size:.8rem">Aucun rapport genere</div>'; return; }
+        let html = '<div class="table-card"><table class="table" style="font-size:.8rem"><thead><tr><th>Site</th><th>Type</th><th>Periode</th><th>Date</th><th>Actions</th></tr></thead><tbody>';
+        d.reports.forEach(rp=>{
+            html += '<tr><td>Site '+rp.site_id+'</td><td>'+rp.report_type+'</td><td>'+rp.period+'</td><td>'+rp.created_at+'</td>';
+            html += '<td><button class="btn btn-sm btn-primary" onclick="previewReport('+rp.id+')">Preview</button> ';
+            html += '<button class="btn btn-sm btn-ghost" onclick="printReport('+rp.id+')">PDF</button></td></tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('reports-list').innerHTML = html;
+    } catch(e) {}
+}
+
+async function previewReport(id) {
+    try {
+        const r = await fetch('/api/report/'+id);
+        const d = await r.json();
+        if (d.html_content) {
+            document.getElementById('report-preview').innerHTML='<div class="card" style="padding:20px;background:#fff;color:#333;border-radius:12px;max-height:600px;overflow-y:auto">'+d.html_content+'</div>';
+        }
+    } catch(e) {}
+}
+
+function printReport(id) {
+    const preview = document.getElementById('report-preview').innerHTML;
+    const win = window.open('','_blank');
+    win.document.write('<html><head><title>Rapport SEO</title></head><body>'+preview+'</body></html>');
+    win.document.close();
+    win.print();
+}
+
+// ============== SECTION LOADER ==============
+const _origShowSection2 = showSection;
+showSection = function(s) {
+    _origShowSection2(s);
+    if (s === 'dashboard') loadAllCharts();
+    if (s === 'clusters') loadSavedClusters(document.getElementById('cluster-site-select').value);
+    if (s === 'backlinks') loadBacklinks(1);
+    if (s === 'reports') loadReports();
+    if (s === 'alerts') loadAllCharts();
+    if (s === 'keywords') loadAllCharts();
+    if (s === 'content') loadAllCharts();
+};
+
+// Load charts on page load
+setTimeout(loadAllCharts, 1500);
+
+
+// ============== AUTO-FIX SEO ==============
+function autofixLoadSites(){
+    fetch('/api/autofix/sites')
+        .then(r=>r.json())
+        .then(data=>{
+            const sel=document.getElementById('autofix-site-select');
+            sel.innerHTML='<option value="">-- Selectionner un site --</option>';
+            (data.sites||data||[]).forEach(s=>{
+                const opt=document.createElement('option');
+                opt.value=s.id||s.site_id;
+                opt.textContent=(s.icon||'')+ ' ' +(s.name||s.domain||'Site '+s.id);
+                sel.appendChild(opt);
+            });
+        })
+        .catch(()=>{
+            const sel=document.getElementById('autofix-site-select');
+            sel.innerHTML='<option value="">-- Selectionner un site --</option>';
+            Object.entries(siteInfo).forEach(([id,s])=>{
+                const opt=document.createElement('option');
+                opt.value=id;
+                opt.textContent=s.icon+' '+s.name;
+                sel.appendChild(opt);
+            });
+        });
+}
+
+function autofixDiagnostic(){
+    const siteId=document.getElementById('autofix-site-select').value;
+    if(!siteId){showToast('Selectionner un site d\'abord','error');return;}
+
+    const statusDiv=document.getElementById('autofix-status');
+    const statusText=document.getElementById('autofix-status-text');
+    const spinner=document.getElementById('autofix-spinner');
+    const resultsDiv=document.getElementById('autofix-results');
+    const fixAllBtn=document.getElementById('autofix-fixall-btn');
+
+    statusDiv.style.display='block';
+    spinner.style.display='block';
+    statusText.textContent='Diagnostic en cours...';
+    statusText.style.color='var(--text)';
+    resultsDiv.innerHTML='';
+    fixAllBtn.style.display='none';
+    document.getElementById('autofix-log-container').style.display='none';
+
+    fetch('/api/autofix/diagnostic/'+siteId)
+        .then(r=>r.json())
+        .then(data=>{
+            spinner.style.display='none';
+            const agents=data.agents||data.results||data||[];
+            if(agents.length===0){
+                statusText.textContent='Aucun probleme detecte !';
+                statusText.style.color='var(--success)';
+                return;
+            }
+
+            let issueCount=0;
+            let html='';
+            agents.forEach(agent=>{
+                const status=agent.status||'ok';
+                let statusIcon='\u2705';let statusColor='var(--success)';
+                if(status==='error'||status==='critical'){statusIcon='\u274c';statusColor='var(--danger)';issueCount++;}
+                else if(status==='warning'){statusIcon='\u26a0\ufe0f';statusColor='var(--warning)';issueCount++;}
+
+                const findings=agent.findings||agent.issues||[];
+                const agentName=agent.name||agent.agent||agent.id||'Agent';
+                const agentId=agent.id||agent.agent_id||agentName.toLowerCase().replace(/\s+/g,'_');
+
+                html+=`<div class="autofix-agent-card" style="border-left:3px solid ${statusColor}" data-agent-id="${agentId}">
+                    <div class="agent-header">
+                        <div class="name"><span class="status-icon">${statusIcon}</span> ${agentName}</div>
+                        <div style="display:flex;gap:6px;align-items:center">
+                            <span style="font-size:.6rem;color:var(--text-muted)">${findings.length} probleme(s)</span>
+                            ${status!=='ok'?`<button class="btn btn-warning" onclick="autofixRunAgent('${siteId}','${agentId}',this)">\ud83d\udd27 Corriger</button>`:''}
+                        </div>
+                    </div>
+                    ${findings.length>0?`<div class="findings"><ul>${findings.map(f=>'<li>'+f+'</li>').join('')}</ul></div>`:''}
+                </div>`;
+            });
+
+            resultsDiv.innerHTML=html;
+            statusText.textContent=issueCount>0?issueCount+' probleme(s) detecte(s)':'Tout est OK !';
+            statusText.style.color=issueCount>0?'var(--warning)':'var(--success)';
+
+            if(issueCount>0){
+                fixAllBtn.style.display='inline-flex';
+                fixAllBtn.setAttribute('data-site-id',siteId);
+                fixAllBtn.setAttribute('data-agents',JSON.stringify(agents.filter(a=>(a.status||'ok')!=='ok').map(a=>a.id||a.agent_id||a.name)));
+            }
+        })
+        .catch(err=>{
+            spinner.style.display='none';
+            statusText.textContent='Erreur: '+err.message;
+            statusText.style.color='var(--danger)';
+        });
+}
+
+function autofixRunAgent(siteId,agentId,btnEl){
+    if(btnEl){btnEl.disabled=true;btnEl.textContent='\u23f3 En cours...';}
+    autofixLog('info','Correction en cours: '+agentId+'...');
+
+    fetch('/api/autofix/run/'+siteId,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({agents:[agentId]})
+    })
+    .then(r=>r.json())
+    .then(data=>{
+        if(data.success||data.status==='ok'){
+            autofixLog('success','\u2705 '+agentId+': '+(data.message||'Corrige avec succes'));
+            if(btnEl){btnEl.textContent='\u2705 Fait';btnEl.classList.remove('btn-warning');btnEl.classList.add('btn-success');}
+            const card=btnEl?.closest('.autofix-agent-card');
+            if(card){card.style.borderLeftColor='var(--success)';card.querySelector('.status-icon').textContent='\u2705';}
+            showToast(agentId+' corrige!','success');
+        }else{
+            autofixLog('error','\u274c '+agentId+': '+(data.error||data.message||'Echec'));
+            if(btnEl){btnEl.disabled=false;btnEl.textContent='\ud83d\udd27 Reessayer';}
+            showToast('Erreur: '+(data.error||'Echec'),'error');
+        }
+    })
+    .catch(err=>{
+        autofixLog('error','\u274c '+agentId+': '+err.message);
+        if(btnEl){btnEl.disabled=false;btnEl.textContent='\ud83d\udd27 Reessayer';}
+        showToast('Erreur: '+err.message,'error');
+    });
+}
+
+function autofixRunAll(){
+    const btn=document.getElementById('autofix-fixall-btn');
+    const siteId=btn.getAttribute('data-site-id');
+    let agents=[];
+    try{agents=JSON.parse(btn.getAttribute('data-agents'));}catch(e){}
+
+    if(!siteId||agents.length===0){showToast('Rien a corriger','info');return;}
+
+    btn.disabled=true;btn.textContent='\u23f3 Correction en cours...';
+    autofixLog('info','Lancement de la correction globale ('+agents.length+' agents)...');
+
+    fetch('/api/autofix/run/'+siteId,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({agents:agents})
+    })
+    .then(r=>r.json())
+    .then(data=>{
+        if(data.success||data.status==='ok'){
+            autofixLog('success','\u2705 Toutes les corrections appliquees !');
+            btn.textContent='\u2705 Termine';
+            showToast('Toutes les corrections appliquees!','success');
+            setTimeout(()=>autofixDiagnostic(),2000);
+        }else{
+            autofixLog('error','\u274c Erreur globale: '+(data.error||data.message||'Echec'));
+            btn.disabled=false;btn.textContent='\u26a1 Tout corriger';
+            showToast('Erreur: '+(data.error||'Echec'),'error');
+        }
+
+        if(data.results){
+            data.results.forEach(r=>{
+                const status=r.success?'success':'error';
+                const icon=r.success?'\u2705':'\u274c';
+                autofixLog(status,icon+' '+r.agent+': '+(r.message||r.error||''));
+            });
+        }
+    })
+    .catch(err=>{
+        autofixLog('error','\u274c '+err.message);
+        btn.disabled=false;btn.textContent='\u26a1 Tout corriger';
+        showToast('Erreur: '+err.message,'error');
+    });
+}
+
+function autofixLog(type,message){
+    const container=document.getElementById('autofix-log-container');
+    const log=document.getElementById('autofix-log');
+    container.style.display='block';
+    const time=new Date().toLocaleTimeString('fr-CA');
+    log.innerHTML+=`<div class="autofix-log-entry ${type}">[${time}] ${message}</div>`;
+    log.scrollTop=log.scrollHeight;
+}
+
+function autofixReset(){
+    document.getElementById('autofix-results').innerHTML='';
+    document.getElementById('autofix-status').style.display='none';
+    document.getElementById('autofix-fixall-btn').style.display='none';
+    document.getElementById('autofix-log-container').style.display='none';
+    document.getElementById('autofix-log').innerHTML='';
+    document.getElementById('autofix-status-text').style.color='var(--text)';
+}
+
+// Auto-fix section loader hook
+const _origShowSection3 = showSection;
+showSection = function(s) {
+    _origShowSection3(s);
+    if (s === 'autofix') autofixLoadSites();
+};
+
+
+
+// === SECURITY & MONITORING ===
+async function loadSecurityStatus() {
+    try {
+        const r = await fetch('/api/security-status');
+        const d = await r.json();
+        renderSecurityDashboard(d);
+    } catch(e) {
+        console.error('Security status error:', e);
+    }
+}
+
+function renderSecurityDashboard(d) {
+    // Services count
+    const svcActive = Object.values(d.services).filter(v => v).length;
+    const svcTotal = Object.keys(d.services).length;
+    const ctrActive = Object.values(d.containers).filter(v => v).length;
+    const ctrTotal = Object.keys(d.containers).length;
+    document.getElementById('sec-services-count').textContent = (svcActive + ctrActive) + '/' + (svcTotal + ctrTotal);
+    document.getElementById('sec-services-detail').textContent = svcActive + ' services + ' + ctrActive + ' containers';
+
+    // Banned IPs
+    const totalBanned = (d.fail2ban.total_banned || 0) + (d.crowdsec.active_decisions || 0);
+    document.getElementById('sec-banned-count').textContent = totalBanned;
+    document.getElementById('sec-banned-detail').textContent = 'F2B: ' + (d.fail2ban.total_banned||0) + ' | CS: ' + (d.crowdsec.active_decisions||0);
+
+    // Backup
+    document.getElementById('sec-backup-size').textContent = d.backup.size || 'N/A';
+    if (d.backup.date && d.backup.date !== 'N/A') {
+        const bd = new Date(d.backup.date);
+        document.getElementById('sec-backup-date').textContent = bd.toLocaleDateString('fr-CA') + ' ' + bd.toLocaleTimeString('fr-CA', {hour:'2-digit',minute:'2-digit'});
+    }
+
+    // Lynis
+    document.getElementById('sec-lynis-score').textContent = d.lynis.score || 'N/A';
+    if (d.lynis.date && d.lynis.date !== 'N/A') {
+        const ld = new Date(d.lynis.date);
+        document.getElementById('sec-lynis-date').textContent = 'Audit: ' + ld.toLocaleDateString('fr-CA');
+    }
+
+    // Uptime monitors
+    const monEl = document.getElementById('sec-monitors');
+    if (d.uptime_kuma.monitors.length > 0) {
+        monEl.innerHTML = d.uptime_kuma.monitors.map(m => {
+            const statusColor = m.up ? 'var(--success)' : 'var(--danger)';
+            const statusText = m.up ? 'UP' : 'DOWN';
+            const pingColor = m.ping < 100 ? 'var(--success)' : m.ping < 500 ? 'var(--warning)' : 'var(--danger)';
+            return '<div class="card" style="border-top:3px solid ' + statusColor + '">' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+                '<span style="font-weight:700;font-size:.75rem">' + m.name + '</span>' +
+                '<span style="padding:2px 8px;border-radius:10px;font-size:.55rem;font-weight:700;background:' + (m.up ? 'rgba(34,197,94,.2)' : 'rgba(239,68,68,.2)') + ';color:' + statusColor + '">' + statusText + '</span>' +
+                '</div>' +
+                '<div style="display:flex;align-items:baseline;gap:4px">' +
+                '<span style="font-size:1.3rem;font-weight:800;color:' + pingColor + '">' + m.ping + '</span>' +
+                '<span style="font-size:.6rem;color:var(--text-muted)">ms</span>' +
+                '</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    // Tools/Services
+    const tools = [
+        {name: 'Fail2ban', active: d.services.fail2ban, icon: '🚫', detail: d.fail2ban.jails + ' jails'},
+        {name: 'CrowdSec', active: d.services.crowdsec, icon: '🛡️', detail: d.crowdsec.active_decisions + ' decisions'},
+        {name: 'Nginx', active: d.services.nginx, icon: '🌐', detail: 'Reverse proxy'},
+        {name: 'Netdata', active: d.services.netdata, icon: '📊', detail: 'Monitoring'},
+        {name: 'Uptime Kuma', active: d.containers['uptime-kuma'], icon: '📡', detail: d.uptime_kuma.monitors.length + ' monitors'},
+        {name: 'Postfix', active: d.services.postfix, icon: '📧', detail: 'SMTP mail'},
+        {name: 'UFW Firewall', active: d.ufw.active, icon: '🔥', detail: 'Ports 22,80,443'},
+        {name: 'Backup Auto', active: d.backup.date !== 'N/A', icon: '💾', detail: 'Quotidien 2AM'},
+        {name: 'Lynis Audit', active: d.lynis.date !== 'N/A', icon: '🔍', detail: 'Hebdo lundi 3AM'},
+    ];
+    document.getElementById('sec-tools').innerHTML = tools.map(t => {
+        const color = t.active ? 'var(--success)' : 'var(--danger)';
+        return '<div class="card" style="display:flex;align-items:center;gap:10px;border-left:3px solid ' + color + '">' +
+            '<span style="font-size:1.3rem">' + t.icon + '</span>' +
+            '<div>' +
+            '<div style="font-weight:700;font-size:.75rem">' + t.name + '</div>' +
+            '<div style="font-size:.6rem;color:var(--text-muted)">' + t.detail + '</div>' +
+            '</div>' +
+            '<span style="margin-left:auto;width:8px;height:8px;border-radius:50%;background:' + color + '"></span>' +
+            '</div>';
+    }).join('');
+
+    // SSL table
+    const sslEl = document.getElementById('sec-ssl-table');
+    sslEl.innerHTML = Object.entries(d.ssl).map(([domain, exp]) => {
+        let daysLeft = '?';
+        let statusClass = 'var(--success)';
+        try {
+            const expDate = new Date(exp);
+            const now = new Date();
+            daysLeft = Math.ceil((expDate - now) / 86400000);
+            if (daysLeft < 15) statusClass = 'var(--danger)';
+            else if (daysLeft < 30) statusClass = 'var(--warning)';
+        } catch(e) {}
+        return '<tr>' +
+            '<td style="font-weight:600">' + domain + '</td>' +
+            '<td>' + exp + '</td>' +
+            '<td><span style="color:' + statusClass + ';font-weight:700">' + daysLeft + ' jours</span></td>' +
+            '</tr>';
+    }).join('');
+
+    // Resources
+    const ramPct = parseInt(d.resources.ram_pct) || 0;
+    const diskPct = parseInt(d.resources.disk_pct) || 0;
+    document.getElementById('sec-ram-pct').textContent = d.resources.ram_pct;
+    document.getElementById('sec-disk-pct').textContent = d.resources.disk_pct;
+    document.getElementById('sec-ram-detail').textContent = d.resources.ram_used + ' / ' + d.resources.ram_total;
+
+    const ramBar = document.getElementById('sec-ram-bar');
+    ramBar.style.width = ramPct + '%';
+    ramBar.style.background = ramPct > 85 ? 'var(--danger)' : ramPct > 70 ? 'var(--warning)' : 'var(--success)';
+
+    const diskBar = document.getElementById('sec-disk-bar');
+    diskBar.style.width = diskPct + '%';
+    diskBar.style.background = diskPct > 85 ? 'var(--danger)' : diskPct > 70 ? 'var(--warning)' : 'var(--success)';
+
+    // Fail2ban jails
+    if (d.fail2ban.jail_names && d.fail2ban.jail_names.length) {
+        document.getElementById('sec-f2b-jails').innerHTML = d.fail2ban.jail_names.map(j => {
+            return '<div class="card" style="text-align:center">' +
+                '<div style="font-size:.7rem;font-weight:700">🚫 ' + j + '</div>' +
+                '<div style="font-size:.55rem;color:var(--success);margin-top:4px">Actif</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    // Global status
+    const allOk = svcActive === svcTotal && d.ufw.active;
+    const badge = document.getElementById('sec-global-status');
+    if (!allOk) {
+        badge.className = 'health-badge';
+        badge.style.background = 'rgba(239,68,68,.15)';
+        badge.style.color = 'var(--danger)';
+        badge.innerHTML = '<span class="health-dot"></span> Alerte';
+    }
+}
+
+// Auto-load when security section is shown
+const _origShowSecurity = typeof showSection === 'function' ? showSection : null;
+
+
+// ============================================================
+// WEB ANALYTICS — Dashboard Integration
+// ============================================================
+let analyticsCharts = {};
+let analyticsInterval = null;
+let realtimeInterval = null;
+
+// Hook into showSection
+const _origShowAnalytics = showSection;
+showSection = function(s) {
+    _origShowAnalytics(s);
+    if (s === 'analytics') {
+        loadAnalytics();
+        loadAnalyticsRealtime();
+        // Start polling
+        if (!analyticsInterval) analyticsInterval = setInterval(loadAnalytics, 30000);
+        if (!realtimeInterval) realtimeInterval = setInterval(loadAnalyticsRealtime, 10000);
+    } else {
+        // Stop polling when leaving analytics
+        if (analyticsInterval) { clearInterval(analyticsInterval); analyticsInterval = null; }
+        if (realtimeInterval) { clearInterval(realtimeInterval); realtimeInterval = null; }
+    }
+};
+
+async function loadAnalytics() {
+    const siteId = document.getElementById('analytics-site-filter')?.value || 'all';
+    const period = document.getElementById('analytics-period-filter')?.value || '30d';
+    const days = parseInt(period) || 30;
+    try {
+        const [overview, visitors, pages, referrers, devices, gclid] = await Promise.all([
+            fetch('/api/analytics/overview?site_id=' + siteId + '&period=' + period).then(r => r.json()),
+            fetch('/api/charts/analytics-visitors?site_id=' + siteId + '&days=' + days).then(r => r.json()),
+            fetch('/api/charts/analytics-pages?site_id=' + siteId + '&days=' + days).then(r => r.json()),
+            fetch('/api/charts/analytics-referrers?site_id=' + siteId + '&days=' + days).then(r => r.json()),
+            fetch('/api/charts/analytics-devices?site_id=' + siteId + '&days=' + days).then(r => r.json()),
+            fetch('/api/analytics/gclid?days=' + days).then(r => r.json())
+        ]);
+
+        // KPI Cards
+        document.getElementById('a-today-visitors').textContent = overview.today_visitors || 0;
+        document.getElementById('a-today-pv').textContent = (overview.today_pageviews || 0) + ' pages vues';
+        document.getElementById('a-period-visitors').textContent = overview.unique_visitors || 0;
+        document.getElementById('a-period-pv').textContent = (overview.total_pageviews || 0) + ' pages vues';
+
+        // Per-site breakdown
+        if (overview.sites) {
+            ['seoparai', 'jcpeintre', 'deneigement', 'paysagiste'].forEach(function(sid) {
+                var s = overview.sites[sid] || {};
+                var el = document.getElementById('a-site-' + sid + '-visitors');
+                if (el) el.textContent = s.visitors || 0;
+                var pv = document.getElementById('a-site-' + sid + '-pv');
+                if (pv) pv.textContent = (s.pageviews || 0) + ' pages vues';
+                var st = document.getElementById('a-site-' + sid + '-status');
+                if (st) st.textContent = (s.visitors || 0) > 0 ? 'Actif' : '-';
+            });
+        }
+
+        // Google Ads
+        document.getElementById('a-gclid-count').textContent = gclid.total_clicks || 0;
+        document.getElementById('a-gclid-detail').textContent = (gclid.converted || 0) + ' conversions';
+        document.getElementById('gclid-summary').textContent = gclid.total_clicks + ' clics, ' + gclid.converted + ' conv, ' + gclid.pending_upload + ' en attente';
+
+        // Gclid table
+        var gclidTbody = document.getElementById('analytics-gclid-table');
+        if (gclidTbody) {
+            if (!gclid.clicks || gclid.clicks.length === 0) {
+                gclidTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px">Aucun clic Google Ads enregistre. Les gclid seront captures automatiquement.</td></tr>';
+            } else {
+                gclidTbody.innerHTML = gclid.clicks.map(function(c) {
+                    return '<tr><td style="font-family:monospace;font-size:.55rem">' + (c.gclid || '').substring(0, 20) + '...</td>' +
+                           '<td>' + c.site_id + '</td><td>' + c.landing_page + '</td>' +
+                           '<td>' + (c.first_seen || '').replace('T', ' ') + '</td>' +
+                           '<td>' + (c.converted ? '<span style="color:var(--success)">Oui (' + c.conversion_type + ')</span>' : '<span style="color:var(--text-muted)">Non</span>') + '</td>' +
+                           '<td>' + (c.sent_to_google ? '<span style="color:var(--success)">Oui</span>' : '<span style="color:var(--text-muted)">-</span>') + '</td></tr>';
+                }).join('');
+            }
+        }
+
+        // Chart: Visitors per day
+        renderVisitorsChart(visitors);
+        // Chart: Referrers
+        renderReferrersChart(referrers);
+        // Chart: Devices
+        renderDevicesChart(devices);
+        // Table: Top pages
+        renderTopPages(pages);
+
+    } catch (err) {
+        console.error('Analytics load error:', err);
+    }
+}
+
+async function loadAnalyticsRealtime() {
+    try {
+        const data = await fetch('/api/analytics/realtime').then(r => r.json());
+        document.getElementById('a-realtime-count').textContent = data.active_now || 0;
+        document.getElementById('analytics-active-count').textContent = data.active_now || 0;
+        document.getElementById('analytics-live-badge').textContent = data.active_now || 0;
+
+        var detail = [];
+        if (data.by_site) {
+            Object.keys(data.by_site).forEach(function(sid) {
+                if (data.by_site[sid] > 0) detail.push(sid + ': ' + data.by_site[sid]);
+            });
+        }
+        document.getElementById('a-realtime-detail').textContent = detail.length > 0 ? detail.join(' | ') : 'Aucun visiteur actif';
+
+        var tbody = document.getElementById('analytics-active-pages');
+        if (tbody) {
+            if (!data.active_pages || data.active_pages.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:20px">Aucune page active</td></tr>';
+            } else {
+                tbody.innerHTML = data.active_pages.map(function(p) {
+                    return '<tr><td>' + p.site + '</td><td>' + escapeHtml(p.path) + '</td><td style="text-align:right;font-weight:700">' + p.visitors + '</td></tr>';
+                }).join('');
+            }
+        }
+    } catch (err) {
+        console.error('Realtime load error:', err);
+    }
+}
+
+
+// HTML escape utility for safe rendering
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function renderVisitorsChart(data) {
+    if (!data || !data.dates) return;
+    var el = document.getElementById('chart-analytics-visitors');
+    if (!el) return;
+
+    var series = [];
+    var colors = {seoparai: '#e63946', jcpeintre: '#f59e0b', deneigement: '#3b82f6', paysagiste: '#22c55e'};
+    var names = {seoparai: 'SeoAI', jcpeintre: 'JC Peintre', deneigement: 'Deneigement', paysagiste: 'Paysagiste'};
+    Object.keys(data.sites || {}).forEach(function(sid) {
+        series.push({name: names[sid] || sid, data: data.sites[sid]});
+    });
+
+    if (analyticsCharts.visitors) analyticsCharts.visitors.destroy();
+    analyticsCharts.visitors = new ApexCharts(el, {
+        chart: {type: 'area', height: 240, background: 'transparent', toolbar: {show: false}, stacked: true},
+        series: series,
+        colors: Object.keys(data.sites || {}).map(function(s) { return colors[s] || '#999'; }),
+        xaxis: {categories: data.dates.map(function(d) { return d.substring(5); }), labels: {style: {colors: '#9ca3af', fontSize: '9px'}, rotate: -45, maxHeight: 50}},
+        yaxis: {labels: {style: {colors: '#9ca3af', fontSize: '9px'}}},
+        stroke: {width: 2, curve: 'smooth'},
+        fill: {type: 'gradient', gradient: {opacityFrom: 0.5, opacityTo: 0.1}},
+        dataLabels: {enabled: false},
+        tooltip: {theme: 'dark'},
+        grid: {borderColor: '#1f2937'},
+        legend: {labels: {colors: '#9ca3af'}, fontSize: '10px'}
+    });
+    analyticsCharts.visitors.render();
+}
+
+function renderReferrersChart(data) {
+    if (!data || !data.referrers || data.referrers.length === 0) return;
+    var el = document.getElementById('chart-analytics-referrers');
+    if (!el) return;
+
+    if (analyticsCharts.referrers) analyticsCharts.referrers.destroy();
+    analyticsCharts.referrers = new ApexCharts(el, {
+        chart: {type: 'donut', height: 240, background: 'transparent'},
+        series: data.referrers.map(function(r) { return r.count; }),
+        labels: data.referrers.map(function(r) { return r.domain; }),
+        colors: ['#3b82f6', '#22c55e', '#f59e0b', '#e63946', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'],
+        dataLabels: {enabled: true, style: {fontSize: '10px'}},
+        legend: {labels: {colors: '#9ca3af'}, fontSize: '10px', position: 'bottom'},
+        tooltip: {theme: 'dark'},
+        plotOptions: {pie: {donut: {size: '60%', labels: {show: true, total: {show: true, label: 'Total', color: '#9ca3af', fontSize: '11px'}}}}}
+    });
+    analyticsCharts.referrers.render();
+}
+
+function renderDevicesChart(data) {
+    if (!data) return;
+    var el = document.getElementById('chart-analytics-devices');
+    if (!el) return;
+
+    var total = (data.desktop || 0) + (data.mobile || 0) + (data.tablet || 0);
+    if (total === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-muted);font-size:.75rem">Pas encore de donnees</div>';
+        return;
+    }
+
+    if (analyticsCharts.devices) analyticsCharts.devices.destroy();
+    analyticsCharts.devices = new ApexCharts(el, {
+        chart: {type: 'donut', height: 240, background: 'transparent'},
+        series: [data.desktop || 0, data.mobile || 0, data.tablet || 0],
+        labels: ['Desktop', 'Mobile', 'Tablet'],
+        colors: ['#3b82f6', '#22c55e', '#f59e0b'],
+        dataLabels: {enabled: true, style: {fontSize: '11px'}},
+        legend: {labels: {colors: '#9ca3af'}, fontSize: '11px', position: 'bottom'},
+        tooltip: {theme: 'dark'},
+        plotOptions: {pie: {donut: {size: '55%', labels: {show: true, total: {show: true, label: 'Total', color: '#9ca3af'}}}}}
+    });
+    analyticsCharts.devices.render();
+}
+
+function renderTopPages(data) {
+    var tbody = document.getElementById('analytics-top-pages');
+    if (!tbody) return;
+    if (!data || !data.pages || data.pages.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:var(--text-muted);padding:20px">Aucune donnee</td></tr>';
+        return;
+    }
+    tbody.innerHTML = data.pages.slice(0, 15).map(function(p) {
+        return '<tr><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(p.path) + '</td><td style="text-align:right;font-weight:700">' + p.views + '</td></tr>';
+    }).join('');
+}
+
+// Auto-refresh realtime badge even when not on analytics page
+setInterval(async function() {
+    try {
+        const r = await fetch('/api/analytics/realtime');
+        const d = await r.json();
+        var badge = document.getElementById('analytics-live-badge');
+        if (badge) badge.textContent = d.active_now || 0;
+    } catch(e) {}
+}, 30000);
+</script>
+</body>
+</html>
+
+<!-- GOOGLE REVIEW RESPONSE MODAL -->
+<div id="review-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center">
+    <div style="background:#1a1a2e;border-radius:16px;padding:24px;width:90%;max-width:500px;border:1px solid #333">
+        <h2 style="color:#fff;margin-bottom:16px">⭐ Réponse aux Avis Google</h2>
+        <div style="margin-bottom:12px">
+            <label style="color:#aaa;font-size:0.8rem">Texte de l'avis client:</label>
+            <textarea id="review-text" style="width:100%;height:80px;background:#0a0a12;border:1px solid #333;border-radius:8px;color:#fff;padding:10px;margin-top:4px" placeholder="Collez l'avis du client ici..."></textarea>
+        </div>
+        <div style="margin-bottom:16px">
+            <label style="color:#aaa;font-size:0.8rem">Note (1-5 étoiles):</label>
+            <select id="review-rating" style="width:100%;background:#0a0a12;border:1px solid #333;border-radius:8px;color:#fff;padding:10px;margin-top:4px">
+                <option value="5">⭐⭐⭐⭐⭐ (5 étoiles)</option>
+                <option value="4">⭐⭐⭐⭐ (4 étoiles)</option>
+                <option value="3">⭐⭐⭐ (3 étoiles)</option>
+                <option value="2">⭐⭐ (2 étoiles)</option>
+                <option value="1">⭐ (1 étoile)</option>
+            </select>
+        </div>
+        <div style="display:flex;gap:10px">
+            <button onclick="generateReviewResponse()" style="flex:1;background:linear-gradient(135deg,#6c5ce7,#a855f7);color:#fff;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:600">🤖 Générer Réponse</button>
+            <button onclick="closeReviewModal()" style="background:#333;color:#fff;border:none;padding:12px 20px;border-radius:8px;cursor:pointer">Fermer</button>
+        </div>
+        <div id="review-result" style="margin-top:16px;display:none">
+            <label style="color:#aaa;font-size:0.8rem">Réponse générée:</label>
+            <div id="review-response-text" style="background:#0a0a12;border:1px solid #22c55e;border-radius:8px;padding:12px;color:#fff;margin-top:4px"></div>
+            <button onclick="copyReviewResponse()" style="margin-top:8px;background:#22c55e;color:#000;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:0.8rem">📋 Copier</button>
+        </div>
+    </div>
+</div>
+<script>
+function openReviewModal(){document.getElementById('review-modal').style.display='flex';}
+function closeReviewModal(){document.getElementById('review-modal').style.display='none';}
+async function generateReviewResponse(){
+    const text=document.getElementById('review-text').value;
+    const rating=document.getElementById('review-rating').value;
+    if(!text){alert('Entrez le texte de l\'avis');return;}
+    document.getElementById('review-result').style.display='none';
+    showToast('Génération en cours...','info');
+    try{
+        const r=await fetch('/api/review-response',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,rating:parseInt(rating),is_positive:rating>=3})});
+        const d=await r.json();
+        if(d.response){
+            document.getElementById('review-response-text').innerText=d.response;
+            document.getElementById('review-result').style.display='block';
+            showToast('Réponse générée!','success');
+        }else{showToast('Erreur: '+JSON.stringify(d),'error');}
+    }catch(e){showToast('Erreur: '+e,'error');}
+}
+function copyReviewResponse(){
+    const t=document.getElementById('review-response-text').innerText;
+    navigator.clipboard.writeText(t);
+    showToast('Copié!','success');
+}
+
+
+
+function filterSelfAudit(){
+    var siteF=(document.getElementById('sa-filter-site')||{}).value||'';
+    var statusF=(document.getElementById('sa-filter-status')||{}).value||'';
+    if(!siteF&&!statusF)return;
+    var rows=document.querySelectorAll('#sa-issues-table tr');
+    for(var i=0;i<rows.length;i++){
+        var r=rows[i];
+        var cells=r.querySelectorAll('td');
+        if(cells.length<5)continue;
+        var site=cells[1]?cells[1].textContent.trim():'';
+        var status=cells[0]?cells[0].textContent.trim().toLowerCase():'';
+        var showSite=!siteF||site===siteF;
+        var showStatus=!statusF||(status.indexOf(statusF.replace('_',' '))>=0)||(statusF==='pending'&&status.indexOf('pending')>=0)||(statusF==='auto_fixed'&&status.indexOf('auto')>=0)||(statusF==='confirmed'&&status.indexOf('confirmed')>=0);
+        r.style.display=(showSite&&showStatus)?'':'none';
+    }
+}
+</script>
