@@ -2,13 +2,15 @@
 """
 SeoparAI Auto Scheduler — Orchestre les 62 agents en 6 cycles autonomes
 Usage: python3 auto_scheduler.py [cycle_name]
-Cycles: seo-core, content, marketing, business, maintenance, all
+Cycles: seo-core, content, deploy, marketing, business, cwv, maintenance, all
 
 Crontab:
   0 */4 * * *   auto_scheduler.py seo-core
   0 8,20 * * *  auto_scheduler.py content
+  0 */6 * * *   auto_scheduler.py deploy
   0 10 * * *    auto_scheduler.py marketing
   0 6 * * *     auto_scheduler.py business
+  0 4 * * 0     auto_scheduler.py cwv
   0 3 * * 0     auto_scheduler.py maintenance
 """
 
@@ -32,6 +34,19 @@ sys.path.insert(0, AGENTS_DIR)
 
 # Import all 59 agent classes
 from agents_system import *
+
+# Import deployment & CWV agents
+try:
+    from blog_deployer import deploy_pending_articles as _deploy_pending, update_blog_index, update_sitemap, add_internal_links
+    DEPLOYER_AVAILABLE = True
+except ImportError:
+    DEPLOYER_AVAILABLE = False
+
+try:
+    from core_web_vitals_fixer import fix_all as cwv_fix_all
+    CWV_AVAILABLE = True
+except ImportError:
+    CWV_AVAILABLE = False
 
 # ─── Timeout handler ───
 class AgentTimeout(Exception):
@@ -170,7 +185,6 @@ def cycle_seo_core(sites):
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
-        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         url = f"https://{domain}"
         log(f"── Site {i}: {site['nom']} ({domain})")
@@ -223,7 +237,6 @@ def cycle_content(sites):
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
-        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         seeds = site.get('mots_cles_seed', [])
         seed = seeds[0] if seeds else site['nom']
@@ -244,11 +257,10 @@ def cycle_content(sites):
         r = run_agent("ContentGeneration", content_agent.generate_article, (site_id, article_keyword, 800), 180, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
-        # Auto-publish if article generated successfully
+        # Queue for review and auto-deploy if deployer available
         if r["status"] == "success" and r.get("result"):
             try:
                 conn = get_db()
-                # Get latest content for this site
                 row = conn.execute(
                     "SELECT id FROM content WHERE site_id=? ORDER BY id DESC LIMIT 1",
                     (site_id,)
@@ -261,10 +273,15 @@ def cycle_content(sites):
                         (content_id, int(site_id))
                     )
                     conn.commit()
-                    log(f"  AUTO-PUBLISHED content #{content_id} for site {site_id}")
+                    log(f"  Queued content #{content_id} for site {site_id}")
                 conn.close()
             except Exception as e:
                 log(f"  Auto-publish error: {e}", "WARNING")
+
+        # Deploy any pending approved articles for this site
+        if DEPLOYER_AVAILABLE:
+            r = run_agent("BlogDeployer", _deploy_pending, (int(site_id),), 120, site_id)
+            stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # 3. FAQ generation — 3 FAQs
         category = site.get('categorie', site['nom'])
@@ -320,10 +337,6 @@ REDDIT_TOPICS = {
         "Comment une petite entreprise peut ameliorer son Google ranking",
         "SEO local Montreal — astuces pour apparaitre dans le map pack",
         "Automatiser son marketing digital — quels outils utilisez-vous",
-        "Intelligence artificielle pour PME au Quebec — vos experiences",
-        "Agents AI pour automatiser le SEO — ca vaut la peine",
-        "Comment IA change le marketing digital au Quebec en 2026",
-        "Chatbots vs agents AI — quelle difference pour une entreprise",
     ],
 }
 
@@ -349,26 +362,24 @@ def cycle_marketing(sites):
     directory_agent = DirectoryAgent()
     reddit_agent = RedditAgent()
     forum_agent = ForumAgent()
-    blink_monitor = BacklinkMonitorAgent()
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
-        site_id_int = i  # Integer key for SITES dict lookups in agents_system.py
         domain = site['domaine']
         log(f"── Site {i}: {site['nom']} ({domain})")
 
         agents_to_run = [
             ("SocialMedia", social_agent.generate_social_posts,
              (f"{site['nom']} - Services professionnels", f"https://{domain}"), 90),
-            ("BacklinkAnalysis", backlink_agent.analyze_opportunities, (site_id_int,), 120),
-            ("BacklinkDiscover", blink_monitor.discover_backlinks, (site_id_int,), 180),
+            ("BacklinkAnalysis", backlink_agent.analyze_opportunities, (site_id,), 120),
             ("CompetitorAnalysis", competitor_agent.identify_competitors,
-             (site_id_int,), 120),
-            ("LocalSEO_GMB", local_agent.audit_gmb_profile, (site_id_int,), 90),
-            ("LocalSEO_NAP", local_agent.audit_nap_consistency, (site_id_int,), 60),
-            ("LocalSEO_Reviews", local_agent.analyze_reviews, (site_id_int,), 60),
-            ("ReviewManagement", _review_sync_wrapper, (site_id_int,), 120),
-            ("DirectorySubmission", directory_agent.generate_business_listing, (site_id_int,), 90),
+             (site_id,), 120),
+            ("LocalSEO_GMB", local_agent.audit_gmb_profile, (site_id,), 90),
+            ("LocalSEO_NAP", local_agent.audit_nap_consistency, (site_id,), 60),
+            ("LocalSEO_Reviews", local_agent.analyze_reviews, (site_id,), 60),
+            ("ReviewManagement", review_agent.generate_review_response,
+             ("Excellent service, très professionnel!", 5, True), 60),
+            ("DirectorySubmission", directory_agent.generate_business_listing, (site_id,), 90),
             ("Reddit", reddit_agent.generate_reddit_post,
              (site_id, _get_reddit_topic(site)), 90),
         ]
@@ -393,29 +404,29 @@ def cycle_business(sites):
 
     for i, site in enumerate(sites, 1):
         site_id = str(i)
-        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         seeds = site.get('mots_cles_seed', [])
         log(f"── Site {i}: {site['nom']} ({domain})")
 
-        # SERP tracking — track ALL keyword positions from tracked_keywords table
-        r = run_agent("SERPTracker", serp_agent.track_all_keywords, (i,), 300, site_id)
-        stats["ok" if r["status"] == "success" else "fail"] += 1
+        # SERP tracking — track keyword positions
+        for kw in seeds[:3]:
+            r = run_agent("SERPTracker", serp_agent.check_position, (kw, domain), 60, site_id)
+            stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Keyword gap analysis
-        r = run_agent("KeywordGap", gap_agent.analyze_gap, (site_id_int, []), 120, site_id)
+        r = run_agent("KeywordGap", gap_agent.analyze_gap, (site_id, []), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
-        # Backlink monitoring (check existing backlinks status)
-        r = run_agent("BacklinkMonitor", blink_monitor.check_backlink_status, (site_id_int,), 90, site_id)
+        # Backlink monitoring
+        r = run_agent("BacklinkMonitor", blink_monitor.check_backlink_status, (site_id,), 90, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Competitor watch
-        r = run_agent("CompetitorWatch", comp_watch.check_for_changes, (site_id_int,), 120, site_id)
+        r = run_agent("CompetitorWatch", comp_watch.check_for_changes, (site_id,), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Weekly report (generate daily, display weekly)
-        r = run_agent("Reporting", reporting_agent.generate_weekly_report, (site_id_int,), 120, site_id)
+        r = run_agent("Reporting", reporting_agent.generate_weekly_report, (site_id,), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
     return stats
@@ -445,7 +456,6 @@ def cycle_maintenance(sites):
     # 3. Per-site checks
     for i, site in enumerate(sites, 1):
         site_id = str(i)
-        site_id_int = i  # Integer key for SITES dict lookups
         domain = site['domaine']
         url = f"https://{domain}"
         log(f"── Maintenance: {site['nom']} ({domain})")
@@ -506,6 +516,53 @@ def cycle_maintenance(sites):
     return stats
 
 
+def cycle_deploy(sites):
+    """DEPLOY: Deploy approved articles to live blog, update indexes & sitemaps — every 6h"""
+    log("═══ CYCLE: DEPLOY ═══")
+    stats = {"ok": 0, "fail": 0}
+
+    if not DEPLOYER_AVAILABLE:
+        log("Blog deployer not available, skipping", "WARNING")
+        return stats
+
+    # 1. Deploy all pending approved articles
+    r = run_agent("BlogDeployer_All", _deploy_pending, (), 300, "all")
+    stats["ok" if r["status"] == "success" else "fail"] += 1
+
+    # 2. Update blog indexes for all sites
+    for i, site in enumerate(sites, 1):
+        site_id = str(i)
+        log(f"── Updating index & sitemap: {site['nom']}")
+
+        r = run_agent(f"BlogIndex_{site_id}", update_blog_index, (i,), 60, site_id)
+        stats["ok" if r["status"] == "success" else "fail"] += 1
+
+        r = run_agent(f"Sitemap_{site_id}", update_sitemap, (i,), 60, site_id)
+        stats["ok" if r["status"] == "success" else "fail"] += 1
+
+    # 3. Add internal links to any new articles missing them
+    for i, site in enumerate(sites, 1):
+        r = run_agent(f"InternalLinks_{i}", add_internal_links, (i,), 120, str(i))
+        stats["ok" if r["status"] == "success" else "fail"] += 1
+
+    return stats
+
+
+def cycle_cwv(sites):
+    """CWV: Core Web Vitals optimization — weekly (images, lazy loading, gzip) — Sunday 4am"""
+    log("═══ CYCLE: CORE WEB VITALS ═══")
+    stats = {"ok": 0, "fail": 0}
+
+    if not CWV_AVAILABLE:
+        log("CWV fixer not available, skipping", "WARNING")
+        return stats
+
+    r = run_agent("CWV_FixAll", cwv_fix_all, (), 600, "all")
+    stats["ok" if r["status"] == "success" else "fail"] += 1
+
+    return stats
+
+
 # ═══════════════════════════════════════════════════════
 #  MAIN
 # ═══════════════════════════════════════════════════════
@@ -513,8 +570,10 @@ def cycle_maintenance(sites):
 CYCLES = {
     "seo-core": {"func": cycle_seo_core, "cooldown": 180, "cron": "0 */4 * * *"},
     "content": {"func": cycle_content, "cooldown": 360, "cron": "0 8,20 * * *"},
+    "deploy": {"func": cycle_deploy, "cooldown": 300, "cron": "0 */6 * * *"},
     "marketing": {"func": cycle_marketing, "cooldown": 720, "cron": "0 10 * * *"},
     "business": {"func": cycle_business, "cooldown": 720, "cron": "0 6 * * *"},
+    "cwv": {"func": cycle_cwv, "cooldown": 1440, "cron": "0 4 * * 0"},
     "maintenance": {"func": cycle_maintenance, "cooldown": 1440, "cron": "0 3 * * 0"},
 }
 
