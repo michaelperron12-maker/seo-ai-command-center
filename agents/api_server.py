@@ -400,11 +400,14 @@ def get_briefs():
 
 import base64
 
-FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+GROQ_MODEL = 'llama-3.3-70b-versatile'
+FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', '')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
 QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
 DEEPSEEK_R1 = 'accounts/fireworks/models/deepseek-r1-0528'
-ACTIVE_MODEL = DEEPSEEK_R1
+ACTIVE_MODEL = GROQ_MODEL
 QWEN_VL_MODEL = 'accounts/fireworks/models/qwen3-vl-235b-a22b-instruct'
 
 @app.route('/api/ai/chat', methods=['POST'])
@@ -421,9 +424,9 @@ def ai_chat():
         'general': 'Tu es un assistant AI polyvalent. Reponds en francais.'
     }
     try:
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
+        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_API_KEY}'}
         payload = {'model': ACTIVE_MODEL, 'messages': [{'role': 'system', 'content': prompts.get(context, prompts['general'])}, {'role': 'user', 'content': message}], 'max_tokens': 2048, 'temperature': 0.7}
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=60)
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
         if response.status_code != 200:
             return jsonify({'error': f'Erreur Fireworks: {response.status_code}'}), 500
         result = response.json()
@@ -453,8 +456,8 @@ def ai_history():
 @app.route('/api/ai/status', methods=['GET'])
 def ai_status():
     try:
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
-        response = requests.post(FIREWORKS_URL, headers=headers, json={'model': ACTIVE_MODEL, 'messages': [{'role': 'user', 'content': 'OK'}], 'max_tokens': 5}, timeout=15)
+        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_API_KEY}'}
+        response = requests.post(GROQ_URL, headers=headers, json={'model': ACTIVE_MODEL, 'messages': [{'role': 'user', 'content': 'OK'}], 'max_tokens': 5}, timeout=15)
         return jsonify({'status': 'online' if response.status_code == 200 else 'error', 'model': ACTIVE_MODEL})
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)})
@@ -476,9 +479,9 @@ def ai_analyze_document():
         ext = file.filename.lower().split('.')[-1]
         mime = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}.get(ext, 'image/jpeg')
         prompt = 'Extrais les informations de ce document concurrent. REPONDS en JSON: {"nom_client": "", "adresse": "", "ville": "", "telephone": "", "services": "", "prix_concurrent": 0}'
-        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {FIREWORKS_API_KEY}'}
+        headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {GROQ_API_KEY}'}
         payload = {'model': QWEN_VL_MODEL, 'messages': [{'role': 'user', 'content': [{'type': 'text', 'text': prompt}, {'type': 'image_url', 'image_url': {'url': f'data:{mime};base64,{file_data}'}}]}], 'max_tokens': 2048, 'temperature': 0.2}
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=120)
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=120)
         if response.status_code != 200:
             return jsonify({'error': f'Erreur: {response.status_code}'}), 500
         result = response.json()

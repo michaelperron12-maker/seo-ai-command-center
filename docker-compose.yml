@@ -1,48 +1,47 @@
 version: '3.8'
-
-# SEO par AI - Infrastructure Self-Hosted
-# n8n + API + Reverse Proxy (interne seulement)
-
 services:
-  # ═══════════════════════════════════════
-  # n8n - Workflow Automation (NOT public)
-  # ═══════════════════════════════════════
   n8n:
     image: n8nio/n8n:latest
     container_name: seo-agent-n8n
     restart: unless-stopped
     environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER:-admin}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASS:-seoparai2024}
-      - DB_TYPE=sqlite
-      - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
-      - GENERIC_TIMEZONE=America/Montreal
-      - N8N_LOG_LEVEL=info
-      - N8N_METRICS=true
-      # Securite: pas d'execution de code arbitraire
-      - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
+    - N8N_HOST=0.0.0.0
+    - N8N_PORT=5678
+    - N8N_PROTOCOL=https
+    - WEBHOOK_URL=https://seoparai.com/n8n/
+    - N8N_EDITOR_BASE_URL=https://seoparai.com/n8n/
+    - N8N_BASIC_AUTH_ACTIVE=true
+    - N8N_BASIC_AUTH_USER=admin
+    - N8N_BASIC_AUTH_PASSWORD=SeoAI2026!
+    - N8N_SECURE_COOKIE=true
+    - N8N_USER_MANAGEMENT_DISABLED=false
+    - DB_TYPE=sqlite
+    - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
+    - GENERIC_TIMEZONE=America/Montreal
+    - N8N_LOG_LEVEL=info
+    - N8N_METRICS=true
+    - N8N_BLOCK_ENV_ACCESS_IN_NODE=true
+    - EXECUTIONS_DATA_MAX_AGE=168
+    - EXECUTIONS_DATA_PRUNE=true
     volumes:
-      - n8n_data:/home/node/.n8n
-      - /opt/seo-agent:/opt/seo-agent:ro
+    - n8n_data:/home/node/.n8n
+    - /opt/seo-agent:/opt/seo-agent:ro
     ports:
-      # BIND localhost SEULEMENT - pas expose publiquement
-      - "127.0.0.1:5678:5678"
+    - 127.0.0.1:5678:5678
     networks:
-      - seo-internal
+    - seo-internal
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      test:
+      - CMD
+      - wget
+      - -q
+      - --spider
+      - http://localhost:5678/healthz
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # ═══════════════════════════════════════
-  # API Backend (Flask)
-  # ═══════════════════════════════════════
+    extra_hosts:
+    - host.docker.internal:host-gateway
   api:
     build:
       context: ./opt/seo-agent
@@ -50,32 +49,34 @@ services:
     container_name: seo-agent-api
     restart: unless-stopped
     environment:
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
-      - DB_PATH=/opt/seo-agent/db/seo_brain.db
-      - CONFIG_PATH=/opt/seo-agent/config/config.yaml
+    - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
+    - DB_PATH=/opt/seo-agent/db/seo_brain.db
+    - CONFIG_PATH=/opt/seo-agent/config/config.yaml
     volumes:
-      - /opt/seo-agent/db:/opt/seo-agent/db
-      - /opt/seo-agent/config:/opt/seo-agent/config
-      - /opt/seo-agent/logs:/opt/seo-agent/logs
+    - /opt/seo-agent/db:/opt/seo-agent/db
+    - /opt/seo-agent/config:/opt/seo-agent/config
+    - /opt/seo-agent/logs:/opt/seo-agent/logs
     ports:
-      - "127.0.0.1:8002:8002"
+    - 127.0.0.1:8002:8002
     networks:
-      - seo-internal
+    - seo-internal
     depends_on:
       n8n:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/api/health"]
+      test:
+      - CMD
+      - curl
+      - -f
+      - http://localhost:8002/api/health
       interval: 30s
       timeout: 5s
       retries: 3
-
 volumes:
   n8n_data:
     driver: local
-
 networks:
   seo-internal:
     driver: bridge
-    internal: false  # false pour permettre acces internet (API calls)
+    internal: false

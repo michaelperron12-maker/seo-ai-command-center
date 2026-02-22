@@ -408,17 +408,20 @@ def cycle_business(sites):
         seeds = site.get('mots_cles_seed', [])
         log(f"── Site {i}: {site['nom']} ({domain})")
 
-        # SERP tracking — track keyword positions
-        for kw in seeds[:3]:
-            r = run_agent("SERPTracker", serp_agent.check_position, (kw, domain), 60, site_id)
-            stats["ok" if r["status"] == "success" else "fail"] += 1
+        # SERP tracking — track ALL keyword positions via GSC
+        r = run_agent("SERPTracker", serp_agent.track_all_keywords, (i,), 120, site_id)
+        stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Keyword gap analysis
         r = run_agent("KeywordGap", gap_agent.analyze_gap, (site_id, []), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
-        # Backlink monitoring
-        r = run_agent("BacklinkMonitor", blink_monitor.check_backlink_status, (site_id,), 90, site_id)
+        # Backlink discovery (real HTTP scan of cross-links)
+        r = run_agent("BacklinkDiscovery", blink_monitor.discover_backlinks, (i,), 120, site_id)
+        stats["ok" if r["status"] == "success" else "fail"] += 1
+
+        # Backlink monitoring (real HTTP status verification)
+        r = run_agent("BacklinkMonitor", blink_monitor.check_backlink_status, (i,), 120, site_id)
         stats["ok" if r["status"] == "success" else "fail"] += 1
 
         # Competitor watch

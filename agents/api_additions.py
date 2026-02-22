@@ -9,10 +9,13 @@ import requests
 from datetime import datetime
 
 # Fireworks API Configuration
-FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY", "fw_CbsGnsaL5NSi4wgasWhjtQ")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+FIREWORKS_API_KEY = os.getenv("FIREWORKS_API_KEY", "")
 FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions"
-QWEN_MODEL = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
-QWEN_VL_MODEL = "accounts/fireworks/models/qwen3-vl-235b-a22b-instruct"
+FIREWORKS_MODEL = "accounts/fireworks/models/llama-v3p3-70b-instruct"
+GROQ_VISION = "meta-llama/llama-4-scout-17b-16e-instruct"
 
 # ============================================
 # AI QWEN ENDPOINTS
@@ -38,11 +41,11 @@ def ai_chat():
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {FIREWORKS_API_KEY}"
+            "Authorization": f"Bearer {GROQ_API_KEY}"
         }
 
         payload = {
-            "model": QWEN_MODEL,
+            "model": GROQ_MODEL,
             "messages": [
                 {"role": "system", "content": system_prompts.get(context, system_prompts['general'])},
                 {"role": "user", "content": message}
@@ -51,7 +54,7 @@ def ai_chat():
             "temperature": 0.7
         }
 
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=60)
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
 
         if response.status_code != 200:
             return jsonify({'error': f'Erreur Fireworks: {response.status_code}'}), 500
@@ -124,11 +127,11 @@ REPONDS UNIQUEMENT en JSON valide:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {FIREWORKS_API_KEY}"
+            "Authorization": f"Bearer {GROQ_API_KEY}"
         }
 
         payload = {
-            "model": QWEN_VL_MODEL,
+            "model": GROQ_VISION,
             "messages": [
                 {
                     "role": "user",
@@ -142,7 +145,7 @@ REPONDS UNIQUEMENT en JSON valide:
             "temperature": 0.2
         }
 
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=120)
+        response = requests.post(GROQ_URL, headers=headers, json=payload, timeout=120)
 
         if response.status_code != 200:
             return jsonify({'error': f'Erreur Fireworks: {response.status_code}'}), 500
@@ -247,13 +250,13 @@ def ai_status():
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {FIREWORKS_API_KEY}"
+            "Authorization": f"Bearer {GROQ_API_KEY}"
         }
         response = requests.post(
             FIREWORKS_URL,
             headers=headers,
             json={
-                "model": QWEN_MODEL,
+                "model": GROQ_MODEL,
                 "messages": [{"role": "user", "content": "OK"}],
                 "max_tokens": 5
             },

@@ -22,6 +22,7 @@ import html as html_lib
 import subprocess
 from datetime import datetime
 from urllib.parse import quote
+import requests
 
 # Path setup
 BASE_DIR = '/opt/seo-agent'
@@ -1102,36 +1103,121 @@ def update_sitemap(site_id):
     return True
 
 
-def submit_to_google(url):
-    """Submit a URL to Google for indexing.
-
-    Note: Google deprecated the sitemap ping endpoint in June 2023.
-    This now uses the Search Console Indexing API if credentials are available,
-    otherwise it logs a reminder to submit manually via Search Console.
-    """
+def _refresh_google_token():
+    """Refresh Google OAuth2 access token from google_tokens.json."""
+    tokens_file = os.path.join(BASE_DIR, "google_tokens.json")
     try:
-        # Try Google Indexing API (requires service account JSON)
-        creds_path = os.path.join(BASE_DIR, 'google-indexing-credentials.json')
-        if os.path.isfile(creds_path):
-            import urllib.request
-            # Use Indexing API v3
-            api_url = "https://indexing.googleapis.com/v3/urlNotifications:publish"
-            payload = json.dumps({
-                "url": url,
-                "type": "URL_UPDATED"
-            }).encode('utf-8')
-            req = urllib.request.Request(api_url, data=payload, method='POST')
-            req.add_header('Content-Type', 'application/json')
-            # Note: needs OAuth2 token from service account — placeholder for now
-            log(f"Google Indexing API: credentials found but OAuth not configured yet for {url}", "INFO")
-            return False
+        with open(tokens_file) as f:
+            tokens = json.load(f)
 
-        # No credentials: log reminder
-        log(f"Google Indexing: submit manually via Search Console: {url}", "INFO")
-        return True
+        resp = requests.post("https://oauth2.googleapis.com/token", data={
+            "client_id": tokens.get("client_id"),
+            "client_secret": tokens.get("client_secret"),
+            "refresh_token": tokens.get("refresh_token"),
+            "grant_type": "refresh_token"
+        }, timeout=10)
+
+        if resp.status_code != 200:
+            log(f"Google token refresh failed: {resp.status_code} {resp.text[:200]}", "WARNING")
+            return None
+
+        new_token = resp.json().get("access_token")
+        # Persist refreshed token
+        tokens["access_token"] = new_token
+        with open(tokens_file, "w") as f:
+            json.dump(tokens, f, indent=2)
+
+        return new_token
+    except FileNotFoundError:
+        log("Google tokens file not found, skipping indexing", "WARNING")
+        return None
     except Exception as e:
-        log(f"Google indexing error: {e}", "WARNING")
-        return False
+        log(f"Google token refresh error: {e}", "WARNING")
+        return None
+
+
+def submit_to_google(url):
+    """Legacy single-URL submission (kept for backward compat)."""
+    results = submit_urls_to_google([url])
+    return results.get("submitted", 0) > 0
+
+
+def submit_urls_to_google(urls, domains=None):
+    """Submit multiple URLs to Google Indexing API + resubmit sitemaps.
+
+    Args:
+        urls: list of full URLs to submit for indexing
+        domains: optional set of domains to resubmit sitemaps for
+    Returns:
+        dict with submitted/failed counts
+    """
+    if not urls and not domains:
+        return {"submitted": 0, "failed": 0}
+
+    access_token = _refresh_google_token()
+    if not access_token:
+        log(f"Skipping Google Indexing for {len(urls)} URLs (no token)", "WARNING")
+        return {"submitted": 0, "failed": len(urls)}
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    submitted = 0
+    failed = 0
+
+    # Submit each URL to Indexing API
+    for url in urls:
+        try:
+            r = requests.post(
+                "https://indexing.googleapis.com/v3/urlNotifications:publish",
+                headers=headers,
+                json={"url": url, "type": "URL_UPDATED"},
+                timeout=10
+            )
+            if r.status_code == 200:
+                submitted += 1
+                log(f"Google Indexing API OK: {url}")
+            else:
+                failed += 1
+                log(f"Google Indexing API {r.status_code}: {url} -> {r.text[:150]}", "WARNING")
+        except Exception as e:
+            failed += 1
+            log(f"Google Indexing API error: {url} -> {e}", "WARNING")
+
+    # Resubmit sitemaps via Search Console API
+    if domains is None:
+        domains = set()
+        for u in urls:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(u)
+                domains.add(parsed.netloc)
+            except Exception:
+                pass
+
+    for domain in domains:
+        try:
+            site_url = f"https://{domain}/"
+            sitemap_url = f"https://{domain}/sitemap.xml"
+            encoded_site = quote(site_url, safe="")
+            encoded_sm = quote(sitemap_url, safe="")
+            r = requests.put(
+                f"https://www.googleapis.com/webmasters/v3/sites/{encoded_site}/sitemaps/{encoded_sm}",
+                headers=headers,
+                timeout=10
+            )
+            if r.status_code in (200, 204):
+                log(f"Sitemap resubmitted OK: {sitemap_url}")
+            else:
+                log(f"Sitemap resubmit {r.status_code}: {sitemap_url} -> {r.text[:150]}", "WARNING")
+        except Exception as e:
+            log(f"Sitemap resubmit error for {domain}: {e}", "WARNING")
+
+    log(f"Google Indexing: {submitted}/{len(urls)} URLs submitted, {failed} failed")
+    return {"submitted": submitted, "failed": failed}
+
 
 
 def add_internal_links(site_id):
@@ -1221,11 +1307,33 @@ def deploy_pending_articles(site_id=None, dry_run=False):
             update_blog_index(sid)
             update_sitemap(sid)
 
-        # Ping Google for each site
-        config = load_config()
-        for site in config.get('sites', []):
-            domain = site['domaine']
-            submit_to_google(f"https://{domain}/sitemap.xml")
+        # Collect deployed URLs and submit to Google Indexing API
+        deployed_urls = []
+        deployed_domains = set()
+        for sid in sites_updated:
+            sc = get_site_config(sid)
+            if sc:
+                domain = sc["domaine"]
+                deployed_domains.add(domain)
+                # Get recently published URLs from DB
+                try:
+                    conn = get_db()
+                    rows = conn.execute(
+                        "SELECT url_publiee FROM publications WHERE site_id=? AND statut='publie' ORDER BY published_at DESC LIMIT ?",
+                        (int(sid), deployed)
+                    ).fetchall()
+                    conn.close()
+                    for row in rows:
+                        if row["url_publiee"]:
+                            deployed_urls.append(row["url_publiee"])
+                except Exception as e:
+                    log(f"Error collecting deployed URLs for site {sid}: {e}", "WARNING")
+
+        if deployed_urls:
+            submit_urls_to_google(deployed_urls, deployed_domains)
+        elif deployed_domains:
+            log("No new article URLs, resubmitting sitemaps only")
+            submit_urls_to_google([], deployed_domains)
 
     log("=" * 60)
     log(f"BLOG DEPLOYER DONE: {deployed} deployed, {failed} failed, {len(articles) - deployed - failed} skipped")

@@ -16,7 +16,10 @@ import hashlib
 
 # Configuration
 DB_PATH = '/opt/seo-agent/db/seo_agent.db'
-FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+GROQ_MODEL = 'llama-3.3-70b-versatile'
+FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', '')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
 
 # Modeles disponibles - DeepSeek R1 pour meilleur raisonnement
@@ -25,7 +28,7 @@ QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
 LLAMA_MODEL = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
 
 # Modele actif - DeepSeek R1 pour qualite pro
-ACTIVE_MODEL = DEEPSEEK_R1
+ACTIVE_MODEL = GROQ_MODEL  # Was DEEPSEEK_R1 (Fireworks payant)
 
 # Ollama Local Config - Support DeepSeek + Qwen
 OLLAMA_URL = 'http://localhost:11434/api/generate'
@@ -43,30 +46,45 @@ def get_db():
     return sqlite3.connect(DB_PATH)
 
 def call_qwen(prompt, max_tokens=2000, system_prompt=None):
-    """Appel API Qwen via Fireworks"""
-    try:
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {FIREWORKS_API_KEY}'
-        }
-        messages = []
-        if system_prompt:
-            messages.append({'role': 'system', 'content': system_prompt})
-        messages.append({'role': 'user', 'content': prompt})
-
-        payload = {
-            'model': ACTIVE_MODEL,
-            'messages': messages,
-            'max_tokens': max_tokens,
-            'temperature': 0.7
-        }
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=120)
-        if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']
-        return None
-    except Exception as e:
-        print(f"Erreur Qwen: {e}")
-        return None
+    """Appel Groq (gratuit) avec fallback Fireworks"""
+    messages = []
+    if system_prompt:
+        messages.append({'role': 'system', 'content': system_prompt})
+    messages.append({'role': 'user', 'content': prompt})
+    # 1. Groq primary (GRATUIT)
+    if GROQ_API_KEY:
+        try:
+            r = requests.post(GROQ_URL, headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {GROQ_API_KEY}'
+            }, json={
+                'model': GROQ_MODEL,
+                'messages': messages,
+                'max_tokens': max_tokens,
+                'temperature': 0.7
+            }, timeout=120)
+            if r.status_code == 200:
+                return r.json()['choices'][0]['message']['content']
+            print(f"[agents_system] Groq {r.status_code}")
+        except Exception as e:
+            print(f"[agents_system] Groq error: {e}")
+    # 2. Fireworks fallback
+    if FIREWORKS_API_KEY:
+        try:
+            r = requests.post(FIREWORKS_URL, headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {FIREWORKS_API_KEY}'
+            }, json={
+                'model': LLAMA_MODEL,
+                'messages': messages,
+                'max_tokens': max_tokens,
+                'temperature': 0.7
+            }, timeout=120)
+            if r.status_code == 200:
+                return r.json()['choices'][0]['message']['content']
+        except Exception as e:
+            print(f"[agents_system] Fireworks fallback error: {e}")
+    return None
 
 def call_ollama(prompt, max_tokens=1000, use_deepseek=False):
     """
@@ -2218,14 +2236,17 @@ class GoogleAgent:
             client_secret=tokens.get('client_secret')
         )
 
-        if creds.expired and creds.refresh_token:
+        # Always force refresh - stored tokens don't carry expiry correctly
+        # Google access tokens last 60 min, so always refreshing is safe
+        if creds.refresh_token:
             try:
                 creds.refresh(Request())
                 self._save_tokens(creds)
                 log_agent(self.name, 'Token rafraichi automatiquement')
             except Exception as e:
                 log_agent(self.name, f'Erreur refresh token: {e}', level='ERROR')
-                return None
+                # Use existing token as fallback (might still work)
+                pass
 
         return {
             'Authorization': f'Bearer {creds.token}',
@@ -4504,58 +4525,105 @@ class SERPTrackerAgent:
 
     def check_position(self, keyword, domain):
         """
-        Verifie la position d'un domaine pour un mot-cle
-        Utilise l'IA pour simuler une recherche (en production: API SERP)
+        Verifie la position reelle d'un domaine pour un mot-cle
+        Utilise Google Search Console Search Analytics API (donnees reelles)
+        Fallback: retourne position 0 si pas de donnees GSC
         """
-        log_agent(self.name, f"Verification position: {keyword} pour {domain}")
-
-        # En production, utiliser une vraie API SERP comme:
-        # - SerpAPI, DataForSEO, Brightdata, etc.
-        # Pour la demo, on simule avec l'IA
-
-        prompt = f"""Simule un resultat de recherche Google pour le mot-cle "{keyword}" dans la region Quebec/Canada.
-
-DOMAINE CIBLE: {domain}
-
-Estime la position probable de ce domaine (1-100, ou 0 si non trouve dans le top 100).
-Considere:
-- La pertinence du domaine pour ce mot-cle
-- Le type de mot-cle (local, informatif, transactionnel)
-- La concurrence typique
-
-FORMAT JSON:
-{{
-    "keyword": "{keyword}",
-    "domain": "{domain}",
-    "estimated_position": 1-100 ou 0,
-    "confidence": "high|medium|low",
-    "top_3_results": ["site1.com", "site2.com", "site3.com"],
-    "serp_features": ["local_pack", "featured_snippet", "ads", "none"],
-    "difficulty": "easy|medium|hard"
-}}
-"""
+        log_agent(self.name, f"Verification position GSC: {keyword} pour {domain}")
 
         try:
-            response = call_qwen(prompt, 1000, "Tu es un expert SEO. Reponds en JSON valide.")
-            if response:
-                if '```json' in response:
-                    response = response.split('```json')[1].split('```')[0]
-                elif '```' in response:
-                    response = response.split('```')[1].split('```')[0]
-                return json.loads(response.strip())
-        except Exception as e:
-            log_agent(self.name, f"Erreur check position: {e}", "ERROR")
+            # Get OAuth headers from GoogleAgent
+            google_agent = GoogleAgent()
+            headers = google_agent._get_oauth_headers()
+            if not headers:
+                log_agent(self.name, "Impossible d'obtenir les credentials Google", "ERROR")
+                return self._fallback_position(keyword, domain)
 
-        # Fallback avec simulation
-        import random
+            # Format site URL for GSC API
+            site_url = f"https://{domain}/" if not domain.startswith('http') else domain
+            encoded_site = requests.utils.quote(site_url, safe='')
+
+            # Query Search Analytics API - last 28 days
+            end_date = datetime.now().strftime('%Y-%m-%d')
+            start_date = (datetime.now() - timedelta(days=28)).strftime('%Y-%m-%d')
+
+            api_url = f"https://www.googleapis.com/webmasters/v3/sites/{encoded_site}/searchAnalytics/query"
+
+            payload = {
+                "startDate": start_date,
+                "endDate": end_date,
+                "dimensions": ["query", "page"],
+                "dimensionFilterGroups": [{
+                    "filters": [{
+                        "dimension": "query",
+                        "operator": "contains",
+                        "expression": keyword.lower()
+                    }]
+                }],
+                "rowLimit": 5
+            }
+
+            response = requests.post(api_url, headers=headers, json=payload, timeout=15)
+
+            if response.status_code == 200:
+                data = response.json()
+                rows = data.get('rows', [])
+
+                if rows:
+                    best_row = rows[0]
+                    position = round(best_row.get('position', 0))
+                    clicks = best_row.get('clicks', 0)
+                    impressions = best_row.get('impressions', 0)
+                    ctr = best_row.get('ctr', 0)
+                    url_found = best_row.get('keys', ['', ''])[1] if len(best_row.get('keys', [])) > 1 else ''
+
+                    log_agent(self.name, f"GSC position reelle: {keyword} -> pos {position} ({impressions} imp, {clicks} clics)")
+
+                    return {
+                        'keyword': keyword,
+                        'domain': domain,
+                        'estimated_position': position,
+                        'confidence': 'high',
+                        'source': 'google_search_console',
+                        'clicks': clicks,
+                        'impressions': impressions,
+                        'ctr': round(ctr * 100, 2),
+                        'url_found': url_found,
+                        'top_3_results': [],
+                        'serp_features': [],
+                        'difficulty': 'unknown'
+                    }
+                else:
+                    log_agent(self.name, f"GSC: pas de donnees pour '{keyword}' sur {domain} (pas encore indexe/visible)")
+                    return self._fallback_position(keyword, domain)
+
+            elif response.status_code == 403:
+                log_agent(self.name, f"GSC 403: acces refuse pour {site_url}", "ERROR")
+                return self._fallback_position(keyword, domain)
+            else:
+                log_agent(self.name, f"GSC erreur {response.status_code}: {response.text[:200]}", "ERROR")
+                return self._fallback_position(keyword, domain)
+
+        except Exception as e:
+            log_agent(self.name, f"Erreur check_position GSC: {e}", "ERROR")
+            return self._fallback_position(keyword, domain)
+
+    def _fallback_position(self, keyword, domain):
+        """Retourne position 0 quand GSC n'a pas de donnees (pas indexe)"""
+        log_agent(self.name, f"Fallback: {keyword} sur {domain} - pas de donnees GSC (non indexe)")
         return {
             'keyword': keyword,
             'domain': domain,
-            'estimated_position': random.randint(5, 50),
-            'confidence': 'low',
+            'estimated_position': 0,
+            'confidence': 'none',
+            'source': 'no_data',
+            'clicks': 0,
+            'impressions': 0,
+            'ctr': 0,
+            'url_found': '',
             'top_3_results': [],
-            'serp_features': ['none'],
-            'difficulty': 'medium'
+            'serp_features': [],
+            'difficulty': 'unknown'
         }
 
     def track_all_keywords(self, client_id):
@@ -4581,7 +4649,7 @@ FORMAT JSON:
             old_position = kw.get('current_position', 0)
 
             # Sauvegarder le resultat
-            self._save_position(kw['id'], new_position, client_domain)
+            self._save_position(kw['id'], new_position, serp_result.get('url_found', '') or client_domain)
 
             # Detecter les changements significatifs
             if old_position and new_position:
@@ -6141,33 +6209,129 @@ class BacklinkMonitorAgent:
 
     def discover_backlinks(self, client_id):
         """
-        Decouvre les backlinks d'un client via analyse IA
-        (simulation - en production utiliser une API comme Ahrefs/Moz)
+        Decouvre les vrais backlinks pour un client
+        1. Verifie les cross-links entre nos sites
+        2. Utilise GSC Links API si disponible
+        3. Verifie chaque lien par HTTP
         """
-        log_agent(self.name, f"Decouverte backlinks pour client {client_id}")
+        log_agent(self.name, f"Decouverte backlinks reels pour client {client_id}")
 
         client_domain = self._get_client_domain(client_id)
         if not client_domain:
-            return {'error': 'Client non trouve'}
+            return {'success': False, 'error': 'Domaine client non trouve'}
 
-        # Generer estimation avec IA
-        backlinks = self._estimate_backlinks(client_domain)
+        discovered = []
 
-        # Sauvegarder les nouveaux backlinks
-        new_count = 0
-        for bl in backlinks:
-            if self._save_backlink(client_id, bl):
-                new_count += 1
-                self._create_alert(client_id, 'new_backlink', 'info',
-                                   f"Nouveau backlink de {bl.get('source_domain', '')}")
+        # Source 1: Cross-links from our own network
+        our_sites = {
+            1: 'deneigement-excellence.ca',
+            2: 'paysagiste-excellence.ca',
+            3: 'jcpeintre.com',
+            4: 'seoparai.com'
+        }
+
+        for site_id, domain in our_sites.items():
+            if domain == client_domain:
+                continue
+            pages_to_check = [f'https://{domain}/', f'https://{domain}/blog/']
+            for page_url in pages_to_check:
+                try:
+                    resp = requests.get(page_url, timeout=10, headers={'User-Agent': 'SeoAI-BacklinkChecker/1.0'})
+                    if resp.status_code == 200 and client_domain in resp.text:
+                        links = re.findall(
+                            r'href=["\x27](https?://' + re.escape(client_domain) + r'[^"\x27 ]*)["\x27\s]',
+                            resp.text
+                        )
+                        for link in set(links):
+                            discovered.append({
+                                'source_url': page_url,
+                                'target_url': link,
+                                'anchor_text': self._extract_anchor(resp.text, link),
+                                'source_domain': domain,
+                                'link_type': 'dofollow',
+                                'status': 'active',
+                                'verified': True
+                            })
+                except Exception as e:
+                    log_agent(self.name, f"Erreur scan {page_url}: {e}", "WARNING")
+
+        # Source 2: Try Google Search Console Links API
+        try:
+            google_agent = GoogleAgent()
+            headers_auth = google_agent._get_oauth_headers()
+            if headers_auth:
+                site_url = f'https://{client_domain}/'
+                encoded_site = requests.utils.quote(site_url, safe='')
+                links_url = f'https://www.googleapis.com/webmasters/v3/sites/{encoded_site}/links'
+                resp = requests.get(links_url, headers=headers_auth, timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for link in data.get('externalLinks', []):
+                        src = link.get('siteUrl', '')
+                        discovered.append({
+                            'source_url': src,
+                            'target_url': f'https://{client_domain}/',
+                            'anchor_text': '',
+                            'source_domain': src.replace('https://', '').replace('http://', '').rstrip('/'),
+                            'link_type': 'dofollow',
+                            'status': 'active',
+                            'verified': False
+                        })
+        except Exception as e:
+            log_agent(self.name, f"GSC links API: {e}", "WARNING")
+
+        # Save discovered backlinks to DB
+        saved = 0
+        for bl in discovered:
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO backlinks
+                    (client_id, source_url, source_domain, target_url, anchor_text,
+                     domain, link_type, status, first_seen, last_seen, last_checked,
+                     is_dofollow, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
+                            CURRENT_TIMESTAMP, 1, 1)
+                """, (
+                    client_id,
+                    bl['source_url'],
+                    bl['source_domain'],
+                    bl['target_url'],
+                    bl['anchor_text'],
+                    bl['source_domain'],
+                    bl['link_type'],
+                    bl['status']
+                ))
+                conn.commit()
+                conn.close()
+                saved += 1
+            except Exception as e:
+                log_agent(self.name, f"Erreur save backlink: {e}", "WARNING")
+
+        log_agent(self.name, f"Decouverte terminee: {len(discovered)} backlinks trouves, {saved} sauvegardes")
 
         return {
+            'success': True,
             'client_id': client_id,
             'domain': client_domain,
-            'backlinks_found': len(backlinks),
-            'new_backlinks': new_count,
-            'backlinks': backlinks
+            'discovered': len(discovered),
+            'saved': saved,
+            'backlinks': discovered
         }
+
+    def _extract_anchor(self, html, url):
+        """Extrait le texte d'ancrage d'un lien dans le HTML"""
+        try:
+            escaped = re.escape(url)
+            pattern = r'<a[^>]*href=["\x27]' + escaped + r'["\x27\s][^>]*>(.*?)</a>'
+            match = re.search(pattern, html, re.DOTALL | re.IGNORECASE)
+            if match:
+                anchor = re.sub(r'<[^>]+>', '', match.group(1)).strip()
+                return anchor[:200]
+        except:
+            pass
+        return ''
 
     def _get_client_domain(self, client_id):
         """Recupere le domaine du client"""
@@ -6184,165 +6348,179 @@ class BacklinkMonitorAgent:
                 return row[0]
         except Exception as e:
             import logging
-            logging.warning(f'_call_ai error: {e}')
-            return None
+            logging.warning(f'_get_client_domain error: {e}')
+        return None
 
     def _estimate_backlinks(self, domain):
-        """Estime les backlinks via IA"""
-        prompt = f"""Tu es un expert SEO. Estime les backlinks probables pour ce site:
-
-DOMAINE: {domain}
-
-Base sur le type de site, estime 10-15 backlinks typiques avec:
-- Domaine source
-- Type de lien (dofollow/nofollow)
-- Texte d'ancrage probable
-- Autorite estimee du domaine (1-100)
-- Score spam (0-100)
-
-FORMAT JSON:
-{{
-    "backlinks": [
-        {{
-            "source_domain": "example.com",
-            "source_url": "https://example.com/page",
-            "target_url": "https://{domain}/",
-            "anchor_text": "texte du lien",
-            "link_type": "dofollow|nofollow",
-            "domain_authority": 45,
-            "spam_score": 5,
-            "context": "type de page source"
-        }}
-    ]
-}}
-"""
-
-        try:
-            response = call_qwen(prompt, 2000)
-            if response:
-                if '```json' in response:
-                    response = response.split('```json')[1].split('```')[0]
-                data = json.loads(response.strip())
-                return data.get('backlinks', [])
-        except:
-            pass
-
+        """DEPRECATED - kept for backward compat, returns empty list"""
         return []
 
     def _save_backlink(self, client_id, backlink):
-        """Sauvegarde un backlink"""
-        try:
-            conn = get_db()
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT OR IGNORE INTO backlinks
-                (client_id, source_url, source_domain, target_url, anchor_text, link_type, domain_authority, spam_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                client_id,
-                backlink.get('source_url', ''),
-                backlink.get('source_domain', ''),
-                backlink.get('target_url', ''),
-                backlink.get('anchor_text', ''),
-                backlink.get('link_type', 'dofollow'),
-                backlink.get('domain_authority', 0),
-                backlink.get('spam_score', 0)
-            ))
-            inserted = cursor.rowcount > 0
-            conn.commit()
-            conn.close()
-            return inserted
-        except:
-            return False
+        """DEPRECATED - kept for backward compat"""
+        return False
 
     def _create_alert(self, client_id, alert_type, severity, message, backlink_id=None):
         """Cree une alerte backlink"""
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO backlink_alerts (client_id, alert_type, severity, message, backlink_id)
-                VALUES (?, ?, ?, ?, ?)
-            ''', (client_id, alert_type, severity, message, backlink_id))
+            cursor.execute(
+                'INSERT INTO backlink_alerts (client_id, alert_type, severity, message, backlink_id) VALUES (?, ?, ?, ?, ?)',
+                (client_id, alert_type, severity, message, backlink_id))
             conn.commit()
             conn.close()
         except:
             pass
 
+
     def check_backlink_status(self, client_id):
-        """Verifie le statut des backlinks existants"""
-        log_agent(self.name, f"Verification statut backlinks pour client {client_id}")
+        """Verifie le statut reel de tous les backlinks d'un client via HTTP"""
+        log_agent(self.name, f"Verification statut backlinks reel pour client {client_id}")
+
+        client_domain = self._get_client_domain(client_id)
 
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT id, source_url, source_domain, target_url, status, last_seen
-                FROM backlinks WHERE client_id = ? AND status = 'active'
-            ''', (client_id,))
+            cursor.execute(
+                'SELECT id, source_url, source_domain, target_url, status FROM backlinks WHERE client_id = ?',
+                (client_id,))
             backlinks = cursor.fetchall()
             conn.close()
-
-            results = {
-                'checked': len(backlinks),
-                'active': 0,
-                'lost': 0,
-                'issues': []
-            }
-
-            for bl in backlinks:
-                # Simulation - en production, faire un vrai check HTTP
-                # Ici on simule que 95% des backlinks sont toujours actifs
-                import random
-                if random.random() > 0.95:
-                    # Backlink perdu
-                    self._mark_backlink_lost(bl[0], client_id)
-                    results['lost'] += 1
-                    results['issues'].append({
-                        'backlink_id': bl[0],
-                        'source': bl[2],
-                        'issue': 'Backlink perdu'
-                    })
-                else:
-                    self._update_last_seen(bl[0])
-                    results['active'] += 1
-
-            return results
         except Exception as e:
-            return {'error': str(e)}
+            return {'success': False, 'error': str(e)}
+
+        if not backlinks:
+            # Try discovering first
+            self.discover_backlinks(client_id)
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                cursor.execute(
+                    'SELECT id, source_url, source_domain, target_url, status FROM backlinks WHERE client_id = ?',
+                    (client_id,))
+                backlinks = cursor.fetchall()
+                conn.close()
+            except:
+                backlinks = []
+            if not backlinks:
+                return {'success': True, 'message': 'Aucun backlink a verifier', 'checked': 0}
+
+        results = []
+        alerts = []
+
+        for bl in backlinks:
+            bl_id = bl[0]
+            source_url = bl[1] or ''
+            source_domain = bl[2] or ''
+            target_url = bl[3] or ''
+            old_status = bl[4] or 'unknown'
+
+            if not source_url:
+                continue
+
+            # Real HTTP check
+            new_status = 'active'
+            try:
+                resp = requests.get(source_url, timeout=15, headers={'User-Agent': 'SeoAI-BacklinkChecker/1.0'})
+                if resp.status_code == 200:
+                    if client_domain and client_domain in resp.text:
+                        new_status = 'active'
+                    elif target_url and target_url in resp.text:
+                        new_status = 'active'
+                    else:
+                        new_status = 'lost'
+                elif resp.status_code == 404:
+                    new_status = 'lost'
+                elif resp.status_code == 403:
+                    new_status = 'unknown'
+                else:
+                    new_status = 'unknown'
+            except requests.exceptions.Timeout:
+                new_status = 'unknown'
+            except Exception as e:
+                new_status = 'unknown'
+                log_agent(self.name, f"Erreur check {source_url}: {e}", "WARNING")
+
+            # Update DB
+            try:
+                conn = get_db()
+                cursor = conn.cursor()
+                is_active = 1 if new_status == 'active' else 0
+                cursor.execute(
+                    "UPDATE backlinks SET status = ?, is_active = ?, last_seen = CURRENT_TIMESTAMP, last_checked = CURRENT_TIMESTAMP WHERE id = ?",
+                    (new_status, is_active, bl_id))
+
+                # Save to history
+                cursor.execute(
+                    "INSERT INTO backlink_history (client_id, backlink_id, event_type, details, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                    (client_id, bl_id, new_status, f'HTTP check: {new_status}'))
+
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                log_agent(self.name, f"Erreur update backlink: {e}", "WARNING")
+
+            # Create alert if status changed
+            if old_status != new_status:
+                if new_status == 'lost':
+                    self._create_alert(client_id, 'lost_backlink', 'warning',
+                                       f'Backlink perdu: {source_url}', bl_id)
+                    alerts.append({'type': 'lost', 'source': source_url, 'target': target_url})
+                elif old_status == 'lost' and new_status == 'active':
+                    self._create_alert(client_id, 'recovered_backlink', 'info',
+                                       f'Backlink recupere: {source_url}', bl_id)
+                    alerts.append({'type': 'recovered', 'source': source_url, 'target': target_url})
+
+            results.append({
+                'source_url': source_url,
+                'target_url': target_url,
+                'old_status': old_status,
+                'new_status': new_status
+            })
+
+        active_count = len([r for r in results if r['new_status'] == 'active'])
+        lost_count = len([r for r in results if r['new_status'] == 'lost'])
+
+        log_agent(self.name, f"Verification terminee: {len(results)} backlinks, {active_count} actifs, {lost_count} perdus")
+
+        return {
+            'success': True,
+            'client_id': client_id,
+            'checked': len(results),
+            'active': active_count,
+            'lost': lost_count,
+            'alerts': alerts,
+            'results': results
+        }
 
     def _mark_backlink_lost(self, backlink_id, client_id):
-        """Marque un backlink comme perdu"""
+        """Marque un backlink comme perdu (legacy, kept for compat)"""
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute('UPDATE backlinks SET status = ? WHERE id = ?', ('lost', backlink_id))
-
-            # Historique
-            cursor.execute('''
-                INSERT INTO backlink_history (client_id, backlink_id, event_type, details)
-                VALUES (?, ?, 'lost', 'Backlink non detecte')
-            ''', (client_id, backlink_id))
-
+            cursor.execute('UPDATE backlinks SET status = ?, is_active = 0 WHERE id = ?', ('lost', backlink_id))
+            cursor.execute(
+                "INSERT INTO backlink_history (client_id, backlink_id, event_type, details) VALUES (?, ?, 'lost', 'Backlink non detecte')",
+                (client_id, backlink_id))
             conn.commit()
             conn.close()
-
-            # Alerte
             self._create_alert(client_id, 'lost_backlink', 'warning',
                                'Un backlink a ete perdu', backlink_id)
         except:
             pass
 
     def _update_last_seen(self, backlink_id):
-        """Met a jour la date de derniere verification"""
+        """Met a jour la date de derniere verification (legacy, kept for compat)"""
         try:
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute('UPDATE backlinks SET last_seen = CURRENT_TIMESTAMP WHERE id = ?', (backlink_id,))
+            cursor.execute('UPDATE backlinks SET last_seen = CURRENT_TIMESTAMP, last_checked = CURRENT_TIMESTAMP WHERE id = ?', (backlink_id,))
             conn.commit()
             conn.close()
         except:
             pass
+
 
     def get_backlinks(self, client_id, status=None, limit=100):
         """Recupere les backlinks d'un client"""

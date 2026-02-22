@@ -15,9 +15,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 DB_PATH = '/opt/seo-agent/db/seo_agent.db'
-FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+GROQ_MODEL = 'llama-3.3-70b-versatile'
+FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', '')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
-DEEPSEEK_MODEL = 'accounts/fireworks/models/deepseek-r1-0528'
+FIREWORKS_MODEL = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
 ADMIN_EMAIL = 'michaelperron12@gmail.com'
 SCANNER_FROM = 'scanner@seoparai.com'
 
@@ -94,47 +97,73 @@ def send_report_email(to_email, domain, grade, score, html_report):
         return False
 
 
-def get_ai_analysis(domain, grade, scores, top_fails):
-    try:
-        fails_text = '\n'.join(['- ' + f['check'] + ': ' + f['recommendation'] for f in top_fails[:5]])
-        prompt = (
-            'Tu es un expert SEO et AI-readiness. Analyse ces resultats de scan pour ' + domain + ' et donne exactement 5 recommandations personnalisees.\n\n'
-            'Note globale: ' + grade + ' (' + str(scores.get('total', 0)) + '%)\n'
-            'SEO Classique: ' + str(scores.get('seo_classic', 0)) + '%\n'
-            'SEO Technique: ' + str(scores.get('seo_technique', 0)) + '%\n'
-            'AI-Readiness: ' + str(scores.get('ai_readiness', 0)) + '%\n'
-            'Qualite Contenu: ' + str(scores.get('content_quality', 0)) + '%\n\n'
-            'Problemes principaux:\n' + fails_text + '\n\n'
-            'Reponds en JSON strict:\n'
-            '{"recommendations": ["rec1", "rec2", "rec3", "rec4", "rec5"], "priority_action": "action immediate", "competitive_insight": "insight competitif"}'
-        )
-        headers = {'Authorization': 'Bearer ' + FIREWORKS_API_KEY, 'Content-Type': 'application/json'}
-        payload = {'model': DEEPSEEK_MODEL, 'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 2000, 'temperature': 0.3}
+def _parse_ai_json(raw_content):
+    """Parse JSON from AI response, handling markdown fences and think blocks."""
+    content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+    # First try: find JSON block in markdown code fence
+    code_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
+    if code_match:
+        return json.loads(code_match.group(1))
+    # Second try: find any JSON object with recommendations key
+    json_match = re.search(r'(\{[^{}]*"recommendations"\s*:\s*\[[^\]]*\][^}]*\})', content, re.DOTALL)
+    if json_match:
+        return json.loads(json_match.group(1))
+    # Third try: parse the whole content as JSON
+    clean = content.strip()
+    if clean.startswith('```'):
+        clean = clean.split('\n', 1)[1].rsplit('```', 1)[0].strip()
+    return json.loads(clean)
 
-        resp = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=60)
-        if resp.status_code == 200:
-            content = resp.json()['choices'][0]['message']['content']
-            # Strip DeepSeek R1 <think>...</think> reasoning block
-            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
-            print('[AI] Response after stripping think: ' + content[:200])
-            # Try to extract JSON from response
-            # First try: find JSON block in markdown code fence
-            code_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
-            if code_match:
-                return json.loads(code_match.group(1))
-            # Second try: find any JSON object with recommendations key
-            json_match = re.search(r'(\{[^{}]*"recommendations"\s*:\s*\[[^\]]*\][^}]*\})', content, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group(1))
-            # Third try: parse the whole content as JSON
-            clean = content.strip()
-            if clean.startswith('```'):
-                clean = clean.split('\n', 1)[1].rsplit('```', 1)[0].strip()
-            return json.loads(clean)
-        return None
-    except Exception as e:
-        print('[AI] Error: ' + str(e))
-        return None
+
+def get_ai_analysis(domain, grade, scores, top_fails):
+    """AI analysis with Groq primary (free) + Fireworks fallback."""
+    fails_text = '\n'.join(['- ' + f['check'] + ': ' + f['recommendation'] for f in top_fails[:5]])
+    prompt = (
+        'Tu es un expert SEO et AI-readiness. Analyse ces resultats de scan pour ' + domain + ' et donne exactement 5 recommandations personnalisees.\n\n'
+        'Note globale: ' + grade + ' (' + str(scores.get('total', 0)) + '%)\n'
+        'SEO Classique: ' + str(scores.get('seo_classic', 0)) + '%\n'
+        'SEO Technique: ' + str(scores.get('seo_technique', 0)) + '%\n'
+        'AI-Readiness: ' + str(scores.get('ai_readiness', 0)) + '%\n'
+        'Qualite Contenu: ' + str(scores.get('content_quality', 0)) + '%\n\n'
+        'Problemes principaux:\n' + fails_text + '\n\n'
+        'Reponds en JSON strict:\n'
+        '{"recommendations": ["rec1", "rec2", "rec3", "rec4", "rec5"], "priority_action": "action immediate", "competitive_insight": "insight competitif"}'
+    )
+    messages = [{'role': 'user', 'content': prompt}]
+
+    # 1. Groq primary (GRATUIT - llama-3.3-70b-versatile)
+    if GROQ_API_KEY:
+        try:
+            headers = {'Authorization': 'Bearer ' + GROQ_API_KEY, 'Content-Type': 'application/json'}
+            payload = {'model': GROQ_MODEL, 'messages': messages, 'max_tokens': 2000, 'temperature': 0.3}
+            resp = requests.post(GROQ_URL, headers=headers, json=payload, timeout=60)
+            if resp.status_code == 200:
+                content = resp.json()['choices'][0]['message']['content']
+                print('[AI-Groq] Response: ' + content[:200])
+                return _parse_ai_json(content)
+            else:
+                print('[AI-Groq] HTTP ' + str(resp.status_code) + ': ' + resp.text[:200])
+        except Exception as e:
+            print('[AI-Groq] Error: ' + str(e))
+
+    # 2. Fireworks fallback (llama-v3p3-70b-instruct)
+    if FIREWORKS_API_KEY:
+        try:
+            headers = {'Authorization': 'Bearer ' + FIREWORKS_API_KEY, 'Content-Type': 'application/json'}
+            payload = {'model': FIREWORKS_MODEL, 'messages': messages, 'max_tokens': 2000, 'temperature': 0.3}
+            resp = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=60)
+            if resp.status_code == 200:
+                content = resp.json()['choices'][0]['message']['content']
+                print('[AI-Fireworks] Response: ' + content[:200])
+                return _parse_ai_json(content)
+            else:
+                print('[AI-Fireworks] HTTP ' + str(resp.status_code) + ': ' + resp.text[:200])
+        except Exception as e:
+            print('[AI-Fireworks] Error: ' + str(e))
+
+    print('[AI] Both Groq and Fireworks failed, returning None')
+    return None
+
 
 
 def _generate_fallback_ai(results, scores):

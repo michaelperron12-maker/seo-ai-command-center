@@ -12,9 +12,12 @@ from datetime import datetime
 
 # Configuration
 DB_PATH = '/opt/seo-agent/db/seo_agent.db'
-FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', 'fw_CbsGnsaL5NSi4wgasWhjtQ')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+GROQ_MODEL = 'llama-3.3-70b-versatile'
+FIREWORKS_API_KEY = os.getenv('FIREWORKS_API_KEY', '')
 FIREWORKS_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
-QWEN_MODEL = 'accounts/fireworks/models/qwen3-235b-a22b-instruct-2507'
+FIREWORKS_MODEL = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
 
 # Sites configuration
 SITES = {
@@ -27,30 +30,45 @@ def get_db():
     return sqlite3.connect(DB_PATH)
 
 def call_qwen(prompt, max_tokens=2500):
-    """Appel API Qwen via Fireworks"""
-    try:
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {FIREWORKS_API_KEY}'
-        }
-        payload = {
-            'model': QWEN_MODEL,
-            'messages': [
-                {'role': 'system', 'content': 'Tu es un expert en redaction SEO. Ecris du contenu optimise pour le referencement en francais canadien.'},
-                {'role': 'user', 'content': prompt}
-            ],
-            'max_tokens': max_tokens,
-            'temperature': 0.7
-        }
-        response = requests.post(FIREWORKS_URL, headers=headers, json=payload, timeout=120)
-        if response.status_code == 200:
-            return response.json()['choices'][0]['message']['content']
-        else:
-            print(f"Erreur API: {response.status_code}")
-            return None
-    except Exception as e:
-        print(f"Erreur Qwen: {e}")
-        return None
+    """Appel Groq (gratuit) avec fallback Fireworks"""
+    if GROQ_API_KEY:
+        try:
+            r = requests.post(GROQ_URL, headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {GROQ_API_KEY}'
+            }, json={
+                'model': GROQ_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': 'Tu es un expert en redaction SEO. Ecris du contenu optimise pour le referencement en francais canadien.'},
+                    {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': max_tokens,
+                'temperature': 0.7
+            }, timeout=120)
+            if r.status_code == 200:
+                return r.json()['choices'][0]['message']['content']
+            print(f"[content_agent] Groq {r.status_code}")
+        except Exception as e:
+            print(f"[content_agent] Groq error: {e}")
+    if FIREWORKS_API_KEY:
+        try:
+            r = requests.post(FIREWORKS_URL, headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {FIREWORKS_API_KEY}'
+            }, json={
+                'model': FIREWORKS_MODEL,
+                'messages': [
+                    {'role': 'system', 'content': 'Tu es un expert en redaction SEO.'},
+                    {'role': 'user', 'content': prompt}
+                ],
+                'max_tokens': max_tokens,
+                'temperature': 0.7
+            }, timeout=120)
+            if r.status_code == 200:
+                return r.json()['choices'][0]['message']['content']
+        except Exception as e:
+            print(f"[content_agent] Fireworks fallback error: {e}")
+    return None
 
 def get_keywords_for_site(site_id, limit=5):
     """Recupere les mots-cles prioritaires pour un site"""
